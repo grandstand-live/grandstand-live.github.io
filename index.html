@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="英超、西甲、意甲、德甲、法甲、欧冠、中超的实时赛程、比分、积分榜与主队动态">
+<meta name="description" content="Grandstand — 足球、F1、电竞、格斗、篮球的实时赛事板">
 <meta name="color-scheme" content="light dark">
 <style>
   html { padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
@@ -11,7 +11,7 @@
   img { max-width: 100%; }
   [hidden] { display: none !important; }
 </style>
-<title>七大联赛赛程板</title>
+<title>Grandstand</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@500;600;700&display=swap" rel="stylesheet">
@@ -118,12 +118,60 @@
     color: var(--muted);
   }
   h1 {
-    font-size: 25px;
+    font-family: var(--narrow);
+    font-size: 27px;
     font-weight: 700;
-    letter-spacing: -.01em;
-    margin: 2px 0 0;
+    letter-spacing: .06em;
+    margin: 0;
+    line-height: 1.1;
     text-wrap: balance;
   }
+  .head-row .eyebrow { margin-top: 4px; }
+  .sportnav {
+    display: flex;
+    gap: 2px;
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 3px;
+    margin-top: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sportnav::-webkit-scrollbar { display: none; }
+  .sportnav button {
+    flex: 0 0 auto;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 6px 15px;
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .sportnav button[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+  .sportnav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .soon {
+    text-align: center;
+    padding: 56px 20px;
+    color: var(--muted);
+  }
+  .soon .big {
+    font-family: var(--narrow);
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .soon p { margin: 0 auto; max-width: 30em; font-size: 13.5px; line-height: 1.7; }
   .head-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 6px; }
   .icon-btn {
     background: var(--surface);
@@ -499,6 +547,18 @@
   .sbar i { display: block; height: 5px; border-radius: 3px; min-width: 2px; }
   .sbar .lw i { background: var(--accent); }
   .sbar .rw i { background: var(--loss); }
+  .schips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .schip {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .schip b { color: var(--ink); font-weight: 600; }
+  .schip .sep { margin: 0 3px; opacity: .5; }
   .ev { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 12.5px; }
   .ev.away { flex-direction: row-reverse; text-align: right; }
   .ev .min { font-family: var(--narrow); font-weight: 700; color: var(--muted); min-width: 40px; }
@@ -570,19 +630,22 @@
   <header>
     <div class="head-row">
       <div>
-        <div class="eyebrow">Matchday · 实时</div>
-        <h1>七大联赛赛程板</h1>
+        <h1>GRANDSTAND</h1>
+        <div class="eyebrow" id="subtitle">实时赛事板 · 足球</div>
       </div>
       <div class="head-actions">
         <button class="icon-btn" id="refreshBtn" type="button" title="刷新"><span class="spin">↻</span></button>
         <button class="icon-btn" id="gearBtn" type="button">主队</button>
       </div>
     </div>
-    <div class="chips" id="chips"></div>
-    <div class="seg" role="tablist">
-      <button type="button" role="tab" data-tab="fixtures" aria-selected="true">赛程</button>
-      <button type="button" role="tab" data-tab="table" aria-selected="false">积分榜</button>
-      <button type="button" role="tab" data-tab="mine" aria-selected="false">我的球队<span class="badge" id="favCount">0</span></button>
+    <div class="sportnav" id="sportnav"></div>
+    <div id="footballHead">
+      <div class="chips" id="chips"></div>
+      <div class="seg" role="tablist">
+        <button type="button" role="tab" data-tab="fixtures" aria-selected="true">赛程</button>
+        <button type="button" role="tab" data-tab="table" aria-selected="false">积分榜</button>
+        <button type="button" role="tab" data-tab="mine" aria-selected="false">我的球队<span class="badge" id="favCount">0</span></button>
+      </div>
     </div>
   </header>
 
@@ -601,6 +664,7 @@
   <section id="panel-fixtures"></section>
   <section id="panel-table" hidden></section>
   <section id="panel-mine" hidden></section>
+  <section id="panel-soon" hidden></section>
 
   <footer>
     数据来自 ESPN 公共接口，每次打开都会重新拉取，比分和积分榜跟着比赛实时更新。有比赛正在进行时页面每分钟自动刷新一次。点一场比赛可以展开进球和红黄牌时间线、控球射门等全场数据、首发、伤病、裁判和赛前胜负预测。「我的球队」里有过去一周的战绩（含红黄牌）、接下来两周的赛程和俱乐部新闻。时间是你设备的本地时区。「开赛提醒」只在这个页面开着的时候才会响。
@@ -648,6 +712,13 @@
     'nottingham forest': '诺丁汉森林', 'sunderland': '桑德兰', 'tottenham': '热刺',
     'west ham': '西汉姆联', 'wolverhampton': '狼队', 'ipswich': '伊普斯维奇', 'leicester': '莱斯特城',
     'southampton': '南安普顿', 'sheffield united': '谢菲尔德联',
+    'hull': '赫尔城', 'coventry': '考文垂', 'middlesbrough': '米德尔斯堡',
+    'sheffield wednesday': '谢周三', 'west bromwich': '西布罗姆维奇', 'norwich': '诺维奇',
+    'watford': '沃特福德', 'stoke': '斯托克城', 'preston': '普雷斯顿', 'millwall': '米尔沃尔',
+    'swansea': '斯旺西', 'blackburn': '布莱克本', 'bristol city': '布里斯托尔城',
+    'cardiff': '卡迪夫城', 'derby': '德比郡', 'plymouth': '普利茅斯', 'portsmouth': '朴茨茅斯',
+    'queens park rangers': '女王公园巡游者', 'luton': '卢顿', 'wrexham': '雷克斯汉姆',
+    'charlton': '查尔顿', 'oxford united': '牛津联', 'birmingham': '伯明翰',
     'real madrid': '皇家马德里', 'barcelona': '巴塞罗那', 'atletico madrid': '马德里竞技',
     'athletic club': '毕尔巴鄂竞技', 'villarreal': '比利亚雷亚尔', 'real betis': '皇家贝蒂斯',
     'sevilla': '塞维利亚', 'valencia': '瓦伦西亚', 'real sociedad': '皇家社会', 'celta vigo': '塞尔塔',
@@ -762,6 +833,51 @@
   var timer = null;
 
   var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- sports ---------- */
+  var SPORTS = [
+    { id: 'football', name: '足球', ready: true, sub: '足球' },
+    { id: 'f1', name: 'F1', sub: 'F1', blurb: '排位赛和正赛时间、车手与车队积分榜、每站的圈速和进站。' },
+    { id: 'esports', name: '电竞', sub: '电竞', blurb: 'LOL、DOTA2、CS 的赛程、比分和战队排名。' },
+    { id: 'fight', name: '格斗', sub: '格斗', blurb: 'UFC 和拳击的赛事卡、对阵、称重结果和胜负记录。' },
+    { id: 'basketball', name: '篮球', sub: '篮球', blurb: 'NBA 和 CBA 的赛程、实时比分、球员数据和east/west 排名。' }
+  ];
+  var sport = lsGet('sport', 'football');
+  if (!SPORTS.some(function (s) { return s.id === sport; })) sport = 'football';
+
+  function renderSportNav() {
+    $('sportnav').innerHTML = SPORTS.map(function (s) {
+      return '<button type="button" data-sport="' + s.id + '" aria-pressed="' + (s.id === sport) + '">' +
+        s.name + '</button>';
+    }).join('');
+  }
+
+  function setSport(id) {
+    sport = id;
+    lsSet('sport', id);
+    renderSportNav();
+    var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
+    $('subtitle').textContent = '实时赛事板 · ' + s.sub;
+
+    var isFootball = id === 'football';
+    $('footballHead').hidden = !isFootball;
+    $('status').hidden = !isFootball;
+    $('settings').hidden = true;
+    $('panel-soon').hidden = isFootball;
+    $('gearBtn').hidden = !isFootball;
+    $('refreshBtn').hidden = !isFootball;
+
+    if (isFootball) {
+      setTab(tab);
+    } else {
+      $('panel-fixtures').hidden = true;
+      $('panel-table').hidden = true;
+      $('panel-mine').hidden = true;
+      $('panel-soon').innerHTML = '<div class="soon"><div class="big">' + esc(s.name) +
+        ' 还没接进来</div><p>' + esc(s.blurb || '') +
+        '<br><br>这些都能用同样的方式做出来，跟 Claude 说一声就行。</p></div>';
+    }
+  }
 
   /* ---------- header chrome ---------- */
   function renderChips() {
@@ -953,10 +1069,15 @@
       var min = (k.clock && k.clock.displayValue) || '';
       var side = String((k.team && k.team.id) || '') === String(homeId) ? '' : ' away';
       var who = evName(k);
-      if (k.scoringPlay || /^goal/i.test(type)) {
-        var extra = /own goal/i.test(k.text || '') ? '（乌龙）' : (/penalty/i.test(k.text || '') ? '（点球）' : '');
+      if (k.scoringPlay === true) {
+        // participants on a goal are [scorer, assister]
+        var parts = (k.participants || []).map(function (x) { return x.athlete && x.athlete.displayName; }).filter(Boolean);
+        var scorer = parts[0] || who || '进球';
+        var assist = parts[1] ? '（助攻 ' + parts[1] + '）' : '';
+        var extra = /own goal/i.test(k.text || '') ? '（乌龙）'
+          : (/penalt/i.test(type) || /converts the penalty/i.test(k.text || '') ? '（点球）' : '');
         goals.push('<div class="ev' + side + '"><span class="min">' + esc(min) + '</span><span>⚽ ' +
-          esc(who || '进球') + extra + '</span></div>');
+          esc(scorer) + extra + '<span style="color:var(--muted)">' + esc(assist) + '</span></span></div>');
       } else if (/card/i.test(type)) {
         var red = /red/i.test(type);
         cards.push('<div class="ev' + side + '"><span class="min">' + esc(min) + '</span><span><i class="' +
@@ -969,52 +1090,81 @@
     return html;
   }
 
-  var STAT_ROWS = [
+  // The handful people actually read get a two-colour bar; everything else
+  // rides along as a compact pill so the panel stays scannable.
+  var STAT_BARS = [
     ['possessionPct', '控球率', '%'],
     ['totalShots', '射门'],
     ['shotsOnTarget', '射正'],
     ['wonCorners', '角球'],
+    ['passPct', '传球成功率', '%']
+  ];
+  var STAT_PILLS = [
+    ['blockedShots', '封堵'],
+    ['totalCrosses', '传中'],
+    ['totalPasses', '传球'],
+    ['totalLongBalls', '长传'],
+    ['totalTackles', '抢断'],
+    ['interceptions', '拦截'],
+    ['totalClearance', '解围'],
+    ['offsides', '越位'],
     ['foulsCommitted', '犯规'],
     ['yellowCards', '黄牌'],
     ['redCards', '红牌'],
-    ['offsides', '越位'],
-    ['saves', '扑救'],
-    ['passPct', '传球成功率', '%']
+    ['saves', '扑救']
   ];
-  var STAT_SKIP_IF_ZERO = { redCards: 1, offsides: 1, wonCorners: 1 };
 
-  function statsHTML(boxTeams, homeId) {
+  function statsHTML(boxTeams, homeId, hColor, aColor) {
     if (!boxTeams || boxTeams.length < 2) return '';
-    function pick(id) {
-      var t = boxTeams.filter(function (x) { return String(x.team && x.team.id) === String(id); })[0];
+    function statsOf(entry) {
       var map = {};
-      ((t && t.statistics) || []).forEach(function (s) { map[s.name] = s.displayValue; });
+      ((entry && entry.statistics) || []).forEach(function (s) { map[s.name] = s.displayValue; });
       return map;
     }
-    var h = pick(homeId);
-    var other = boxTeams.filter(function (x) { return String(x.team && x.team.id) !== String(homeId); })[0];
-    var a = {};
-    ((other && other.statistics) || []).forEach(function (s) { a[s.name] = s.displayValue; });
+    var hEntry = boxTeams.filter(function (x) { return String(x.team && x.team.id) === String(homeId); })[0];
+    var aEntry = boxTeams.filter(function (x) { return String(x.team && x.team.id) !== String(homeId); })[0];
+    var h = statsOf(hEntry), a = statsOf(aEntry);
 
-    var rows = STAT_ROWS.map(function (r) {
-      var key = r[0], label = r[1], unit = r[2] || '';
-      if (!(key in h) && !(key in a)) return '';
+    function pair(key) {
+      if (!(key in h) && !(key in a)) return null;
       var hv = parseFloat(h[key]), av = parseFloat(a[key]);
       if (isNaN(hv)) hv = 0;
       if (isNaN(av)) av = 0;
-      if (STAT_SKIP_IF_ZERO[key] && hv === 0 && av === 0) return '';
-      // passPct comes back as a 0-1 ratio, possessionPct already as 0-100
-      if (key === 'passPct' || key === 'shotPct') { hv = hv <= 1 ? hv * 100 : hv; av = av <= 1 ? av * 100 : av; }
-      var sum = hv + av;
-      var hw = sum > 0 ? (hv / sum * 100) : 50;
-      var aw = sum > 0 ? (av / sum * 100) : 50;
-      var fmt = function (v) { return unit === '%' ? Math.round(v) + '%' : (Math.round(v * 10) / 10); };
-      return '<div class="stat"><span class="sv">' + fmt(hv) + '</span><span class="sl">' + label +
-        '</span><span class="sv r">' + fmt(av) + '</span>' +
-        '<span class="sbar"><span class="lw"><i style="width:' + hw.toFixed(1) + '%"></i></span>' +
-        '<span class="rw"><i style="width:' + aw.toFixed(1) + '%"></i></span></span></div>';
+      // passPct/shotPct come back as a 0-1 ratio; possessionPct already 0-100
+      if (key === 'passPct' || key === 'shotPct') {
+        if (hv <= 1) hv *= 100;
+        if (av <= 1) av *= 100;
+      }
+      return { h: hv, a: av };
+    }
+    function num(v, unit) { return unit === '%' ? Math.round(v) + '%' : String(Math.round(v * 10) / 10); }
+
+    var left = hColor ? '#' + hColor : 'var(--accent)';
+    var right = aColor ? '#' + aColor : 'var(--loss)';
+
+    var bars = STAT_BARS.map(function (r) {
+      var p = pair(r[0]);
+      if (!p || (p.h === 0 && p.a === 0)) return '';
+      var unit = r[2] || '';
+      var sum = p.h + p.a;
+      var hw = sum > 0 ? p.h / sum * 100 : 50;
+      return '<div class="stat"><span class="sv">' + num(p.h, unit) + '</span><span class="sl">' + r[1] +
+        '</span><span class="sv r">' + num(p.a, unit) + '</span>' +
+        '<span class="sbar"><span class="lw"><i style="width:' + hw.toFixed(1) + '%;background:' + left +
+        '"></i></span><span class="rw"><i style="width:' + (100 - hw).toFixed(1) + '%;background:' + right +
+        '"></i></span></span></div>';
     }).filter(Boolean);
-    return rows.length ? '<h4>全场数据</h4>' + rows.join('') : '';
+
+    var pills = STAT_PILLS.map(function (r) {
+      var p = pair(r[0]);
+      if (!p || (p.h === 0 && p.a === 0)) return '';
+      return '<span class="schip">' + r[1] + ' <b>' + num(p.h) + '</b><span class="sep">:</span><b>' +
+        num(p.a) + '</b></span>';
+    }).filter(Boolean);
+
+    if (!bars.length && !pills.length) return '';
+    return '<h4>全场数据</h4>' + bars.join('') +
+      (pills.length ? '<div class="schips">' + pills.join('') + '</div>' : '');
   }
 
   function impliedProb(ml) {
@@ -1043,7 +1193,8 @@
 
       // goals and cards, then the full match stats — only populated once it kicks off
       html += timelineHTML(data.keyEvents, homeId);
-      html += statsHTML(data.boxscore && data.boxscore.teams, homeId);
+      html += statsHTML(data.boxscore && data.boxscore.teams, homeId,
+        t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
 
       // win probability, from the sportsbook line (ESPN's predictor rarely covers soccer)
       var pick = (data.pickcenter && data.pickcenter[0]) || null;
@@ -1272,10 +1423,23 @@
           return t >= Date.now() - 3 * 3600000 && t <= until;
         }).sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
 
+        // an international break can leave the next two weeks nearly empty —
+        // top the list up so there is always something to look forward to
+        var allNext = ((future && future.events) || []).filter(function (e) {
+          return new Date(e.date).getTime() >= Date.now() - 3 * 3600000;
+        }).sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+        var extra = next.length < 3 ? allNext.slice(next.length, 3) : [];
+
         body += '<div class="sec-label">接下来两周</div>';
-        body += next.length
-          ? next.map(function (e) { return upcomingRow(e, f.id); }).join('')
-          : '<div class="fix"><span>接下来两周没有安排比赛</span></div>';
+        if (next.length) {
+          body += next.map(function (e) { return upcomingRow(e, f.id); }).join('');
+        } else {
+          body += '<div class="fix"><span>两周内没有安排比赛（多半是国家队比赛周）</span></div>';
+        }
+        if (extra.length) {
+          body += '<div class="sec-label">再往后</div>' +
+            extra.map(function (e) { return upcomingRow(e, f.id); }).join('');
+        }
 
         // --- club news, transfers flagged ---
         var arts = ((news && news.articles) || []).slice(0, 5);
@@ -1285,9 +1449,11 @@
             var link = a.links && a.links.web && a.links.web.href;
             var text = ((a.headline || '') + ' ' + (a.description || ''));
             var isTransfer = /transfer|signing|signs|sign |deal|loan|move|join|bid|contract|fee/i.test(text);
+            var desc = (a.description || '').trim();
+            if (desc === (a.headline || '').trim()) desc = '';
             return '<div class="news-item"><div class="hl">' + esc(a.headline || '') +
               (isTransfer ? '<span class="tag">转会</span>' : '') + '</div>' +
-              (a.description ? '<p>' + esc(a.description) + '</p>' : '') +
+              (desc ? '<p>' + esc(desc) + '</p>' : '') +
               (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">查看原文 →</a>' : '') + '</div>';
           }).join('');
         }
@@ -1352,8 +1518,11 @@
       (data.keyEvents || []).forEach(function (k) {
         var type = (k.type && k.type.text) || '';
         var isMine = String((k.team && k.team.id) || '') === String(job.teamId);
-        if (k.scoringPlay || /^goal/i.test(type)) {
-          if (isMine) scorers.push(evName(k) + ' ' + ((k.clock && k.clock.displayValue) || ''));
+        if (k.scoringPlay === true) {
+          if (isMine) {
+            var parts = (k.participants || []).map(function (x) { return x.athlete && x.athlete.displayName; }).filter(Boolean);
+            scorers.push((parts[0] || evName(k)) + ' ' + ((k.clock && k.clock.displayValue) || ''));
+          }
         } else if (/card/i.test(type)) {
           var red = /red/i.test(type);
           var item = { red: red, who: evName(k), min: (k.clock && k.clock.displayValue) || '' };
@@ -1441,6 +1610,11 @@
     if (!$('settings').hidden) renderPicker();
   });
 
+  $('sportnav').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-sport]');
+    if (b) setSport(b.dataset.sport);
+  });
+
   document.querySelector('.seg').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-tab]');
     if (b) setTab(b.dataset.tab);
@@ -1497,6 +1671,8 @@
 
   /* ---------- boot ---------- */
   renderChips();
+  renderSportNav();
+  setSport(sport);
   $('favCount').textContent = favorites.length;
   loadFixtures().then(checkKickoffs);
 })();

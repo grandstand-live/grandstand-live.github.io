@@ -299,6 +299,20 @@
     text-transform: uppercase;
   }
   .day-head .n { font-size: 12px; color: var(--muted); }
+  .day.past .day-head .d { color: var(--muted); }
+  .day.past .card { opacity: .88; }
+  .jump {
+    margin-left: auto;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 11.5px;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  .jump:hover { border-color: var(--hairline-strong); }
   .day-head .today {
     font-family: var(--narrow);
     font-size: 11px;
@@ -916,7 +930,7 @@
       $('status').textContent = '正在获取赛程…';
     }
     var days = [];
-    for (var i = -3; i <= 7; i++) days.push(i);
+    for (var i = -7; i <= 7; i++) days.push(i);
     return Promise.all(days.map(function (o) {
       return getJSON(API + 'site/v2/sports/soccer/' + league + '/scoreboard?dates=' + ymd(o));
     })).then(function (parts) {
@@ -974,6 +988,10 @@
     });
 
     host.innerHTML = groups.map(function (g) {
+      var isPast = g.items.every(function (it) {
+        var st = (teamsOf(it.ev).comp.status || {}).type || {};
+        return st.completed;
+      });
       var rows = g.items.map(function (it) {
         var t = teamsOf(it.ev);
         var status = (t.comp.status && t.comp.status.type) || {};
@@ -1002,18 +1020,28 @@
             '<span class="side away">' + crest(t.away.team) + '<span class="nm' + aDim + '">' + esc(aName) + '</span></span>' +
           '</button>';
       }).join('');
-      return '<div class="day">' +
+      return '<div class="day' + (isPast ? ' past' : '') + '"' +
+          (g.key === todayKey ? ' id="todayGroup"' : '') + '>' +
           '<div class="day-head"><span class="d">' + esc(g.label) + '</span>' +
             (g.key === todayKey ? '<span class="today">今天</span>' : '') +
-            '<span class="n">' + g.items.length + ' 场</span></div>' +
+            '<span class="n">' + g.items.length + ' 场' + (isPast ? ' · 已结束' : '') + '</span></div>' +
           '<div class="card">' + rows + '</div>' +
         '</div>';
     }).join('');
 
     var s = $('status');
+    var hasPast = !!host.querySelector('.day.past');
     s.innerHTML = (liveCount ? '<span class="dot"></span>' : '') +
       (liveCount ? liveCount + ' 场比赛进行中 · ' : '') + '更新于 ' +
-      new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) +
+      (hasPast && document.getElementById('todayGroup') ? '<button class="jump" type="button" id="jumpToday">跳到今天 ↓</button>' : '');
+    var jump = $('jumpToday');
+    if (jump) {
+      jump.addEventListener('click', function () {
+        var el = document.getElementById('todayGroup');
+        if (el) window.scrollTo({ top: el.offsetTop - 120, behavior: 'smooth' });
+      });
+    }
   }
 
   function scheduleAutoRefresh() {

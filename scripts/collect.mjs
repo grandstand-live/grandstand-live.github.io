@@ -226,13 +226,30 @@ async function collectCba() {
   }
   if (!season) throw new Error('no season for CBA');
 
-  let games = await getJSON(`${base}games?league=${leagueId}&season=${encodeURIComponent(season)}`, headers);
+  // API-Sports answers 200 with an `errors` object when a plan or a parameter is
+  // the problem, so surface that instead of silently showing an empty schedule.
+  const notes = [];
+  async function fetchSeason(value) {
+    const payload = await getJSON(
+      `${base}games?league=${leagueId}&season=${encodeURIComponent(value)}`, headers);
+    const errs = payload?.errors;
+    const errText = errs && (Array.isArray(errs) ? errs.join('; ')
+      : Object.entries(errs).map(([k, v]) => `${k}: ${v}`).join('; '));
+    if (errText) notes.push(`${value} -> ${errText}`);
+    else notes.push(`${value} -> ${payload?.results ?? 0} games`);
+    return payload;
+  }
+
+  let games = await fetchSeason(season);
   if (!(games?.response || []).length && /^\d{4}-\d{4}$/.test(season)) {
-    // a season that has not started yet returns nothing — show the previous one
+    // a season that has not started yet returns nothing — walk back a few years,
+    // which also covers a free plan that only exposes older seasons
     const [a, b] = season.split('-').map(Number);
-    const older = `${a - 1}-${b - 1}`;
-    const retry = await getJSON(`${base}games?league=${leagueId}&season=${older}`, headers);
-    if ((retry?.response || []).length) { games = retry; season = older; }
+    for (let back = 1; back <= 3; back++) {
+      const older = `${a - back}-${b - back}`;
+      const retry = await fetchSeason(older);
+      if ((retry?.response || []).length) { games = retry; season = older; break; }
+    }
   }
   const all = (games?.response || []).map(g => ({
     id: g.id,
@@ -254,7 +271,8 @@ async function collectCba() {
   });
   return {
     source: 'api-sports', league: leagueId, leagueName, season,
-    upcoming: value.upcoming.length, recent: value.recent.length
+    upcoming: value.upcoming.length, recent: value.recent.length,
+    tried: notes
   };
 }
 

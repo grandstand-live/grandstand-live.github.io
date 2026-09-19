@@ -4084,10 +4084,18 @@
           '<span class="vs-mid">vs</span>' + esc(cbaCN(g.away && g.away.name));
         return archiveRow(archiveWhen(g.start), title, { score: score, note: '' }, live);
       }
-      host.innerHTML =
+      var era = [new Date().getFullYear(), new Date().getFullYear() - 1].map(String);
+      var current = !d.season || d.season === '当季' ||
+        era.some(function (y) { return String(d.season).indexOf(y) !== -1; });
+      var banner = current ? '' :
+        '<div class="note">这是 ' + esc(d.season) + ' 赛季的比赛，不是当季。' +
+        '数据源的免费套餐只开放到 2024 赛季，当季需要付费才能读取。</div>';
+
+      host.innerHTML = banner +
         ((d.upcoming || []).length ? '<div class="group-name">接下来</div><div class="card">' +
           d.upcoming.slice(0, 20).map(row).join('') + '</div>' : '') +
-        ((d.recent || []).length ? '<div class="group-name">最近结果</div><div class="card">' +
+        ((d.recent || []).length ? '<div class="group-name">' +
+          (current ? '最近结果' : esc(d.season) + ' 赛季赛果') + '</div><div class="card">' +
           d.recent.slice(0, 20).map(row).join('') + '</div>' : '') +
         archiveFoot(d);
     });

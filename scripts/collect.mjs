@@ -193,7 +193,116 @@ const collectValorant = () => collectPanda('valorant', 'valorant.json');
 
 /* API-Sports gives 100 requests a day on the free plan, so the CBA is polled
    once an hour rather than on every five-minute tick. */
+/* The free API-Sports plan stops at the 2024 season, which is no use to a live
+   board. Try the sources Chinese sites use first — this runs on a US runner, so
+   a block or a timeout is a real possibility and is reported rather than hidden. */
+async function getText(url, headers = {}) {
+  const res = await fetch(url, {
+    headers: {
+      'user-agent': 'Mozilla/5.0 (compatible; grandstand-live/1.0)',
+      'accept': 'application/json, text/plain, */*',
+      ...headers
+    }
+  });
+  const body = await res.text();
+  return { status: res.status, body };
+}
+
+function ymdLocal(offsetDays) {
+  const d = new Date(Date.now() + offsetDays * 86400000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+/* Walk any JSON and collect objects that look like a fixture: two sides and a
+   time. Shapes differ per provider, so recognise the pattern, not the schema. */
+function harvestMatches(node, out = [], depth = 0) {
+  if (!node || depth > 6 || out.length > 200) return out;
+  if (Array.isArray(node)) {
+    for (const item of node) harvestMatches(item, out, depth + 1);
+    return out;
+  }
+  if (typeof node !== 'object') return out;
+
+  const keys = Object.keys(node);
+  const pick = re => keys.find(k => re.test(k));
+  const leftName = pick(/^(leftname|hostname|homename|team1|hometeam)$/i);
+  const rightName = pick(/^(rightname|guestname|awayname|team2|awayteam)$/i);
+  const when = pick(/^(starttime|matchtime|startdate|date|time)$/i);
+  if (leftName && rightName && when) {
+    const g = k => (k ? node[k] : undefined);
+    out.push({
+      raw: node,
+      start: g(when),
+      status: g(pick(/^(matchperiod|matchdesc|status|state)$/i)) || '',
+      home: { name: g(leftName), logo: g(pick(/^(leftbadge|leftlogo|homelogo)$/i)) || '',
+        score: g(pick(/^(leftgoal|homescore|hostscore|score1)$/i)) ?? null },
+      away: { name: g(rightName), logo: g(pick(/^(rightbadge|rightlogo|awaylogo)$/i)) || '',
+        score: g(pick(/^(rightgoal|awayscore|guestscore|score2)$/i)) ?? null },
+      league: g(pick(/^(leaguename|competitionname|matchname)$/i)) || ''
+    });
+    return out;
+  }
+  for (const k of keys) harvestMatches(node[k], out, depth + 1);
+  return out;
+}
+
+async function collectCbaChina(notes) {
+  const candidates = [
+    ['tencent', `https://matchweb.sports.qq.com/matchUnion/list?columnId=100000&startTime=${ymdLocal(-10)}&endTime=${ymdLocal(21)}`],
+    ['baidu', `https://tiyu.baidu.com/api/match/%E4%B8%AD%E5%9B%BD%E7%94%B7%E7%AF%AE/live/date/${ymdLocal(0)}/direction/after?showNum=40`]
+  ];
+  for (const [label, url] of candidates) {
+    try {
+      const { status, body } = await getText(url);
+      if (status !== 200 || !body) { notes.push(`${label} -> HTTP ${status}`); continue; }
+      let parsed;
+      try { parsed = JSON.parse(body); }
+      catch { notes.push(`${label} -> not JSON: ${body.slice(0, 120)}`); continue; }
+
+      const found = harvestMatches(parsed)
+        .filter(m => /CBA|男篮|中国男子篮球/i.test(`${m.league} ${m.home.name} ${m.away.name}`) || true);
+      if (!found.length) {
+        notes.push(`${label} -> 200 but no fixtures; keys: ${Object.keys(parsed).slice(0, 6).join(',')}`);
+        continue;
+      }
+      const cba = found.filter(m => /CBA/i.test(m.league || ''));
+      const use = cba.length ? cba : found;
+      notes.push(`${label} -> ${found.length} fixtures (${cba.length} tagged CBA)`);
+      return { source: label, matches: use.map(m => ({
+        start: m.start, status: m.status, league: m.league,
+        home: m.home, away: m.away
+      })) };
+    } catch (err) {
+      notes.push(`${label} -> ${String(err.message || err).slice(0, 90)}`);
+    }
+  }
+  return null;
+}
+
 async function collectCba() {
+  const notes = [];
+  const live = await collectCbaChina(notes);
+  if (live && live.matches.length) {
+    const nowMs = Date.now();
+    const shaped = live.matches.map(m => ({
+      start: m.start, status: m.status,
+      home: m.home, away: m.away
+    }));
+    const value = {
+      upcoming: shaped.filter(m => new Date(m.start).getTime() >= nowMs - 3 * 3600e3).slice(0, 30),
+      recent: shaped.filter(m => new Date(m.start).getTime() < nowMs - 3 * 3600e3).slice(-30).reverse()
+    };
+    await save('cba.json', {
+      updatedAt: new Date().toISOString(), source: live.source, season: '当季', ...value
+    });
+    return { source: live.source, upcoming: value.upcoming.length, recent: value.recent.length, tried: notes };
+  }
+  // nothing live available — fall back to whatever the API-Sports plan allows
+  const fallback = await collectCbaApiSports();
+  return { ...fallback, tried: [...notes, ...(fallback.tried || [])] };
+}
+
+async function collectCbaApiSports() {
   if (!APISPORTS) throw new Error('missing APISPORTS_KEY secret');
   const now = new Date();
   const previous = await load('cba.json');

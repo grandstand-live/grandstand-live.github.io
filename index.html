@@ -2055,7 +2055,9 @@
     'mexico': '墨西哥', 'méxico': '墨西哥', 'brazil': '巴西', 'são paulo': '圣保罗',
     'sao paulo': '圣保罗', 'las vegas': '拉斯维加斯', 'qatar': '卡塔尔', 'abu dhabi': '阿布扎比',
     'malaysian': '马来西亚', 'french': '法国', 'german': '德国', 'portuguese': '葡萄牙',
-    'turkish': '土耳其', 'russian': '俄罗斯', 'korean': '韩国', 'madrid': '马德里'
+    'turkish': '土耳其', 'russian': '俄罗斯', 'korean': '韩国', 'madrid': '马德里',
+    'barcelona': '巴塞罗那', 'catalunya': '加泰罗尼亚', 'malaysia': '马来西亚',
+    'mexico city': '墨西哥城', 'monaco': '摩纳哥'
   };
   var GP_KEYS = Object.keys(GP_CN).sort(function (a, b) { return b.length - a.length; });
   function gpName(name) {
@@ -2135,19 +2137,27 @@
         return;
       }
       evs = evs.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
-      var nextIdx = evs.findIndex(function (e) {
-        return !(e.status && e.status.type && e.status.type.completed);
-      });
+      // ESPN leaves `completed` false on a few past rounds, so go by the clock
+      var now = Date.now();
+      var nextIdx = -1;
+      for (var n = 0; n < evs.length; n++) {
+        var st = (evs[n].status && evs[n].status.type) || {};
+        var raceDate = new Date((raceOf(evs[n]) || {}).date || evs[n].date).getTime();
+        if (st.state !== 'post' && raceDate >= now - 6 * 3600000) { nextIdx = n; break; }
+      }
 
       host.innerHTML = '<div class="card">' + evs.map(function (ev, i) {
         var race = raceOf(ev) || {};
-        var done = ev.status && ev.status.type && ev.status.type.completed;
+        var state = (ev.status && ev.status.type && ev.status.type.state) || '';
+        var done = state === 'post';
         var d0 = new Date(race.date || ev.date);
         var winner = ((race.competitors || []).filter(function (c) { return c.winner; })[0]) ||
           (race.competitors || [])[0];
-        var right = done && winner && winner.athlete
-          ? '<span class="gp-win">' + flagImg(winner.athlete) +
-            esc(driverCN(winner.athlete.displayName)) + '</span>'
+        var right = done
+          ? (winner && winner.athlete
+              ? '<span class="gp-win">' + flagImg(winner.athlete) +
+                esc(driverCN(winner.athlete.displayName)) + '</span>'
+              : '<span class="gp-when">—</span>')
           : '<span class="gp-when">' + (isNaN(d0) ? '待定' : fmtTime(d0)) + '</span>';
         return '<button class="gp' + (i === nextIdx ? ' next' : '') + (done ? ' done' : '') +
             '" type="button" data-ev="' + esc(ev.id) + '"' + (i === nextIdx ? ' id="nextGp"' : '') + '>' +
@@ -2162,8 +2172,9 @@
 
       var s = $('status');
       s.innerHTML = '2026 赛季 · ' + evs.length + ' 站，已完赛 ' +
-        evs.filter(function (e) { return e.status && e.status.type && e.status.type.completed; }).length +
-        ' 站' + (nextIdx > 0 ? '<button class="jump" type="button" id="jumpNext">跳到下一站 ↓</button>' : '');
+        evs.filter(function (e) {
+          return e.status && e.status.type && e.status.type.state === 'post';
+        }).length + ' 站' + (nextIdx > 0 ? '<button class="jump" type="button" id="jumpNext">跳到下一站 ↓</button>' : '');
       var jump = $('jumpNext');
       if (jump) jump.addEventListener('click', function () {
         var el = $('nextGp');
@@ -2193,6 +2204,9 @@
       }
       var race = raceOf(ev);
       var finished = !!(ev.status && ev.status.type && ev.status.type.completed);
+      if (!finished && ev.status && ev.status.type && ev.status.type.state === 'post') {
+        html += '<div class="kv" style="margin-top:10px"><span>这一站官方没有提供成绩数据。</span></div>';
+      }
       if (finished) html += '<h4>正赛成绩</h4><div id="res-' + esc(id) + '">' +
         '<div class="skeleton" style="padding:12px 0">正在获取成绩…</div></div>';
       if (ev.circuit) {

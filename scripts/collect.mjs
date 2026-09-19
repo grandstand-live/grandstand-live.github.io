@@ -199,10 +199,17 @@ async function collectCba() {
   // straight away, while a current season that simply has no fixtures yet waits.
   const era = [now.getFullYear(), now.getFullYear() - 1].map(String);
   const seasonLooksCurrent = era.some(y => String(previous?.season || '').includes(y));
-  const recentlyPolled = previous?.updatedAt &&
-    (now - new Date(previous.updatedAt)) < 55 * 60 * 1000;
-  if (recentlyPolled && seasonLooksCurrent) {
-    return { source: previous.source, season: previous.season, skipped: 'polled within the hour' };
+  const hasGames = ((previous?.upcoming || []).length + (previous?.recent || []).length) > 0;
+  const age = previous?.updatedAt ? now - new Date(previous.updatedAt) : Infinity;
+  // A good answer is cached for an hour. An empty one is retried, but only every
+  // three hours, so a league that is simply between seasons cannot drain the
+  // 100-calls-a-day quota. A stale season is always re-fetched at once.
+  const holdFor = hasGames ? 55 * 60 * 1000 : 3 * 60 * 60 * 1000;
+  if (seasonLooksCurrent && age < holdFor) {
+    return {
+      source: previous.source, season: previous.season,
+      skipped: hasGames ? 'polled within the hour' : 'empty, waiting 3h before retry'
+    };
   }
 
   const headers = { 'x-apisports-key': APISPORTS };

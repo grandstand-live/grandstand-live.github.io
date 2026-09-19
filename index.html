@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Grandstand — 足球、篮球、F1、格斗、电竞的实时赛事板">
+<meta name="description" content="Grandstand — 足球、篮球、F1、电竞的实时赛程、比分与排名">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#12564A">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -636,6 +636,17 @@
     color: var(--muted); min-width: 16px;
   }
   .pk-team { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .lol-code {
+    font-family: var(--narrow); font-size: 15px; font-weight: 700;
+    letter-spacing: .04em; color: var(--ink);
+  }
+  .lol-code.dim { color: var(--muted); font-weight: 600; }
+  .lol-code.win { color: var(--ink); }
+  .lol-full {
+    display: block; font-size: 11px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  td.tm .lol-full { margin-left: 0; }
   .vs-mid { color: var(--muted); font-weight: 400; margin: 0 3px; }
   .fix.live-row { background: linear-gradient(90deg, var(--live-soft), transparent 70%); }
   .group-name .dot { margin-right: 6px; vertical-align: 1px; }
@@ -1031,10 +1042,10 @@
   var SPORTS = [
     { id: 'today', name: '今天', ready: true, sub: '今天' },
     { id: 'football', name: '足球', ready: true, sub: '足球' },
-    { id: 'basketball', name: '篮球', sub: '篮球', blurb: 'NBA 和 CBA 的赛程、实时比分、球员数据和东西部排名。' },
+    { id: 'basketball', name: '篮球', ready: true, sub: 'NBA' },
     { id: 'f1', name: 'F1', ready: true, sub: 'F1' },
     { id: 'fight', name: '格斗', sub: '格斗', blurb: 'UFC 和拳击的赛事卡、对阵、称重结果和胜负记录。' },
-    { id: 'esports', name: '电竞', sub: '电竞', blurb: 'LOL、DOTA2、CS 的赛程、比分和战队排名。' }
+    { id: 'esports', name: '电竞', ready: true, sub: '英雄联盟' }
   ];
   var sport = lsGet('sport', 'today');
   if (!SPORTS.some(function (s) { return s.id === sport; })) sport = 'football';
@@ -1052,12 +1063,13 @@
     renderSportNav();
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
     $('subtitle').textContent = '实时赛事板 · ' + s.sub;
-    $('gearBtn').textContent = id === 'f1' ? '车手' : '主队';
+    $('gearBtn').textContent = id === 'f1' ? '车手' : (id === 'esports' ? '战队' : '主队');
 
     var ready = !!s.ready;
     var isToday = id === 'today';
     $('footballHead').hidden = !ready || isToday;
-    $('chips').hidden = id !== 'football';
+    $('chips').hidden = (id !== 'football' && id !== 'esports');
+    if (id === 'football') renderChips();
     $('status').hidden = !ready || isToday;
     $('settings').hidden = true;
     $('panel-soon').hidden = ready;
@@ -1092,7 +1104,9 @@
   }
   var TABS = {
     football: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的球队']],
-    f1: [['fixtures', '赛历'], ['table', '积分榜'], ['mine', '我的车手']]
+    f1: [['fixtures', '赛历'], ['table', '积分榜'], ['mine', '我的车手']],
+    basketball: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的球队']],
+    esports: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的战队']]
   };
   function renderSegTabs() {
     var defs = TABS[sport] || TABS.football;
@@ -1122,6 +1136,18 @@
       if (next === 'fixtures') renderF1Fixtures();
       else if (next === 'table') renderF1Table();
       else renderMyDrivers();
+      return;
+    }
+    if (sport === 'esports') {
+      if (next === 'fixtures') renderLolFixtures();
+      else if (next === 'table') renderLolTable();
+      else renderLolMine();
+      return;
+    }
+    if (sport === 'basketball') {
+      if (next === 'fixtures') renderNbaFixtures();
+      else if (next === 'table') renderNbaTable();
+      else renderNbaMine();
       return;
     }
     if (next === 'table') loadStandings();
@@ -2944,6 +2970,607 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
 
+  /* ---------- NBA ---------- */
+  var NBA = 'site/v2/sports/basketball/nba/';
+  var NBA_CN = {
+    'hawks': '老鹰', 'celtics': '凯尔特人', 'nets': '篮网', 'hornets': '黄蜂', 'bulls': '公牛',
+    'cavaliers': '骑士', 'mavericks': '独行侠', 'nuggets': '掘金', 'pistons': '活塞',
+    'warriors': '勇士', 'rockets': '火箭', 'pacers': '步行者', 'clippers': '快船',
+    'lakers': '湖人', 'grizzlies': '灰熊', 'heat': '热火', 'bucks': '雄鹿',
+    'timberwolves': '森林狼', 'pelicans': '鹈鹕', 'knicks': '尼克斯', 'thunder': '雷霆',
+    'magic': '魔术', '76ers': '76人', 'suns': '太阳', 'trail blazers': '开拓者',
+    'kings': '国王', 'spurs': '马刺', 'raptors': '猛龙', 'jazz': '爵士', 'wizards': '奇才'
+  };
+  var NBA_KEYS = Object.keys(NBA_CN).sort(function (a, b) { return b.length - a.length; });
+  function nbaCN(name, fallback) {
+    var low = plain(name || '');
+    for (var i = 0; i < NBA_KEYS.length; i++) {
+      if (low.indexOf(NBA_KEYS[i]) !== -1) return NBA_CN[NBA_KEYS[i]];
+    }
+    return fallback || name || '';
+  }
+
+  var nbaCache = {};
+  var favNba = lsGet('favNba', []);
+  var MAX_NBA = 5;
+
+  function nbaDay(ymdStr) {
+    var key = 'd' + ymdStr;
+    if (nbaCache[key]) return Promise.resolve(nbaCache[key]);
+    return getJSON(API + NBA + 'scoreboard?dates=' + ymdStr).then(function (d) {
+      if (d) nbaCache[key] = d;
+      return d || {};
+    });
+  }
+
+  // Out of season ESPN's default scoreboard points at the next day with games,
+  // so use that as the anchor instead of today.
+  function nbaWindow() {
+    if (nbaCache.window) return Promise.resolve(nbaCache.window);
+    return getJSON(API + NBA + 'scoreboard').then(function (d) {
+      var anchor = new Date();
+      var dd = d && d.day && d.day.date;
+      if (dd) {
+        var parsed = new Date(dd + 'T12:00:00');
+        if (!isNaN(parsed) && parsed.getTime() > Date.now()) anchor = parsed;
+      }
+      var offsets = [];
+      var future = anchor.getTime() > Date.now() + 36e5;
+      for (var i = future ? 0 : -3; i <= (future ? 9 : 7); i++) offsets.push(i);
+      return Promise.all(offsets.map(function (o) {
+        var day = new Date(anchor);
+        day.setDate(day.getDate() + o);
+        return nbaDay(day.getFullYear() + String(day.getMonth() + 1).padStart(2, '0') +
+          String(day.getDate()).padStart(2, '0'));
+      })).then(function (parts) {
+        var seen = {}, evs = [];
+        parts.forEach(function (p) {
+          ((p && p.events) || []).forEach(function (ev) {
+            if (seen[ev.id]) return;
+            seen[ev.id] = 1;
+            evs.push(ev);
+            eventById[ev.id] = ev;
+          });
+        });
+        evs.sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+        nbaCache.window = { events: evs, preseason: future };
+        return nbaCache.window;
+      });
+    });
+  }
+
+  function renderNbaFixtures() {
+    var host = $('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在获取赛程…</div>';
+    nbaWindow().then(function (w) {
+      var evs = w.events;
+      if (!evs.length) {
+        host.innerHTML = '<div class="empty">这段时间没有比赛。<br>NBA 常规赛通常十月下旬开打。</div>';
+        $('status').textContent = '暂无比赛';
+        return;
+      }
+      var todayKey = dayKey(new Date());
+      var groups = [], idx = {};
+      evs.forEach(function (ev) {
+        var d = new Date(ev.date);
+        var k = dayKey(d);
+        if (!(k in idx)) { idx[k] = groups.length; groups.push({ key: k, label: fmtDay(d), items: [] }); }
+        groups[idx[k]].items.push({ ev: ev, d: d });
+      });
+
+      host.innerHTML = groups.map(function (g) {
+        var rows = g.items.map(function (it) {
+          var comp = (it.ev.competitions || [])[0] || {};
+          var cs = comp.competitors || [];
+          var home = cs.filter(function (c) { return c.homeAway === 'home'; })[0] || cs[0] || {};
+          var away = cs.filter(function (c) { return c.homeAway === 'away'; })[0] || cs[1] || {};
+          var st = (comp.status && comp.status.type) || {};
+          var mid, label, cls = '';
+          if (st.state === 'pre') {
+            mid = '<div class="kick">' + fmtTime(it.d) + '</div>';
+            label = '<div class="state">未开始</div>';
+          } else {
+            mid = '<div class="score">' + esc(home.score) + ' <span style="color:var(--muted)">-</span> ' +
+              esc(away.score) + '</div>';
+            if (st.state === 'in') { cls = ' live'; label = '<div class="state is-live">' + esc(st.shortDetail || '进行中') + '</div>'; }
+            else label = '<div class="state">完场</div>';
+          }
+          var hn = nbaCN(home.team && home.team.displayName);
+          var an = nbaCN(away.team && away.team.displayName);
+          var hDim = st.state === 'post' && away.winner ? ' dim' : '';
+          var aDim = st.state === 'post' && home.winner ? ' dim' : '';
+          return '<button class="match' + cls + '" type="button" data-nba="' + esc(it.ev.id) + '">' +
+            '<span class="side home"><span class="nm' + hDim + '">' + esc(hn) + '</span>' + crest(home.team) + '</span>' +
+            '<span class="mid">' + mid + label + '</span>' +
+            '<span class="side away">' + crest(away.team) + '<span class="nm' + aDim + '">' + esc(an) + '</span></span>' +
+          '</button>';
+        }).join('');
+        return '<div class="day"><div class="day-head"><span class="d">' + esc(g.label) + '</span>' +
+          (g.key === todayKey ? '<span class="today">今天</span>' : '') +
+          '<span class="n">' + g.items.length + ' 场</span></div><div class="card">' + rows + '</div></div>';
+      }).join('');
+
+      $('status').innerHTML = (w.preseason ? '新赛季尚未开打 · 下面是最近的安排' : '更新于 ' +
+        new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+    });
+  }
+
+  function nbaDetail(btn) {
+    var id = btn.dataset.nba;
+    var next = btn.nextElementSibling;
+    if (next && next.classList.contains('detail')) { next.remove(); return; }
+    var box = document.createElement('div');
+    box.className = 'detail';
+    box.innerHTML = '<div class="skeleton" style="padding:12px 0">正在获取赛况…</div>';
+    btn.parentNode.insertBefore(box, btn.nextSibling);
+
+    getJSON(API + NBA + 'summary?event=' + id).then(function (data) {
+      if (!box.isConnected) return;
+      if (!data) { box.innerHTML = '<div class="err">赛况没取到。</div>'; return; }
+      var html = '';
+
+      // quarter by quarter
+      var comp = (data.header && data.header.competitions && data.header.competitions[0]) || {};
+      var cs = comp.competitors || [];
+      if (cs.length === 2 && (cs[0].linescores || []).length) {
+        var periods = (cs[0].linescores || []).length;
+        var head = '<tr><th class="tm">球队</th>';
+        for (var i = 1; i <= periods; i++) head += '<th>' + (i <= 4 ? 'Q' + i : 'OT' + (i - 4)) + '</th>';
+        head += '<th>总分</th></tr>';
+        var body = cs.map(function (c) {
+          var line = (c.linescores || []).map(function (l) { return '<td>' + esc(l.displayValue) + '</td>'; }).join('');
+          return '<tr><td class="tm"><span class="nm">' + esc(nbaCN(c.team && c.team.displayName)) +
+            '</span></td>' + line + '<td class="pts">' + esc(c.score) + '</td></tr>';
+        }).join('');
+        html += '<h4>各节得分</h4><div class="table-scroll"><table><thead>' + head +
+          '</thead><tbody>' + body + '</tbody></table></div>';
+      }
+
+      // team totals worth comparing
+      var teams = (data.boxscore && data.boxscore.teams) || [];
+      if (teams.length === 2) {
+        var WANT = [
+          ['fieldGoalPct', '投篮命中率', '%'], ['threePointFieldGoalPct', '三分命中率', '%'],
+          ['freeThrowPct', '罚球命中率', '%'], ['totalRebounds', '篮板'],
+          ['assists', '助攻'], ['steals', '抢断'], ['blocks', '盖帽'], ['turnovers', '失误']
+        ];
+        function stats(t) {
+          var m = {};
+          ((t && t.statistics) || []).forEach(function (s) { m[s.name] = s.displayValue; });
+          return m;
+        }
+        var h = stats(teams[0]), a = stats(teams[1]);
+        var bars = WANT.map(function (r) {
+          if (!(r[0] in h) && !(r[0] in a)) return '';
+          var hv = parseFloat(h[r[0]]) || 0, av = parseFloat(a[r[0]]) || 0;
+          if (!hv && !av) return '';
+          var sum = hv + av, hw = sum ? hv / sum * 100 : 50;
+          var unit = r[2] === '%' ? '%' : '';
+          return '<div class="stat"><span class="sv">' + h[r[0]] + unit + '</span><span class="sl">' + r[1] +
+            '</span><span class="sv r">' + a[r[0]] + unit + '</span>' +
+            '<span class="sbar"><span class="lw"><i style="width:' + hw.toFixed(1) + '%"></i></span>' +
+            '<span class="rw"><i style="width:' + (100 - hw).toFixed(1) + '%"></i></span></span></div>';
+        }).filter(Boolean).join('');
+        if (bars) html += '<h4>全场数据</h4>' + bars;
+      }
+
+      // who did the damage
+      var leaders = (data.leaders || []);
+      if (leaders.length) {
+        html += '<h4>数据领先</h4><div class="bench">' + leaders.map(function (t) {
+          var rows = (t.leaders || []).map(function (cat) {
+            var it = (cat.leaders || [])[0];
+            if (!it) return '';
+            return '<div class="bench-row on"><span class="bnm">' +
+              esc((it.athlete && it.athlete.shortName) || '') + '</span>' +
+              '<span class="bin">' + esc(cat.displayName || '') + ' ' + esc(it.displayValue || '') + '</span></div>';
+          }).filter(Boolean).join('');
+          if (!rows) return '';
+          return '<div class="bench-col"><div class="bench-team">' +
+            esc(nbaCN(t.team && t.team.displayName)) + '</div>' + rows + '</div>';
+        }).filter(Boolean).join('') + '</div>';
+      }
+
+      box.innerHTML = html || '<div class="kv"><span>这场比赛暂时没有更多资料。</span></div>';
+    });
+  }
+
+  function renderNbaTable() {
+    var host = $('panel-table');
+    host.innerHTML = '<div class="skeleton">正在获取排名…</div>';
+    getJSON(API + 'v2/sports/basketball/nba/standings').then(function (cur) {
+      function draw(data, note) {
+        var groups = (data && data.children) || [];
+        if (!groups.length) { host.innerHTML = '<div class="err">排名没取到。</div>'; return; }
+        host.innerHTML = (note ? '<div class="empty" style="padding:14px 4px">' + note + '</div>' : '') +
+          groups.map(function (g) {
+            var rows = ((g.standings && g.standings.entries) || []).map(function (e) {
+              var s = {};
+              (e.stats || []).forEach(function (x) { s[x.name] = x.displayValue; });
+              return { seed: parseInt(s.playoffSeed, 10) || 99, s: s, team: e.team || {} };
+            }).sort(function (a, b) { return a.seed - b.seed; });
+            var favIds = favNba.map(function (f) { return String(f.id); });
+            return '<div class="group-name">' + (/east/i.test(g.name) ? '东部' : '西部') + '</div>' +
+              '<div class="card"><div class="table-scroll"><table><thead><tr>' +
+              '<th class="rk" style="text-align:left">#</th><th class="tm">球队</th>' +
+              '<th>胜</th><th>负</th><th>胜率</th><th>胜差</th><th>近况</th></tr></thead><tbody>' +
+              rows.map(function (r) {
+                var zone = r.seed <= 6 ? 'z-top' : r.seed <= 10 ? 'z-mid' : '';
+                var fav = favIds.indexOf(String(r.team.id)) !== -1 ? ' fav' : '';
+                return '<tr class="' + zone + fav + '"><td class="rk">' + (r.seed === 99 ? '-' : r.seed) + '</td>' +
+                  '<td class="tm">' + crest(r.team, 20) + '<span class="nm">' +
+                  esc(nbaCN(r.team.displayName)) + '</span></td>' +
+                  '<td>' + esc(r.s.wins || '0') + '</td><td>' + esc(r.s.losses || '0') + '</td>' +
+                  '<td>' + esc(r.s.winPercent || '-') + '</td><td>' + esc(r.s.gamesBehind || '-') + '</td>' +
+                  '<td>' + esc(r.s.streak || '-') + '</td></tr>';
+              }).join('') + '</tbody></table></div></div>';
+          }).join('') +
+          '<div class="legend"><span><i style="background:var(--accent)"></i>季后赛席位</span>' +
+          '<span><i style="background:var(--hairline-strong)"></i>附加赛区</span></div>';
+      }
+
+      var entries = ((cur && cur.children && cur.children[0] && cur.children[0].standings &&
+        cur.children[0].standings.entries) || []);
+      var played = entries.some(function (e) {
+        return (e.stats || []).some(function (s) {
+          return (s.name === 'wins' || s.name === 'losses') && parseInt(s.displayValue, 10) > 0;
+        });
+      });
+      if (played) { draw(cur, ''); return; }
+      // nobody has played yet — last season's final table is the useful one
+      getJSON(API + 'v2/sports/basketball/nba/standings?season=' +
+        new Date().getFullYear()).then(function (old) {
+        draw(old || cur, '新赛季还没开打，下面是上赛季的最终排名。');
+      });
+    });
+  }
+
+  function renderNbaMine() {
+    var host = $('panel-mine');
+    if (!favNba.length) {
+      host.innerHTML = '<div class="empty">还没有设主队。<br>点右上角的「主队」挑最多 ' + MAX_NBA +
+        ' 支球队，这里会显示他们最近的结果和接下来的比赛。</div>';
+      return;
+    }
+    host.innerHTML = '<div class="skeleton">正在获取主队动态…</div>';
+    Promise.all(favNba.map(function (f) {
+      return getJSON(API + NBA + 'teams/' + f.id + '/schedule');
+    })).then(function (list) {
+      host.innerHTML = list.map(function (sched, i) {
+        var f = favNba[i];
+        if (!sched) return '';
+        var tm = sched.team || {};
+        var evs = ((sched.events || [])).slice().sort(function (a, b) {
+          return new Date(a.date) - new Date(b.date);
+        });
+        var done = [], next = [];
+        evs.forEach(function (e) {
+          var c = (e.competitions || [])[0] || {};
+          var st = (c.status && c.status.type) || {};
+          (st.completed ? done : next).push(e);
+        });
+        var rows = '';
+        var last = done[done.length - 1];
+        if (last) rows += nbaRow(last, f.id, true);
+        next.slice(0, 3).forEach(function (e) { rows += nbaRow(e, f.id, false); });
+        if (!rows) rows = '<div class="fix">近期没有查到比赛</div>';
+        return '<div class="card team-card"><div class="tc-head">' + crest(tm, 26) +
+          '<span class="nm">' + esc(f.name) + '</span><span class="lg">NBA</span></div>' + rows + '</div>';
+      }).join('');
+    });
+  }
+  function nbaRow(e, teamId, finished) {
+    var c = (e.competitions || [])[0] || {};
+    var cs = c.competitors || [];
+    var me = cs.filter(function (x) { return String(x.team && x.team.id) === String(teamId); })[0] || cs[0] || {};
+    var opp = cs.filter(function (x) { return x !== me; })[0] || {};
+    var d = new Date(e.date);
+    var ha = me.homeAway === 'home' ? '主' : '客';
+    var right = '';
+    if (finished) {
+      var ms = scoreOf(me), os = scoreOf(opp);
+      var mark = me.winner === true ? 'W' : (opp.winner === true ? 'L' : 'D');
+      right = '<span class="res ' + mark + '">' + esc(ms) + '-' + esc(os) + ' ' +
+        (mark === 'W' ? '胜' : mark === 'L' ? '负' : '平') + '</span>';
+    }
+    return '<div class="fix"><span class="when">' + esc(isNaN(d) ? '待定' : fmtDay(d)) + '</span>' +
+      '<span class="vs">' + ha + ' vs ' + esc(nbaCN(opp.team && opp.team.displayName)) + '</span>' + right + '</div>';
+  }
+
+  function renderNbaPicker() {
+    var host = $('picker');
+    $('pickHint').textContent = '勾选你的主队，最多 ' + MAX_NBA + ' 支。';
+    host.innerHTML = '<div class="skeleton">正在载入球队…</div>';
+    getJSON(API + NBA + 'teams').then(function (d) {
+      var teams = [];
+      var sports = (d && d.sports) || [];
+      var leagues = (sports[0] && sports[0].leagues) || [];
+      ((leagues[0] && leagues[0].teams) || []).forEach(function (t) {
+        if (t.team) teams.push(t.team);
+      });
+      if (!teams.length) { host.innerHTML = '<div class="skeleton">球队没取到</div>'; return; }
+      var picked = favNba.map(function (f) { return String(f.id); });
+      host.innerHTML = teams.sort(function (a, b) {
+        return nbaCN(a.displayName).localeCompare(nbaCN(b.displayName), 'zh');
+      }).map(function (t) {
+        return '<label><input type="checkbox" value="' + esc(t.id) + '" data-name="' +
+          esc(nbaCN(t.displayName)) + '"' + (picked.indexOf(String(t.id)) !== -1 ? ' checked' : '') + '>' +
+          crest(t, 20) + esc(nbaCN(t.displayName)) + '</label>';
+      }).join('');
+      $('pickCount').textContent = '已选 ' + favNba.length + ' / ' + MAX_NBA;
+    });
+  }
+  function saveFavNba() {
+    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, MAX_NBA);
+    favNba = checked.map(function (c) { return { id: c.value, name: c.dataset.name }; });
+    lsSet('favNba', favNba);
+    $('settings').hidden = true;
+    nbaCache.standings = null;
+    setTab('mine');
+  }
+
+  /* ---------- 英雄联盟 (Riot esports API) ---------- */
+  var LOL = 'https://esports-api.lolesports.com/persisted/gw/';
+  var LOL_HDR = { headers: { 'x-api-key': '0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z' } };
+  // the tiers worth putting in front of someone by default
+  var LOL_ORDER = ['worlds', 'msi', 'first_stand', 'lpl', 'lck', 'lec', 'lcs', 'lcp', 'pcs', 'ewc_lol'];
+  var lolCache = {};
+  var lolLeague = lsGet('lolLeague', 'lpl');
+  var favLol = lsGet('favLol', []);
+  var MAX_LOL = 5;
+
+  function lolGet(path) {
+    if (lolCache[path]) return Promise.resolve(lolCache[path]);
+    return fetch(LOL + path, LOL_HDR)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) lolCache[path] = d; return d; })
+      .catch(function () { return null; });
+  }
+  function lolLeagues() {
+    return lolGet('getLeagues?hl=zh-CN').then(function (d) {
+      var all = ((d && d.data) || {}).leagues || [];
+      var pick = [];
+      LOL_ORDER.forEach(function (slug) {
+        var hit = all.filter(function (l) { return l.slug === slug; })[0];
+        if (hit) pick.push(hit);
+      });
+      return pick;
+    });
+  }
+  function lolCurrentLeague(leagues) {
+    return leagues.filter(function (l) { return l.slug === lolLeague; })[0] || leagues[0];
+  }
+
+  function lolTeamCell(t, right) {
+    var img = t.image ? '<img class="crest" src="' + esc(t.image) + '" alt="" loading="lazy">' : '';
+    var win = t.result && t.result.outcome === 'win';
+    var lose = t.result && t.result.outcome === 'loss';
+    var name = '<span class="lol-code' + (lose ? ' dim' : '') + (win ? ' win' : '') + '">' +
+      esc(t.code || '') + '</span>';
+    return right ? img + name : name + img;
+  }
+
+  function renderLolFixtures() {
+    var host = $('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在获取赛程…</div>';
+    lolLeagues().then(function (leagues) {
+      renderLolChips(leagues);
+      var lg = lolCurrentLeague(leagues);
+      if (!lg) { host.innerHTML = '<div class="err">赛区列表没取到。</div>'; return; }
+      return lolGet('getSchedule?hl=zh-CN&leagueId=' + lg.id).then(function (d) {
+        var evs = (((d && d.data) || {}).schedule || {}).events || [];
+        evs = evs.filter(function (e) { return e.type === 'match' && e.match; })
+          .sort(function (a, b) { return new Date(a.startTime) - new Date(b.startTime); });
+        if (!evs.length) {
+          host.innerHTML = '<div class="empty">这个赛区最近没有比赛。</div>';
+          $('status').textContent = lg.name + ' · 暂无赛程';
+          return;
+        }
+        var groups = [], idx = {};
+        evs.forEach(function (e) {
+          var d0 = new Date(e.startTime);
+          var k = dayKey(d0);
+          if (!(k in idx)) { idx[k] = groups.length; groups.push({ key: k, label: fmtDay(d0), items: [] }); }
+          groups[idx[k]].items.push({ e: e, d: d0 });
+        });
+        var todayKey = dayKey(new Date());
+        var liveCount = 0;
+
+        host.innerHTML = groups.map(function (g) {
+          var rows = g.items.map(function (it) {
+            var m = it.e.match;
+            var a = (m.teams || [])[0] || {}, b = (m.teams || [])[1] || {};
+            var bo = m.strategy && m.strategy.count ? 'BO' + m.strategy.count : '';
+            var mid, label;
+            if (it.e.state === 'completed') {
+              mid = '<div class="score">' + esc((a.result || {}).gameWins) +
+                ' <span style="color:var(--muted)">-</span> ' + esc((b.result || {}).gameWins) + '</div>';
+              label = '<div class="state">完场 · ' + bo + '</div>';
+            } else if (it.e.state === 'inProgress') {
+              liveCount++;
+              mid = '<div class="score">' + esc((a.result || {}).gameWins || 0) +
+                ' <span style="color:var(--muted)">-</span> ' + esc((b.result || {}).gameWins || 0) + '</div>';
+              label = '<div class="state is-live">进行中 · ' + bo + '</div>';
+            } else {
+              mid = '<div class="kick">' + fmtTime(it.d) + '</div>';
+              label = '<div class="state">' + bo + '</div>';
+            }
+            return '<div class="match' + (it.e.state === 'inProgress' ? ' live' : '') + '" style="cursor:default">' +
+              '<span class="side home">' + lolTeamCell(a, false) + '</span>' +
+              '<span class="mid">' + mid + label + '</span>' +
+              '<span class="side away">' + lolTeamCell(b, true) + '</span>' +
+            '</div>';
+          }).join('');
+          return '<div class="day"><div class="day-head"><span class="d">' + esc(g.label) + '</span>' +
+            (g.key === todayKey ? '<span class="today">今天</span>' : '') +
+            '<span class="n">' + g.items.length + ' 场</span></div>' +
+            '<div class="card">' + rows + '</div></div>';
+        }).join('');
+
+        $('status').innerHTML = (liveCount ? '<span class="dot"></span>' + liveCount + ' 场进行中 · ' : '') +
+          esc(lg.name) + ' · ' + esc(lg.region);
+      });
+    });
+  }
+
+  function renderLolChips(leagues) {
+    $('chips').hidden = false;
+    $('chips').innerHTML = leagues.map(function (l) {
+      return '<button class="chip" type="button" data-lol="' + esc(l.slug) + '" aria-pressed="' +
+        (l.slug === lolLeague) + '">' + esc(l.name) + '</button>';
+    }).join('');
+  }
+
+  function lolTournament(leagueId) {
+    return lolGet('getTournamentsForLeague?hl=zh-CN&leagueId=' + leagueId).then(function (d) {
+      var ts = ((((d && d.data) || {}).leagues || [])[0] || {}).tournaments || [];
+      ts = ts.slice().sort(function (a, b) { return new Date(b.startDate) - new Date(a.startDate); });
+      var now = Date.now();
+      return ts.filter(function (t) { return new Date(t.startDate).getTime() <= now; })[0] || ts[0];
+    });
+  }
+
+  function renderLolTable() {
+    var host = $('panel-table');
+    host.innerHTML = '<div class="skeleton">正在获取排名…</div>';
+    lolLeagues().then(function (leagues) {
+      renderLolChips(leagues);
+      var lg = lolCurrentLeague(leagues);
+      if (!lg) return;
+      return lolTournament(lg.id).then(function (t) {
+        if (!t) { host.innerHTML = '<div class="empty">这个赛区暂时没有积分榜。</div>'; return; }
+        return lolGet('getStandings?hl=zh-CN&tournamentId=' + t.id).then(function (d) {
+          var stages = ((((d && d.data) || {}).standings || [])[0] || {}).stages || [];
+          var favCodes = favLol.map(function (f) { return f.code; });
+          var html = stages.map(function (st) {
+            return (st.sections || []).map(function (sec) {
+              var ranks = (sec.rankings || []).filter(function (r) { return (r.teams || []).length; });
+              if (!ranks.length) return '';
+              var title = st.name === sec.name ? st.name : st.name + ' · ' + sec.name;
+              var body = ranks.map(function (r) {
+                return (r.teams || []).map(function (tm) {
+                  var rec = tm.record || {};
+                  var fav = favCodes.indexOf(tm.code) !== -1 ? ' fav' : '';
+                  return '<tr class="' + (r.ordinal <= 2 ? 'z-top' : '') + fav + '">' +
+                    '<td class="rk">' + esc(r.ordinal) + '</td>' +
+                    '<td class="tm">' + (tm.image ? '<img class="crest" src="' + esc(tm.image) +
+                      '" alt="" loading="lazy" style="width:20px;height:20px">' : '') +
+                    '<span class="nm">' + esc(tm.code || tm.name) + '</span>' +
+                    '<span class="lol-full">' + esc(tm.name || '') + '</span></td>' +
+                    '<td>' + esc(rec.wins != null ? rec.wins : '-') + '</td>' +
+                    '<td>' + esc(rec.losses != null ? rec.losses : '-') + '</td></tr>';
+                }).join('');
+              }).join('');
+              return '<div class="group-name">' + esc(title) + '</div><div class="card">' +
+                '<div class="table-scroll"><table><thead><tr><th class="rk" style="text-align:left">#</th>' +
+                '<th class="tm">战队</th><th>胜</th><th>负</th></tr></thead><tbody>' + body +
+                '</tbody></table></div></div>';
+            }).join('');
+          }).join('');
+          host.innerHTML = html ||
+            '<div class="empty">这个赛段还没有排名数据（淘汰赛阶段通常不出积分榜）。</div>';
+        });
+      });
+    });
+  }
+
+  function renderLolMine() {
+    var host = $('panel-mine');
+    if (!favLol.length) {
+      host.innerHTML = '<div class="empty">还没有关注战队。<br>点右上角的「战队」挑最多 ' + MAX_LOL +
+        ' 支，这里会显示他们最近的战绩和接下来的比赛。</div>';
+      return;
+    }
+    host.innerHTML = '<div class="skeleton">正在获取战队动态…</div>';
+    lolLeagues().then(function (leagues) {
+      return Promise.all(leagues.map(function (l) {
+        return lolGet('getSchedule?hl=zh-CN&leagueId=' + l.id);
+      })).then(function (all) {
+        var evs = [];
+        all.forEach(function (d) {
+          ((((d && d.data) || {}).schedule || {}).events || []).forEach(function (e) {
+            if (e.type === 'match' && e.match) evs.push(e);
+          });
+        });
+        host.innerHTML = favLol.map(function (f) {
+          var mine = evs.filter(function (e) {
+            return (e.match.teams || []).some(function (t) { return t.code === f.code; });
+          }).sort(function (a, b) { return new Date(a.startTime) - new Date(b.startTime); });
+          var done = mine.filter(function (e) { return e.state === 'completed'; });
+          var next = mine.filter(function (e) { return e.state !== 'completed'; });
+          var rows = '';
+          var last = done[done.length - 1];
+          if (last) rows += lolRow(last, f.code, true);
+          next.slice(0, 3).forEach(function (e) { rows += lolRow(e, f.code, false); });
+          if (!rows) rows = '<div class="fix">近期没有查到比赛</div>';
+          return '<div class="card team-card"><div class="tc-head">' +
+            (f.image ? '<img class="crest" src="' + esc(f.image) + '" alt="" style="width:26px;height:26px">' : '') +
+            '<span class="nm">' + esc(f.code) + '</span><span class="lg">' + esc(f.name || '') + '</span></div>' +
+            rows + '</div>';
+        }).join('');
+      });
+    });
+  }
+  function lolRow(e, code, finished) {
+    var teams = e.match.teams || [];
+    var me = teams.filter(function (t) { return t.code === code; })[0] || teams[0];
+    var opp = teams.filter(function (t) { return t !== me; })[0] || {};
+    var d = new Date(e.startTime);
+    var right = '';
+    if (finished) {
+      var mark = (me.result || {}).outcome === 'win' ? 'W' : 'L';
+      right = '<span class="res ' + mark + '">' + esc((me.result || {}).gameWins) + '-' +
+        esc((opp.result || {}).gameWins) + ' ' + (mark === 'W' ? '胜' : '负') + '</span>';
+    } else if (e.state === 'inProgress') {
+      right = '<span class="res D">进行中</span>';
+    } else {
+      right = '<span class="res" style="color:var(--muted);font-weight:600">' + fmtTime(d) + '</span>';
+    }
+    return '<div class="fix"><span class="when">' + esc(fmtDay(d)) + '</span>' +
+      '<span class="vs">vs ' + esc(opp.code || '') + ' · ' + esc((e.league && e.league.name) || '') +
+      '</span>' + right + '</div>';
+  }
+
+  function renderLolPicker() {
+    var host = $('picker');
+    $('pickHint').textContent = '勾选你关注的战队，最多 ' + MAX_LOL + ' 支。切换上面的赛区可以选别的战队。';
+    host.innerHTML = '<div class="skeleton">正在载入战队…</div>';
+    lolLeagues().then(function (leagues) {
+      var lg = lolCurrentLeague(leagues);
+      return lolGet('getSchedule?hl=zh-CN&leagueId=' + lg.id).then(function (d) {
+        var seen = {}, teams = [];
+        ((((d && d.data) || {}).schedule || {}).events || []).forEach(function (e) {
+          ((e.match && e.match.teams) || []).forEach(function (t) {
+            if (!t.code || t.code === 'TBD' || seen[t.code]) return;
+            seen[t.code] = 1;
+            teams.push(t);
+          });
+        });
+        if (!teams.length) { host.innerHTML = '<div class="skeleton">这个赛区没有战队数据</div>'; return; }
+        var picked = favLol.map(function (f) { return f.code; });
+        host.innerHTML = teams.sort(function (a, b) { return a.code.localeCompare(b.code); })
+          .map(function (t) {
+            return '<label><input type="checkbox" value="' + esc(t.code) + '" data-name="' +
+              esc(t.name || '') + '" data-img="' + esc(t.image || '') + '"' +
+              (picked.indexOf(t.code) !== -1 ? ' checked' : '') + '>' +
+              (t.image ? '<img class="crest" src="' + esc(t.image) + '" alt="" style="width:20px;height:20px">' : '') +
+              '<b style="min-width:42px">' + esc(t.code) + '</b>' +
+              '<span class="pk-team">' + esc(t.name || '') + '</span></label>';
+          }).join('');
+        $('pickCount').textContent = '已选 ' + favLol.length + ' / ' + MAX_LOL;
+      });
+    });
+  }
+  function saveFavLol() {
+    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, MAX_LOL);
+    favLol = checked.map(function (c) {
+      return { code: c.value, name: c.dataset.name, image: c.dataset.img };
+    });
+    lsSet('favLol', favLol);
+    $('settings').hidden = true;
+    setTab('mine');
+  }
+
   /* ---------- picker ---------- */
   function renderPicker() {
     var host = $('picker');
@@ -3000,6 +3627,12 @@
   $('chips').addEventListener('click', function (e) {
     var b = e.target.closest('.chip');
     if (!b) return;
+    if (b.dataset.lol) {
+      lolLeague = b.dataset.lol;
+      lsSet('lolLeague', lolLeague);
+      setTab(tab);
+      return;
+    }
     league = b.dataset.lg;
     lsSet('lg', league);
     renderChips();
@@ -3023,6 +3656,8 @@
   $('panel-fixtures').addEventListener('click', function (e) {
     var g = e.target.closest('.gp');
     if (g) { toggleGp(g); return; }
+    var nb = e.target.closest('.match[data-nba]');
+    if (nb) { nbaDetail(nb); return; }
     var b = e.target.closest('.match');
     if (b) toggleDetail(b);
   });
@@ -3032,6 +3667,18 @@
     el.classList.add('spinning');
     if (sport === 'today') {
       renderToday();
+      setTimeout(function () { el.classList.remove('spinning'); }, 500);
+      return;
+    }
+    if (sport === 'esports') {
+      lolCache = {};
+      setTab(tab);
+      setTimeout(function () { el.classList.remove('spinning'); }, 500);
+      return;
+    }
+    if (sport === 'basketball') {
+      nbaCache = {};
+      setTab(tab);
       setTimeout(function () { el.classList.remove('spinning'); }, 500);
       return;
     }
@@ -3055,10 +3702,33 @@
     var p = $('settings');
     p.hidden = !p.hidden;
     $('notifyBtn').hidden = sport !== 'football';
-    if (!p.hidden) { if (sport === 'f1') renderDriverPicker(); else renderPicker(); }
+    if (!p.hidden) {
+      if (sport === 'f1') renderDriverPicker();
+      else if (sport === 'esports') renderLolPicker();
+      else if (sport === 'basketball') renderNbaPicker();
+      else renderPicker();
+    }
   });
 
   $('picker').addEventListener('change', function (e) {
+    if (sport === 'esports') {
+      if (document.querySelectorAll('#picker input:checked').length > MAX_LOL) {
+        e.target.checked = false;
+        alert('最多只能选 ' + MAX_LOL + ' 支战队。');
+      }
+      $('pickCount').textContent = '已选 ' +
+        document.querySelectorAll('#picker input:checked').length + ' / ' + MAX_LOL;
+      return;
+    }
+    if (sport === 'basketball') {
+      if (document.querySelectorAll('#picker input:checked').length > MAX_NBA) {
+        e.target.checked = false;
+        alert('最多只能选 ' + MAX_NBA + ' 支球队。');
+      }
+      $('pickCount').textContent = '已选 ' +
+        document.querySelectorAll('#picker input:checked').length + ' / ' + MAX_NBA;
+      return;
+    }
     if (sport === 'f1') {
       if (document.querySelectorAll('#picker input:checked').length > MAX_DRIVERS) {
         e.target.checked = false;
@@ -3077,6 +3747,8 @@
 
   $('saveTeams').addEventListener('click', function () {
     if (sport === 'f1') { saveFavDrivers(); return; }
+    if (sport === 'basketball') { saveFavNba(); return; }
+    if (sport === 'esports') { saveFavLol(); return; }
     var kept = favorites.filter(function (f) { return f.league !== league; });
     var picked = currentPicked().map(function (c) {
       return { id: c.value, name: c.dataset.name, raw: c.dataset.raw, league: league };

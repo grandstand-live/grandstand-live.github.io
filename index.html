@@ -651,6 +651,90 @@
     color: var(--muted); min-width: 16px;
   }
   .pk-team { margin-left: auto; font-size: 11px; color: var(--muted); }
+  /* ---- 格斗 ---- */
+  .card-tag {
+    font-family: var(--narrow); font-size: 10px; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    padding: 9px 14px 3px;
+  }
+  .bout .side { gap: 7px; }
+  .bout .fnm { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+  .bout .fnm.dim { color: var(--muted); font-weight: 500; }
+  .bout .frec {
+    display: block; font-size: 10.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums; margin-top: 1px;
+  }
+  .bout .fwrap { min-width: 0; }
+  .bout .side.home .fwrap { text-align: right; }
+  .flag-sm {
+    width: 20px; height: 14px; object-fit: cover; border-radius: 2px; flex-shrink: 0;
+    box-shadow: 0 0 0 1px var(--hairline);
+  }
+  .wclass {
+    font-family: var(--narrow); font-size: 10px; font-weight: 700;
+    letter-spacing: .05em; color: var(--muted); white-space: nowrap;
+  }
+  .method { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+  .method-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .win-pip {
+    display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--win); flex-shrink: 0;
+  }
+  .title-belt {
+    font-family: var(--narrow); font-size: 9px; font-weight: 700; letter-spacing: .08em;
+    background: #C9A227; color: #2A2306;
+    border-radius: 3px; padding: 1px 5px; margin-left: 5px; white-space: nowrap;
+  }
+  .ev-head {
+    display: flex; align-items: center; gap: 11px;
+    width: 100%; background: none; border: none;
+    border-top: 1px solid var(--hairline);
+    padding: 12px; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  }
+  .ev-head:first-child { border-top: none; }
+  .ev-head:hover { background: var(--surface-2); }
+  .ev-head.done { color: var(--muted); }
+  .ev-head.next { background: var(--accent-soft); }
+  .ev-head .info { flex: 1; min-width: 0; }
+  .ev-head .ev-name {
+    display: block; font-size: 14px; font-weight: 600; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ev-head.done .ev-name { color: var(--ink-2); font-weight: 500; }
+  .ev-head .sub {
+    display: block; font-size: 11.5px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ev-head .ev-when {
+    font-size: 12.5px; color: var(--muted); flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+    gap: 3px; margin-top: 4px;
+  }
+  .cards i {
+    display: flex; align-items: center; justify-content: center;
+    height: 22px; border-radius: 3px; font-style: normal;
+    font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+    background: var(--surface-2); color: var(--ink-2);
+  }
+  .rank-row {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 13px; padding: 7px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-row .rpos {
+    font-family: var(--narrow); font-weight: 700; font-size: 11.5px;
+    min-width: 20px; text-align: right; color: var(--muted);
+  }
+  .rank-row.champ { background: linear-gradient(90deg, rgba(201, 162, 39, .14), transparent 70%); }
+  .rank-row.champ .rpos { color: #C9A227; }
+  .rank-row.champ .rnm { font-weight: 700; }
+  .rank-row.fav .rnm { color: var(--accent); font-weight: 700; }
+  .rank-row .rnm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-row .rrec { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
   /* ---- 今天 ---- */
   .hero {
     position: relative;
@@ -1161,7 +1245,7 @@
     { id: 'football', name: '足球', ready: true, sub: '足球' },
     { id: 'basketball', name: '篮球', ready: true, sub: 'NBA' },
     { id: 'f1', name: 'F1', ready: true, sub: 'F1' },
-    { id: 'fight', name: '格斗', sub: '格斗', blurb: 'UFC 和拳击的赛事卡、对阵、称重结果和胜负记录。' },
+    { id: 'fight', name: '格斗', ready: true, sub: 'UFC' },
     { id: 'esports', name: '电竞', ready: true, sub: '英雄联盟' }
   ];
   var sport = lsGet('sport', 'today');
@@ -1180,12 +1264,13 @@
     renderSportNav();
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
     $('subtitle').textContent = '实时赛事板 · ' + s.sub;
-    $('gearBtn').textContent = id === 'f1' ? '车手' : (id === 'esports' ? '战队' : '主队');
+    $('gearBtn').textContent = id === 'f1' ? '车手' : (id === 'esports' ? '战队'
+      : (id === 'fight' ? '选手' : '主队'));
 
     var ready = !!s.ready;
     var isToday = id === 'today';
     $('footballHead').hidden = !ready || isToday;
-    $('chips').hidden = (id !== 'football' && id !== 'esports' && id !== 'basketball');
+    $('chips').hidden = (id !== 'football' && id !== 'esports' && id !== 'basketball' && id !== 'fight');
     $('chips2').hidden = id !== 'esports';
     if (id === 'football') renderChips();
     $('status').hidden = !ready || isToday;
@@ -1194,7 +1279,8 @@
     $('panel-today').hidden = !isToday;
     $('gearBtn').hidden = !ready || isToday ||
       (id === 'basketball' && bballLeague !== 'nba') ||
-      (id === 'esports' && esportsGame !== 'lol');
+      (id === 'esports' && esportsGame !== 'lol') ||
+      (id === 'fight' && fightLeague !== 'ufc');
     $('refreshBtn').hidden = !ready;
 
     if (isToday) {
@@ -1227,12 +1313,14 @@
     f1: [['fixtures', '赛历'], ['table', '积分榜'], ['mine', '我的车手']],
     basketball: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的球队']],
     esports: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的战队']],
+    fight: [['fixtures', '赛历'], ['table', '排名'], ['mine', '我的选手']],
     esports_other: [['fixtures', '赛程']],
     single: [['fixtures', '赛程']]
   };
   function renderSegTabs() {
     var defs = (sport === 'esports' && esportsGame !== 'lol') ? TABS.esports_other
       : (sport === 'basketball' && bballLeague !== 'nba') ? TABS.single
+      : (sport === 'fight' && fightLeague !== 'ufc') ? TABS.single
       : (TABS[sport] || TABS.football);
     document.querySelector('.seg').innerHTML = defs.map(function (t) {
       return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' +
@@ -1271,6 +1359,18 @@
       else renderLolMine();
       return;
     }
+    if (sport === 'fight') {
+      renderFightChips();
+      if (fightLeague === 'boxing') {
+        renderBoxing();
+        $('panel-table').hidden = true; $('panel-mine').hidden = true; $('panel-fixtures').hidden = false;
+        return;
+      }
+      if (next === 'fixtures') renderUfcFixtures();
+      else if (next === 'table') renderUfcRankings();
+      else renderMyFighters();
+      return;
+    }
     if (sport === 'basketball') {
       renderBballChips();
       if (bballLeague === 'cba') {
@@ -1283,6 +1383,8 @@
       else renderNbaMine();
       return;
     }
+    // another sport's renderer may have written over the fixtures panel
+    if (next === 'fixtures') { if (events.length) renderFixtures(); else loadFixtures(); }
     if (next === 'table') loadStandings();
     if (next === 'mine') renderMine();
   }
@@ -3110,8 +3212,13 @@
     return t >= now - hoursBack * 3600000 && t <= now + hoursAhead * 3600000;
   }
 
-  var SPORT_TINT = { football: 'var(--accent)', basketball: '#E07A3C', f1: '#D6453F', esports: '#6B5BD6' };
-  var SPORT_LABEL = { football: '足球', basketball: '篮球', f1: 'F1', esports: '电竞' };
+  var SPORT_TINT = {
+    football: 'var(--accent)', basketball: '#E07A3C', f1: '#D6453F',
+    esports: '#6B5BD6', fight: '#A8452F'
+  };
+  var SPORT_LABEL = {
+    football: '足球', basketball: '篮球', f1: 'F1', esports: '电竞', fight: '格斗'
+  };
   var todayTimer = null;
 
   function countdown(when) {
@@ -3154,11 +3261,16 @@
         });
       }));
     }
+    if (favFighters.length) {
+      jobs.push(ufcNearbyCards(2, 3).then(function (chunks) {
+        return { kind: 'fight', chunks: chunks };
+      }));
+    }
 
     if (!jobs.length) {
       host.innerHTML = '<div class="empty">还没有关注任何队伍。<br><br>' +
         '到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，' +
-        '选完之后这一页会把他们的下一场比赛汇总在一起。</div>';
+        '到「格斗」点「选手」，选完之后这一页会把他们的下一场比赛汇总在一起。</div>';
       return;
     }
 
@@ -3290,6 +3402,33 @@
                 sub: e.match.strategy ? 'BO' + e.match.strategy.count : ''
               });
             }
+          });
+        }
+
+        if (res.kind === 'fight') {
+          favFighters.forEach(function (f) {
+            boutsOfFighter(res.chunks, f.id).forEach(function (x) {
+              var st = (x.comp.status || {}).type || {};
+              var oppName = (x.opp.athlete && x.opp.athlete.displayName) || '';
+              var title = esc(f.name) + ' <span class="vs-mid">vs</span> ' + esc(oppName);
+              var card = String(x.ev.shortName || x.ev.name || '').split(':')[0];
+              if (st.state === 'post' && within(x.comp.date, 24 * 10, 3)) {
+                var won = x.me.winner === true, lost = x.opp.winner === true;
+                var m = methodOf(x.comp);
+                recent.push({
+                  when: new Date(x.comp.date), sport: 'fight',
+                  mark: won ? 'W' : (lost ? 'L' : 'D'), title: title,
+                  score: won ? '胜' : (lost ? '负' : '平'),
+                  word: m || ''
+                });
+              } else if (st.state !== 'post' && within(x.comp.date, 3, 24 * 14)) {
+                upcoming.push({
+                  when: new Date(x.comp.date), sport: 'fight', tag: card,
+                  live: st.state === 'in', title: title,
+                  sub: weightCN(x.comp.type && x.comp.type.abbreviation)
+                });
+              }
+            });
           });
         }
       });
@@ -4367,6 +4506,476 @@
     setTab('mine');
   }
 
+  /* ---------- 格斗: UFC straight off ESPN, boxing out of the archive ---------- */
+  var UFC = 'site/v2/sports/mma/ufc/';
+  var fightLeague = lsGet('fleague', 'ufc');
+  var ufcCache = {};
+  var favFighters = lsGet('favFighters', []);
+  var MAX_FIGHTERS = 5;
+
+  function renderFightChips() {
+    $('chips').hidden = false;
+    $('chips').innerHTML = [['ufc', 'UFC'], ['boxing', '拳击']].map(function (g) {
+      return '<button class="chip" type="button" data-fight="' + g[0] + '" aria-pressed="' +
+        (g[0] === fightLeague) + '">' + g[1] + '</button>';
+    }).join('');
+  }
+
+  var WEIGHT_CN = {
+    'heavyweight': '重量级', 'lightheavyweight': '轻重量级', 'middleweight': '中量级',
+    'welterweight': '次中量级', 'lightweight': '轻量级', 'featherweight': '羽量级',
+    'bantamweight': '雏量级', 'flyweight': '蝇量级', 'strawweight': '草量级',
+    'catchweight': '定制量级', 'openweight': '无差别级'
+  };
+  // ESPN writes the women's divisions as "W Bantamweight", and spells the same
+  // division either "Catchweight" or "Catch Weight"
+  function weightCN(abbr) {
+    var s = plain(abbr || '').trim();
+    if (!s) return '';
+    var women = /^w\s/.test(s);
+    var base = (women ? s.replace(/^w\s+/, '') : s).replace(/\s+/g, '');
+    return (women ? '女子' : '') + (WEIGHT_CN[base] || abbr);
+  }
+
+  function ufcSeason() {
+    if (ufcCache.season) return Promise.resolve(ufcCache.season);
+    return getJSON(API + UFC + 'scoreboard').then(function (d) {
+      if (d) ufcCache.season = d;
+      return d;
+    });
+  }
+  function ufcDay(ymdStr) {
+    var key = 'd' + ymdStr;
+    if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
+    return getJSON(API + UFC + 'scoreboard?dates=' + ymdStr).then(function (d) {
+      if (d) ufcCache[key] = d;
+      return d || {};
+    });
+  }
+  // ESPN indexes a card by its US Eastern date: UFC 324 starts 2026-01-25T01:30Z
+  // but answers to dates=20260124. Local or UTC dates miss by one.
+  function ymdET(d) {
+    try {
+      return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
+    } catch (e) {
+      return d.getUTCFullYear() + String(d.getUTCMonth() + 1).padStart(2, '0') +
+        String(d.getUTCDate()).padStart(2, '0');
+    }
+  }
+  // and a card that runs past midnight can still land on the neighbouring day
+  function ufcFindEvent(when, wantId) {
+    return ufcDay(ymdET(when)).then(function (d) {
+      var evs = (d && d.events) || [];
+      var hit = evs.filter(function (e) { return String(e.id) === String(wantId); })[0];
+      if (hit) return hit;
+      return ufcDay(ymdET(new Date(when.getTime() - 864e5))).then(function (d2) {
+        var alt = (d2 && d2.events) || [];
+        return alt.filter(function (e) { return String(e.id) === String(wantId); })[0] ||
+          evs[0] || alt[0] || null;
+      });
+    });
+  }
+  // the calendar only carries a $ref to each event, and the id is the tail of it
+  function calEventId(item) {
+    var ref = (item.event && item.event.$ref) || '';
+    var m = ref.match(/events\/(\d+)/);
+    return m ? m[1] : '';
+  }
+
+  function renderUfcFixtures() {
+    var host = $('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
+    ufcSeason().then(function (d) {
+      var cal = (((d && d.leagues) || [])[0] || {}).calendar || [];
+      if (!cal.length) {
+        host.innerHTML = '<div class="err">赛历没取到，刷新一下重试。</div>';
+        $('status').textContent = '数据接口没连上';
+        return;
+      }
+      var now = Date.now();
+      var rows = cal.slice().sort(function (a, b) {
+        return new Date(a.startDate) - new Date(b.startDate);
+      });
+      var nextIdx = -1;
+      for (var i = 0; i < rows.length; i++) {
+        // a card runs about six hours, so it stays "next" until it is really over
+        if (new Date(rows[i].endDate || rows[i].startDate).getTime() >= now) { nextIdx = i; break; }
+      }
+
+      host.innerHTML = '<div class="card">' + rows.map(function (c, i) {
+        var d0 = new Date(c.startDate);
+        var done = new Date(c.endDate || c.startDate).getTime() < now;
+        var label = String(c.label || '');
+        var name = label.split(':')[0];
+        var bout = label.indexOf(':') !== -1 ? label.slice(label.indexOf(':') + 1).trim() : '';
+        return '<button class="ev-head' + (i === nextIdx ? ' next' : '') + (done ? ' done' : '') +
+          '" type="button" data-ufc="' + esc(calEventId(c)) + '" data-start="' + esc(c.startDate) + '"' +
+          (i === nextIdx ? ' id="nextCard"' : '') + '>' +
+          '<span class="info"><span class="ev-name">' + esc(name) +
+            (i === nextIdx ? '<span class="today">下一场</span>' : '') + '</span>' +
+            '<span class="sub">' + esc(bout || fmtDay(d0)) + '</span></span>' +
+          '<span class="ev-when">' + esc(isNaN(d0) ? '待定' : fmtDay(d0)) + '</span>' +
+          '</button>';
+      }).join('') + '</div>';
+
+      var past = rows.filter(function (c) {
+        return new Date(c.endDate || c.startDate).getTime() < now;
+      }).length;
+      $('status').innerHTML = d.leagues[0].season.year + ' 赛季 · ' + rows.length + ' 场赛事，已打完 ' +
+        past + ' 场' + (nextIdx > 0 ? '<button class="jump" type="button" id="jumpCard">跳到下一场 ↓</button>' : '');
+      var jump = $('jumpCard');
+      if (jump) jump.addEventListener('click', function () {
+        var el = $('nextCard');
+        if (el) window.scrollTo({ top: el.offsetTop - 120, behavior: 'smooth' });
+      });
+    });
+  }
+
+  function hasScorecard(comp) {
+    return (comp.competitors || []).some(function (c) {
+      return (((c.linescores || [])[0] || {}).linescores || []).length;
+    });
+  }
+  function methodOf(comp) {
+    var hit = (comp.details || []).filter(function (x) {
+      return /Unofficial Winner/i.test((x.type && x.type.text) || '');
+    })[0];
+    var t = (hit && hit.type && hit.type.text) || '';
+    if (/kotko|ko\b/i.test(t)) return 'KO/TKO';
+    if (/submission/i.test(t)) return '降服';
+    if (/decision/i.test(t)) return '判定';
+    // some older cards carry no detail feed, but judges' scores say the same
+    return hasScorecard(comp) ? '判定' : '';
+  }
+  function fighterSide(c, isLeft, dim) {
+    var a = c.athlete || {};
+    var name = a.displayName || a.fullName || '';
+    var rec = ((c.records || [])[0] || {}).summary || '';
+    var flag = a.flag && a.flag.href
+      ? '<img class="flag-sm" src="' + esc(a.flag.href) + '" alt="" loading="lazy">' : '';
+    var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '">' +
+      (c.winner ? '<span class="win-pip"></span> ' : '') + esc(name) + '</span>' +
+      (rec ? '<span class="frec">' + esc(rec) + '</span>' : '') + '</span>';
+    return '<span class="side ' + (isLeft ? 'home' : 'away') + '">' +
+      (isLeft ? body + flag : flag + body) + '</span>';
+  }
+  // judges' cards only exist on a decision, and ESPN nests them per round
+  function scorecardHTML(comp) {
+    var cs = comp.competitors || [];
+    var any = cs.some(function (c) { return ((c.linescores || [])[0] || {}).value; });
+    if (!any) return '';
+    var rounds = (((cs[0] || {}).linescores || [])[0] || {}).linescores || [];
+    if (!rounds.length) return '';
+    return '<div class="cards">' + cs.map(function (c) {
+      var ls = (c.linescores || [])[0] || {};
+      var per = (ls.linescores || []).map(function (r) { return r.displayValue; }).join(' · ');
+      return '<i title="' + esc((c.athlete && c.athlete.shortName) || '') + '">' +
+        esc(per || ls.displayValue || '') + '</i>';
+    }).join('') + '</div>';
+  }
+
+  function toggleUfcCard(btn) {
+    var next = btn.nextElementSibling;
+    if (next && next.classList.contains('detail')) { next.remove(); return; }
+    var box = document.createElement('div');
+    box.className = 'detail';
+    box.innerHTML = '<div class="skeleton" style="padding:12px 0">正在获取对阵卡…</div>';
+    btn.parentNode.insertBefore(box, btn.nextSibling);
+
+    ufcFindEvent(new Date(btn.dataset.start), btn.dataset.ufc).then(function (ev) {
+      if (!box.isConnected) return;
+      if (!ev) {
+        box.innerHTML = '<div class="kv"><span>这场的对阵卡还没公布。</span></div>';
+        return;
+      }
+      // ESPN lists the prelims first; a card reads main event down
+      var bouts = (ev.competitions || []).slice().reverse();
+      if (!bouts.length) {
+        box.innerHTML = '<div class="kv"><span>这场的对阵卡还没公布。</span></div>';
+        return;
+      }
+      var venue = (bouts[0] || {}).venue || {};
+      var html = '';
+      if (venue.fullName) {
+        html += '<div class="kv"><span class="k">场馆</span><span>' + esc(venue.fullName) +
+          (venue.address && venue.address.city ? ' · ' + esc(venue.address.city) : '') + '</span></div>';
+      }
+      var bc = (bouts[0] || {}).broadcast;
+      if (bc) html += '<div class="kv"><span class="k">转播</span><span>' + esc(bc) + '</span></div>';
+
+      html += '<h4>对阵卡</h4><div class="card">' + bouts.map(function (c, i) {
+        var cs = c.competitors || [];
+        var a = cs[0] || {}, b = cs[1] || {};
+        var st = (c.status && c.status.type) || {};
+        var done = st.state === 'post';
+        var mid;
+        if (done) {
+          var m = methodOf(c);
+          var rd = c.status && c.status.period;
+          var clock = (c.status && c.status.displayClock) || '';
+          mid = '<div class="method">' + esc(m || '完场') + '</div>' +
+            '<div class="method-sub">' + (rd ? 'R' + rd : '') +
+            (clock && clock !== '-' && m !== '判定' ? ' ' + esc(clock) : '') + '</div>';
+        } else if (st.state === 'in') {
+          mid = '<div class="method" style="color:var(--live)">进行中</div>' +
+            '<div class="method-sub">' + esc((c.status && c.status.displayClock) || '') + '</div>';
+        } else {
+          var rounds = ((c.format || {}).regulation || {}).periods;
+          mid = '<div class="wclass">' + esc(weightCN(c.type && c.type.abbreviation)) + '</div>' +
+            (rounds ? '<div class="method-sub">' + rounds + ' 回合</div>' : '');
+        }
+        return '<div class="match bout"' + (i === 0 ? ' style="border-top:none"' : '') + '>' +
+          fighterSide(a, true, done && b.winner) +
+          '<span class="mid">' + mid +
+            (done ? '<div class="wclass" style="margin-top:2px">' +
+              esc(weightCN(c.type && c.type.abbreviation)) + '</div>' : '') + '</span>' +
+          fighterSide(b, false, done && a.winner) +
+          '</div>' + (done ? scorecardHTML(c) : '');
+      }).join('') + '</div>';
+
+      var evDate = new Date(ev.date);
+      html += clipSearchHTML(
+        String(ev.name || '') + ' highlights ' + (isNaN(evDate) ? '' : dayEN(evDate)),
+        String(ev.name || '') + ' 集锦 ' + (isNaN(evDate) ? '' : dayCN(evDate)), '赛后集锦');
+
+      box.innerHTML = html;
+    });
+  }
+
+  /* ---------- UFC rankings (collected: ESPN only serves them as $refs) ---------- */
+  function renderUfcRankings() {
+    var host = $('panel-table');
+    host.innerHTML = '<div class="skeleton">正在读取排名…</div>';
+    $('status').textContent = 'UFC 排名';
+    archiveGet('ufc-rankings.json').then(function (d) {
+      var divs = (d && d.divisions) || [];
+      if (!divs.length) { host.innerHTML = archiveEmpty('UFC 排名'); return; }
+      var favIds = favFighters.map(function (f) { return String(f.id); });
+      host.innerHTML = divs.map(function (g) {
+        var rows = [];
+        if (g.champion) rows.push({ rank: 'C', f: g.champion, champ: true });
+        (g.ranks || []).forEach(function (r) {
+          rows.push({ rank: r.rank, f: r, champ: false });
+        });
+        if (!rows.length) return '';
+        return '<div class="group-name">' + esc(g.nameCN || g.name || '') + '</div>' +
+          '<div class="card" style="padding:4px 14px">' + rows.map(function (r) {
+            var f = r.f || {};
+            var fav = favIds.indexOf(String(f.id)) !== -1 ? ' fav' : '';
+            return '<div class="rank-row' + (r.champ ? ' champ' : '') + fav + '">' +
+              '<span class="rpos">' + esc(r.champ ? '冠军' : r.rank) + '</span>' +
+              (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="" loading="lazy">' : '') +
+              '<span class="rnm">' + esc(f.name || '') + '</span>' +
+              '<span class="rrec">' + esc(f.record || '') + '</span></div>';
+          }).join('') + '</div>';
+      }).join('') + archiveFoot(d);
+    });
+  }
+
+  /* ---------- my fighters ---------- */
+  // Scan the cards either side of today; that is enough for a last result and a
+  // next booking without pulling the whole season.
+  function ufcNearbyCards(back, ahead) {
+    return ufcSeason().then(function (d) {
+      var cal = (((d && d.leagues) || [])[0] || {}).calendar || [];
+      var rows = cal.slice().sort(function (a, b) {
+        return new Date(a.startDate) - new Date(b.startDate);
+      });
+      var now = Date.now();
+      var idx = rows.findIndex(function (c) {
+        return new Date(c.endDate || c.startDate).getTime() >= now;
+      });
+      if (idx === -1) idx = rows.length;
+      var pick = rows.slice(Math.max(0, idx - back), idx + ahead);
+      return Promise.all(pick.map(function (c) {
+        return ufcDay(ymdET(new Date(c.startDate))).then(function (day) {
+          return { cal: c, events: (day && day.events) || [] };
+        });
+      }));
+    });
+  }
+  function boutsOfFighter(chunks, id) {
+    var out = [];
+    chunks.forEach(function (ch) {
+      ch.events.forEach(function (ev) {
+        (ev.competitions || []).forEach(function (c) {
+          var cs = c.competitors || [];
+          var me = cs.filter(function (x) { return String(x.id) === String(id); })[0];
+          if (!me) return;
+          out.push({ ev: ev, comp: c, me: me, opp: cs.filter(function (x) { return x !== me; })[0] || {} });
+        });
+      });
+    });
+    return out.sort(function (a, b) { return new Date(a.comp.date) - new Date(b.comp.date); });
+  }
+
+  function renderMyFighters() {
+    var host = $('panel-mine');
+    if (!favFighters.length) {
+      host.innerHTML = '<div class="empty">还没有关注选手。<br>点右上角的「选手」挑最多 ' + MAX_FIGHTERS +
+        ' 位，这里会显示他们最近一战的结果和下一场的安排。</div>';
+      return;
+    }
+    host.innerHTML = '<div class="skeleton">正在获取选手动态…</div>';
+    ufcNearbyCards(4, 5).then(function (chunks) {
+      host.innerHTML = favFighters.map(function (f) {
+        var list = boutsOfFighter(chunks, f.id);
+        var done = list.filter(function (x) {
+          return ((x.comp.status || {}).type || {}).state === 'post';
+        });
+        var next = list.filter(function (x) {
+          return ((x.comp.status || {}).type || {}).state !== 'post';
+        });
+        var rows = '';
+        var last = done[done.length - 1];
+        if (last) {
+          var won = last.me.winner === true;
+          var lost = last.opp.winner === true;
+          var mark = won ? 'W' : (lost ? 'L' : 'D');
+          var m = methodOf(last.comp);
+          var rd = last.comp.status && last.comp.status.period;
+          rows += '<div class="fix"><span class="when">' +
+            esc(fmtDay(new Date(last.comp.date))) + '</span>' +
+            '<span class="vs">vs ' + esc((last.opp.athlete && last.opp.athlete.displayName) || '') + '</span>' +
+            '<span class="res ' + mark + '">' + (won ? '胜' : lost ? '负' : '平') +
+            (m ? ' · ' + esc(m) : '') + (rd ? ' R' + rd : '') + '</span></div>';
+        }
+        next.slice(0, 2).forEach(function (x) {
+          var d0 = new Date(x.comp.date);
+          rows += '<div class="fix"><span class="when">' +
+            esc(isNaN(d0) ? '待定' : fmtDay(d0)) + '</span>' +
+            '<span class="vs">vs ' + esc((x.opp.athlete && x.opp.athlete.displayName) || '') +
+            ' · ' + esc(weightCN(x.comp.type && x.comp.type.abbreviation)) + '</span>' +
+            '<span class="res" style="color:var(--muted);font-weight:600">' +
+            esc(String(x.ev.shortName || x.ev.name || '').split(':')[0]) + '</span></div>';
+        });
+        if (!rows) rows = '<div class="fix"><span>近期没有查到比赛</span></div>';
+
+        var rec = (last && ((last.me.records || [])[0] || {}).summary) || f.rec || '';
+        return '<div class="card team-card"><div class="tc-head">' +
+          (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) +
+            '" alt="" style="width:26px;height:18px">' : '') +
+          '<span class="nm">' + esc(f.name) + '</span>' +
+          '<span class="lg">' + esc(rec) + '</span></div>' + rows + '</div>';
+      }).join('');
+    });
+  }
+
+  function renderFighterPicker() {
+    var host = $('picker');
+    $('pickHint').textContent = '勾选你关注的选手，最多 ' + MAX_FIGHTERS +
+      ' 位。名单来自近期的赛事对阵卡。';
+    host.innerHTML = '<div class="skeleton">正在载入选手…</div>';
+    Promise.all([ufcNearbyCards(4, 6), archiveGet('ufc-rankings.json')]).then(function (r) {
+      var chunks = r[0], ranked = r[1];
+      var seen = {}, list = [];
+      function add(id, name, flag, rec) {
+        if (!id || seen[id] || !name) return;
+        seen[id] = 1;
+        list.push({ id: id, name: name, flag: flag || '', rec: rec || '' });
+      }
+      chunks.forEach(function (ch) {
+        ch.events.forEach(function (ev) {
+          (ev.competitions || []).forEach(function (c) {
+            (c.competitors || []).forEach(function (x) {
+              var a = x.athlete || {};
+              add(x.id, a.displayName, a.flag && a.flag.href, ((x.records || [])[0] || {}).summary);
+            });
+          });
+        });
+      });
+      // a ranked name with no booking on the near cards is still worth following
+      ((ranked && ranked.divisions) || []).forEach(function (g) {
+        [].concat(g.champion || [], g.ranks || []).forEach(function (f) {
+          if (f) add(f.id, f.name, f.flag, f.record);
+        });
+      });
+      if (!list.length) { host.innerHTML = '<div class="skeleton">选手名单没取到</div>'; return; }
+      var picked = favFighters.map(function (f) { return String(f.id); });
+      host.innerHTML = list.sort(function (a, b) { return a.name.localeCompare(b.name); })
+        .map(function (f) {
+          return '<label><input type="checkbox" value="' + esc(f.id) + '" data-name="' + esc(f.name) +
+            '" data-flag="' + esc(f.flag) + '" data-rec="' + esc(f.rec) + '"' +
+            (picked.indexOf(String(f.id)) !== -1 ? ' checked' : '') + '>' +
+            (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="">' : '') +
+            esc(f.name) + '<span class="pk-team">' + esc(f.rec) + '</span></label>';
+        }).join('');
+      $('pickCount').textContent = '已选 ' + favFighters.length + ' / ' + MAX_FIGHTERS;
+    });
+  }
+  function saveFavFighters() {
+    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, MAX_FIGHTERS);
+    favFighters = checked.map(function (c) {
+      return { id: c.value, name: c.dataset.name, flag: c.dataset.flag, rec: c.dataset.rec };
+    });
+    lsSet('favFighters', favFighters);
+    $('settings').hidden = true;
+    setTab('mine');
+  }
+
+  /* ---------- boxing: no public ESPN feed, so it comes from the archive ---------- */
+  function boxSide(x, isLeft, dim) {
+    x = x || {};
+    var flag = x.flag ? '<img class="flag-sm" src="' + esc(x.flag) + '" alt="" loading="lazy">' : '';
+    var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '">' +
+      (x.winner ? '<span class="win-pip"></span> ' : '') + esc(x.name || 'TBD') + '</span>' +
+      (x.record ? '<span class="frec">' + esc(x.record) + '</span>' : '') + '</span>';
+    return '<span class="side ' + (isLeft ? 'home' : 'away') + '">' +
+      (isLeft ? body + flag : flag + body) + '</span>';
+  }
+  function boxRow(b) {
+    var a = b.a || {}, c = b.b || {};
+    var aw = b.winner === 'a', cw = b.winner === 'b';
+    var mid;
+    if (b.winner || b.method) {
+      mid = '<div class="method">' + esc(b.method || '完场') + '</div>' +
+        '<div class="method-sub">' + esc((b.round ? 'R' + b.round : '') +
+          (b.time ? ' ' + b.time : '')) + '</div>';
+    } else {
+      var d0 = new Date(b.start || '');
+      mid = '<div class="kick">' + esc(isNaN(d0) ? '待定' : fmtTime(d0)) + '</div>' +
+        '<div class="method-sub">' + esc(b.rounds ? b.rounds + ' 回合' : '') + '</div>';
+    }
+    return '<div class="match bout">' +
+      boxSide({ name: a.name, record: a.record, flag: a.flag, winner: aw }, true, cw) +
+      '<span class="mid">' + mid +
+        (b.weight ? '<div class="wclass" style="margin-top:2px">' + esc(b.weight) + '</div>' : '') +
+      '</span>' +
+      boxSide({ name: c.name, record: c.record, flag: c.flag, winner: cw }, false, aw) +
+      '</div>';
+  }
+  function boxGroup(list) {
+    var groups = [], idx = {};
+    list.forEach(function (b) {
+      var k = b.event || archiveWhen(b.start);
+      if (!(k in idx)) { idx[k] = groups.length; groups.push({ label: k, items: [], start: b.start }); }
+      groups[idx[k]].items.push(b);
+    });
+    return groups.map(function (g) {
+      var d0 = new Date(g.start || '');
+      return '<div class="card-tag">' + esc(g.label) +
+        (isNaN(d0) ? '' : ' · ' + esc(fmtDay(d0))) + '</div>' +
+        '<div class="card">' + g.items.map(boxRow).join('') + '</div>';
+    }).join('');
+  }
+  function renderBoxing() {
+    var host = $('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在读取…</div>';
+    $('status').textContent = '拳击';
+    archiveGet('boxing.json').then(function (d) {
+      if (!d || (!(d.upcoming || []).length && !(d.recent || []).length)) {
+        host.innerHTML = archiveEmpty('拳击');
+        return;
+      }
+      host.innerHTML =
+        ((d.upcoming || []).length ? '<div class="group-name">接下来</div>' +
+          boxGroup(d.upcoming.slice(0, 30)) : '') +
+        ((d.recent || []).length ? '<div class="group-name">最近结果</div>' +
+          boxGroup(d.recent.slice(0, 30)) : '') +
+        archiveFoot(d);
+    });
+  }
+
   /* ---------- picker ---------- */
   function renderPicker() {
     var host = $('picker');
@@ -4439,6 +5048,15 @@
       setTab(tab);
       return;
     }
+    if (b.dataset.fight) {
+      fightLeague = b.dataset.fight;
+      lsSet('fleague', fightLeague);
+      if (fightLeague !== 'ufc') tab = 'fixtures';
+      $('gearBtn').hidden = fightLeague !== 'ufc';
+      renderSegTabs();
+      setTab(tab);
+      return;
+    }
     if (b.dataset.lol) {
       lolLeague = b.dataset.lol;
       lsSet('lolLeague', lolLeague);
@@ -4476,6 +5094,8 @@
   $('panel-fixtures').addEventListener('click', function (e) {
     var g = e.target.closest('.gp');
     if (g) { toggleGp(g); return; }
+    var uc = e.target.closest('.ev-head[data-ufc]');
+    if (uc) { toggleUfcCard(uc); return; }
     var nb = e.target.closest('.match[data-nba]');
     if (nb) { nbaDetail(nb); return; }
     var lm = e.target.closest('.match[data-lolm]');
@@ -4510,6 +5130,14 @@
       setTimeout(function () { el.classList.remove('spinning'); }, 500);
       return;
     }
+    if (sport === 'fight') {
+      ufcCache = {};
+      delete archive['boxing.json'];
+      delete archive['ufc-rankings.json'];
+      setTab(tab);
+      setTimeout(function () { el.classList.remove('spinning'); }, 500);
+      return;
+    }
     summaryCache = {};
     standingsCache = {};
     loadFixtures().then(function () {
@@ -4528,6 +5156,7 @@
       if (sport === 'f1') renderDriverPicker();
       else if (sport === 'esports') renderLolPicker();
       else if (sport === 'basketball') renderNbaPicker();
+      else if (sport === 'fight') renderFighterPicker();
       else renderPicker();
     }
   });
@@ -4559,6 +5188,15 @@
       updateDriverCount();
       return;
     }
+    if (sport === 'fight') {
+      if (document.querySelectorAll('#picker input:checked').length > MAX_FIGHTERS) {
+        e.target.checked = false;
+        alert('最多只能选 ' + MAX_FIGHTERS + ' 位选手。');
+      }
+      $('pickCount').textContent = '已选 ' +
+        document.querySelectorAll('#picker input:checked').length + ' / ' + MAX_FIGHTERS;
+      return;
+    }
     var others = favorites.filter(function (f) { return f.league !== league; }).length;
     if (currentPicked().length + others > MAX_TEAMS) {
       e.target.checked = false;
@@ -4571,6 +5209,7 @@
     if (sport === 'f1') { saveFavDrivers(); return; }
     if (sport === 'basketball') { saveFavNba(); return; }
     if (sport === 'esports') { saveFavLol(); return; }
+    if (sport === 'fight') { saveFavFighters(); return; }
     var kept = favorites.filter(function (f) { return f.league !== league; });
     var picked = currentPicked().map(function (c) {
       return { id: c.value, name: c.dataset.name, raw: c.dataset.raw, league: league };

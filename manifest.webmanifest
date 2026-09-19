@@ -1,0 +1,17 @@
+{
+  "name": "Grandstand 赛事板",
+  "short_name": "Grandstand",
+  "description": "足球、F1 的实时赛程、比分、积分榜与主队动态",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F2F4F3",
+  "theme_color": "#12564A",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

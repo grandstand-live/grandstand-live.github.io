@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Grandstand — 足球、篮球、F1、格斗、电竞的实时赛事板">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#12564A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Grandstand">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   html { padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
   body { margin: 0; }
@@ -629,6 +636,13 @@
     color: var(--muted); min-width: 16px;
   }
   .pk-team { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .vs-mid { color: var(--muted); font-weight: 400; margin: 0 3px; }
+  .fix.live-row { background: linear-gradient(90deg, var(--live-soft), transparent 70%); }
+  .group-name .dot { margin-right: 6px; vertical-align: 1px; }
+  .ics-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--hairline);
+  }
   .stints { display: grid; gap: 3px; margin-top: 4px; }
   .stint-row { display: flex; align-items: center; gap: 8px; }
   .stint-row .sn {
@@ -836,6 +850,7 @@
   <section id="panel-fixtures"></section>
   <section id="panel-table" hidden></section>
   <section id="panel-mine" hidden></section>
+  <section id="panel-today" hidden></section>
   <section id="panel-soon" hidden></section>
 
   <footer>
@@ -1014,13 +1029,14 @@
   /* ---------- sports ---------- */
   // ordered by global following
   var SPORTS = [
+    { id: 'today', name: '今天', ready: true, sub: '今天' },
     { id: 'football', name: '足球', ready: true, sub: '足球' },
     { id: 'basketball', name: '篮球', sub: '篮球', blurb: 'NBA 和 CBA 的赛程、实时比分、球员数据和东西部排名。' },
     { id: 'f1', name: 'F1', ready: true, sub: 'F1' },
     { id: 'fight', name: '格斗', sub: '格斗', blurb: 'UFC 和拳击的赛事卡、对阵、称重结果和胜负记录。' },
     { id: 'esports', name: '电竞', sub: '电竞', blurb: 'LOL、DOTA2、CS 的赛程、比分和战队排名。' }
   ];
-  var sport = lsGet('sport', 'football');
+  var sport = lsGet('sport', 'today');
   if (!SPORTS.some(function (s) { return s.id === sport; })) sport = 'football';
 
   function renderSportNav() {
@@ -1039,15 +1055,22 @@
     $('gearBtn').textContent = id === 'f1' ? '车手' : '主队';
 
     var ready = !!s.ready;
-    $('footballHead').hidden = !ready;
+    var isToday = id === 'today';
+    $('footballHead').hidden = !ready || isToday;
     $('chips').hidden = id !== 'football';
-    $('status').hidden = !ready;
+    $('status').hidden = !ready || isToday;
     $('settings').hidden = true;
     $('panel-soon').hidden = ready;
-    $('gearBtn').hidden = !ready;
+    $('panel-today').hidden = !isToday;
+    $('gearBtn').hidden = !ready || isToday;
     $('refreshBtn').hidden = !ready;
 
-    if (ready) {
+    if (isToday) {
+      $('panel-fixtures').hidden = true;
+      $('panel-table').hidden = true;
+      $('panel-mine').hidden = true;
+      renderToday();
+    } else if (ready) {
       renderSegTabs();
       setTab(tab);
     } else {
@@ -2731,6 +2754,196 @@
     });
   }
 
+  /* ---------- 今天: everything the viewer follows, in one screen ---------- */
+  function within(dateStr, hoursBack, hoursAhead) {
+    var t = new Date(dateStr).getTime();
+    if (isNaN(t)) return false;
+    var now = Date.now();
+    return t >= now - hoursBack * 3600000 && t <= now + hoursAhead * 3600000;
+  }
+
+  function renderToday() {
+    var host = $('panel-today');
+    host.innerHTML = '<div class="skeleton">正在汇总…</div>';
+
+    var jobs = [];
+    // football: each followed club's recent result and what is coming up
+    favorites.forEach(function (f) {
+      var base = API + 'site/v2/sports/soccer/' + (f.league || 'eng.1') + '/teams/' + f.id + '/schedule';
+      jobs.push(Promise.all([getJSON(base), getJSON(base + '?fixture=true')]).then(function (r) {
+        return { kind: 'team', fav: f, past: r[0], future: r[1] };
+      }));
+    });
+    // F1: the next round, plus how the followed drivers stand
+    if (favDrivers.length) {
+      jobs.push(Promise.all([f1Season(), f1Standings()]).then(function (r) {
+        return { kind: 'f1', season: r[0], standings: r[1] };
+      }));
+    }
+
+    if (!jobs.length) {
+      host.innerHTML = '<div class="empty">还没有关注任何球队或车手。<br><br>' +
+        '切到「足球」点右上角「主队」挑球队，切到「F1」点「车手」挑车手，' +
+        '之后这一页会把他们的下一场比赛、最近战绩汇总在一起。</div>';
+      return;
+    }
+
+    Promise.all(jobs).then(function (results) {
+      var upcoming = [];   // {when, title, sub, tag, live}
+      var recent = [];
+
+      results.forEach(function (res) {
+        if (res.kind === 'team') {
+          var f = res.fav;
+          var lgName = (LEAGUES.filter(function (l) { return l.id === f.league; })[0] || {}).name || '';
+          ((res.future && res.future.events) || []).forEach(function (e) {
+            if (!within(e.date, 3, 24 * 7)) return;
+            var s = sideOf(e, f.id);
+            var st = (s.comp.status && s.comp.status.type) || {};
+            upcoming.push({
+              when: new Date(e.date), tag: lgName, live: st.state === 'in',
+              title: esc(f.name) + ' <span class="vs-mid">vs</span> ' +
+                esc(cn(s.opp.team && s.opp.team.displayName, s.opp.team && s.opp.team.shortDisplayName)),
+              sub: (s.me.homeAway === 'home' ? '主场' : '客场') +
+                (st.state === 'in' ? ' · 进行中' : '')
+            });
+          });
+          var done = ((res.past && res.past.events) || []).filter(function (e) {
+            return within(e.date, 24 * 7, 3);
+          }).sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
+          if (done) {
+            var s2 = sideOf(done, f.id);
+            var mark = s2.me.winner === true ? 'W' : (s2.opp.winner === true ? 'L' : 'D');
+            recent.push({
+              when: new Date(done.date), tag: lgName, mark: mark,
+              title: esc(f.name) + ' <span class="vs-mid">vs</span> ' +
+                esc(cn(s2.opp.team && s2.opp.team.displayName, s2.opp.team && s2.opp.team.shortDisplayName)),
+              score: esc(scoreOf(s2.me)) + '-' + esc(scoreOf(s2.opp)),
+              word: mark === 'W' ? '胜' : mark === 'L' ? '负' : '平'
+            });
+          }
+        }
+
+        if (res.kind === 'f1') {
+          var evs = ((res.season && res.season.events) || []).slice().sort(function (a, b) {
+            return new Date(a.date) - new Date(b.date);
+          });
+          var now = Date.now();
+          var nextEv = evs.filter(function (e) {
+            var st = (e.status && e.status.type) || {};
+            return st.state !== 'post' &&
+              new Date((raceOf(e) || {}).date || e.date).getTime() >= now - 6 * 3600000;
+          })[0];
+          if (nextEv) {
+            (nextEv.competitions || []).forEach(function (c) {
+              var type = (c.type && (c.type.text || c.type.abbreviation)) || '';
+              if (type !== 'Race' && type !== 'Qual' && type !== 'Sprint') return;
+              if (!within(c.date, 3, 24 * 10)) return;
+              upcoming.push({
+                when: new Date(c.date), tag: 'F1',
+                title: esc(gpName(nextEv.name)),
+                sub: SESSION_CN[type] || type
+              });
+            });
+          }
+          var dStand = ((res.standings && res.standings.children) || []).filter(function (c) {
+            return /driver/i.test(c.name || '');
+          })[0];
+          var entries = (dStand && dStand.standings && dStand.standings.entries) || [];
+          favDrivers.forEach(function (fd) {
+            var surname = plain(fd.name).split(' ').slice(-1)[0];
+            var st = entries.filter(function (e) {
+              return plain((e.athlete && e.athlete.displayName) || '').indexOf(surname) !== -1;
+            })[0];
+            if (!st) return;
+            var m = {};
+            (st.stats || []).forEach(function (x) { m[x.name] = x.displayValue; });
+            recent.push({
+              when: null, tag: 'F1', mark: '',
+              title: esc(driverCN(fd.name) || fd.name),
+              score: (m.championshipPts || '0') + ' 分',
+              word: '第 ' + (m.rank || '?') + ' 名'
+            });
+          });
+        }
+      });
+
+      upcoming.sort(function (a, b) { return a.when - b.when; });
+      recent.sort(function (a, b) { return (b.when || 0) - (a.when || 0); });
+
+      var live = upcoming.filter(function (u) { return u.live; });
+      var html = '';
+
+      if (live.length) {
+        html += '<div class="group-name"><span class="dot"></span>正在进行</div><div class="card">' +
+          live.map(rowUpcoming).join('') + '</div>';
+      }
+      html += '<div class="group-name">接下来</div><div class="card">' +
+        (upcoming.filter(function (u) { return !u.live; }).slice(0, 10).map(rowUpcoming).join('') ||
+          '<div class="fix"><span>未来一周没有安排</span></div>') + '</div>';
+      if (recent.length) {
+        html += '<div class="group-name">最近</div><div class="card">' +
+          recent.map(function (r) {
+            return '<div class="fix"><span class="when">' +
+              (r.when ? esc(fmtDay(r.when)) : esc(r.tag)) + '</span>' +
+              '<span class="vs">' + r.title + '</span>' +
+              '<span class="res ' + (r.mark || '') + '">' + r.score + ' ' + esc(r.word) + '</span></div>';
+          }).join('') + '</div>';
+      }
+      html += '<div class="ics-row"><button class="btn" type="button" id="icsBtn">导出到日历 (.ics)</button>' +
+        '<span class="count">把这些比赛加进手机日历，让系统替你提醒</span></div>';
+
+      host.innerHTML = html;
+      var b = $('icsBtn');
+      if (b) b.addEventListener('click', function () { exportICS(upcoming); });
+    });
+  }
+
+  function rowUpcoming(u) {
+    return '<div class="fix' + (u.live ? ' live-row' : '') + '">' +
+      '<span class="when">' + esc(fmtDay(u.when) + ' ' + fmtTime(u.when)) + '</span>' +
+      '<span class="vs">' + u.title + '</span>' +
+      '<span class="res" style="font-weight:500;color:var(--muted)">' + esc(u.sub || u.tag) + '</span></div>';
+  }
+
+  /* ---------- calendar export ---------- */
+  function icsStamp(d) {
+    return d.getUTCFullYear() +
+      String(d.getUTCMonth() + 1).padStart(2, '0') +
+      String(d.getUTCDate()).padStart(2, '0') + 'T' +
+      String(d.getUTCHours()).padStart(2, '0') +
+      String(d.getUTCMinutes()).padStart(2, '0') + '00Z';
+  }
+  function icsEscape(s) {
+    return String(s).replace(/<[^>]+>/g, '').replace(/[\\;,]/g, function (c) { return '\\' + c; });
+  }
+  function exportICS(items) {
+    if (!items || !items.length) { alert('现在没有可导出的比赛。'); return; }
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Grandstand//ZH//', 'CALSCALE:GREGORIAN'];
+    items.forEach(function (u, i) {
+      if (!u.when || isNaN(u.when)) return;
+      var end = new Date(u.when.getTime() + 2 * 3600000);
+      lines.push('BEGIN:VEVENT');
+      lines.push('UID:grandstand-' + u.when.getTime() + '-' + i + '@grandstand-live.github.io');
+      lines.push('DTSTAMP:' + icsStamp(new Date()));
+      lines.push('DTSTART:' + icsStamp(u.when));
+      lines.push('DTEND:' + icsStamp(end));
+      lines.push('SUMMARY:' + icsEscape((u.tag ? '[' + u.tag + '] ' : '') + u.title));
+      if (u.sub) lines.push('DESCRIPTION:' + icsEscape(u.sub));
+      lines.push('BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY',
+        'DESCRIPTION:' + icsEscape(u.title), 'END:VALARM');
+      lines.push('END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'grandstand.ics';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
   /* ---------- picker ---------- */
   function renderPicker() {
     var host = $('picker');
@@ -2817,6 +3030,11 @@
   $('refreshBtn').addEventListener('click', function () {
     var el = $('refreshBtn');
     el.classList.add('spinning');
+    if (sport === 'today') {
+      renderToday();
+      setTimeout(function () { el.classList.remove('spinning'); }, 500);
+      return;
+    }
     if (sport === 'f1') {
       f1Cache = {};
       setTab(tab);
@@ -2879,7 +3097,14 @@
   renderSportNav();
   setSport(sport);
   setFavCount();
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+
   if (sport === 'football') loadFixtures().then(checkKickoffs);
+  else if (sport === 'today') loadFixtures(true);
 })();
 </script>
 

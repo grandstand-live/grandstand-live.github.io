@@ -1269,6 +1269,11 @@
     return { home: '#12564A', away: '#B93C4C', distinct: false };
   }
 
+  function luminance(hex) {
+    var v = parseInt(String(hex || '').replace('#', ''), 16);
+    if (isNaN(v)) return 0;
+    return 0.299 * ((v >> 16) & 255) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255);
+  }
   function readableOn(hex) {
     var v = parseInt(String(hex || '').replace('#', ''), 16);
     if (isNaN(v)) return '#fff';
@@ -1447,6 +1452,8 @@
     function dots(side, fill, isHome) {
       var ink = readableOn(fill);
       var teamName = side.team.displayName || side.team.shortDisplayName || '';
+      // a white or very pale kit needs a darker rim or the dot melts into the pitch
+      var ring = luminance(fill) > 200 ? 'rgba(0,0,0,.35)' : fill;
       var lines = [[], [], [], [], []];
       side.starters.forEach(function (p) {
         var abbr = (p.position && (p.position.abbreviation || p.position.name)) || '';
@@ -1480,7 +1487,7 @@
               ' x="' + (x - R).toFixed(1) + '" y="' + (y - R).toFixed(1) +
               '" width="' + (R * 2) + '" height="' + (R * 2) + '" preserveAspectRatio="xMidYMid slice" ' +
               'style="clip-path:circle(50%)"></image>' +
-            '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="' + fill +
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="' + ring +
               '" stroke-width=".9"></circle>' +
             (offClock !== null ? '<text x="' + (x + R + .6).toFixed(1) + '" y="' + (y - R + 1).toFixed(1) +
               '" font-size="2" fill="var(--loss)" font-weight="700">\u2193' + esc(offClock) + '</text>' : '') +

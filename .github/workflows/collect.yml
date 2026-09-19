@@ -27,6 +27,9 @@ jobs:
           node-version: '20'
 
       - name: Collect
+        env:
+          PANDASCORE_TOKEN: ${{ secrets.PANDASCORE_TOKEN }}
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
         run: node scripts/collect.mjs
 
       - name: Commit changes

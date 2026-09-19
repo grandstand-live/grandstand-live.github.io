@@ -1185,14 +1185,16 @@
     var ready = !!s.ready;
     var isToday = id === 'today';
     $('footballHead').hidden = !ready || isToday;
-    $('chips').hidden = (id !== 'football' && id !== 'esports');
+    $('chips').hidden = (id !== 'football' && id !== 'esports' && id !== 'basketball');
     $('chips2').hidden = id !== 'esports';
     if (id === 'football') renderChips();
     $('status').hidden = !ready || isToday;
     $('settings').hidden = true;
     $('panel-soon').hidden = ready;
     $('panel-today').hidden = !isToday;
-    $('gearBtn').hidden = !ready || isToday;
+    $('gearBtn').hidden = !ready || isToday ||
+      (id === 'basketball' && bballLeague !== 'nba') ||
+      (id === 'esports' && esportsGame !== 'lol');
     $('refreshBtn').hidden = !ready;
 
     if (isToday) {
@@ -1225,11 +1227,13 @@
     f1: [['fixtures', '赛历'], ['table', '积分榜'], ['mine', '我的车手']],
     basketball: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的球队']],
     esports: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的战队']],
-    esports_other: [['fixtures', '赛程']]
+    esports_other: [['fixtures', '赛程']],
+    single: [['fixtures', '赛程']]
   };
   function renderSegTabs() {
-    var defs = (sport === 'esports' && esportsGame !== 'lol')
-      ? TABS.esports_other : (TABS[sport] || TABS.football);
+    var defs = (sport === 'esports' && esportsGame !== 'lol') ? TABS.esports_other
+      : (sport === 'basketball' && bballLeague !== 'nba') ? TABS.single
+      : (TABS[sport] || TABS.football);
     document.querySelector('.seg').innerHTML = defs.map(function (t) {
       return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' +
         (t[0] === tab) + '">' + t[1] +
@@ -1268,6 +1272,12 @@
       return;
     }
     if (sport === 'basketball') {
+      renderBballChips();
+      if (bballLeague === 'cba') {
+        renderCba();
+        $('panel-table').hidden = true; $('panel-mine').hidden = true; $('panel-fixtures').hidden = false;
+        return;
+      }
       if (next === 'fixtures') renderNbaFixtures();
       else if (next === 'table') renderNbaTable();
       else renderNbaMine();
@@ -2001,6 +2011,13 @@
         html += '<div class="kv" style="margin-top:12px"><span class="k">球场</span><span>' +
           esc(venue.fullName) + (venue.address && venue.address.city ? ' · ' + esc(venue.address.city) : '') + '</span></div>';
       }
+
+      html += seriesHTML(data.seasonseries, function (full, abbr) {
+        return cn(full, abbr) || abbr || '';
+      });
+      html += formHTML(espnForm(data.lastFiveGames, function (full, abbr) {
+        return cn(full, abbr) || abbr || '';
+      }));
 
       var clips = videosHTML(data.videos);
       if (clips) html += clips;
@@ -2922,6 +2939,109 @@
     });
   }
 
+  /* ---------- head-to-head history and recent form ---------- */
+  function seriesCN(text) {
+    return String(text || '')
+      .replace(/^(.+?) leads series ([\d-]+)/i, '$1 交锋领先 $2')
+      .replace(/^series tied ([\d-]+)/i, '交锋战平 $1')
+      .replace(/^(.+?) wins? series ([\d-]+)/i, '$1 赢下系列赛 $2');
+  }
+  function seriesHTML(seasonseries, nameFn) {
+    var s0 = (seasonseries || [])[0];
+    var evs = (s0 && s0.events) || [];
+    if (!evs.length) return '';
+    var rows = evs.slice().sort(function (a, b) {
+      return new Date(b.date) - new Date(a.date);
+    }).slice(0, 8).map(function (e) {
+      var d0 = new Date(e.date);
+      var cs = e.competitors || [];
+      var home = cs.filter(function (c) { return c.homeAway === 'home'; })[0] || cs[0] || {};
+      var away = cs.filter(function (c) { return c !== home; })[0] || {};
+      var hn = nameFn(home.team && home.team.displayName, home.team && home.team.abbreviation);
+      var an = nameFn(away.team && away.team.displayName, away.team && away.team.abbreviation);
+      var hw = String(home.winner) === 'true' || home.winner === true;
+      var aw = String(away.winner) === 'true' || away.winner === true;
+      return '<div class="fix" style="padding:6px 0"><span class="when">' +
+        (isNaN(d0) ? '' : esc(fmtDay(d0))) + '</span><span class="vs">' +
+        '<b' + (hw ? '' : ' style="font-weight:500;color:var(--muted)"') + '>' + esc(hn) + '</b> ' +
+        esc(home.score) + ' - ' + esc(away.score) + ' ' +
+        '<b' + (aw ? '' : ' style="font-weight:500;color:var(--muted)"') + '>' + esc(an) + '</b>' +
+        '</span></div>';
+    }).join('');
+    var head = s0.summary ? '<div class="kv"><span class="k">交锋</span><span>' +
+      esc(seriesCN(s0.summary)) + '</span></div>' : '';
+    return '<h4>交锋历史</h4>' + head + rows;
+  }
+
+  // one shared component: [{team, games:[{result,score,opp,home,date}]}]
+  function formHTML(sides) {
+    var cols = (sides || []).filter(function (s) { return s && s.games && s.games.length; });
+    if (!cols.length) return '';
+    return '<h4>近期战绩</h4><div class="bench">' + cols.map(function (side) {
+      var badges = side.games.map(function (g) {
+        return '<span class="f ' + esc(g.result) + '">' + esc(g.result) + '</span>';
+      }).join('');
+      var rows = side.games.map(function (g) {
+        return '<div class="bench-row"><span class="bn">' + (g.home ? '主' : '客') + '</span>' +
+          '<span class="bnm">' + esc(g.opp) + '</span>' +
+          '<span class="bin" style="color:var(--' +
+          (g.result === 'W' ? 'win' : g.result === 'L' ? 'loss' : 'muted') + ')">' +
+          esc(g.score || '') + '</span></div>';
+      }).join('');
+      return '<div class="bench-col"><div class="bench-team">' + esc(side.team) +
+        '<span class="form" style="margin-left:auto">' + badges + '</span></div>' + rows + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function espnForm(lastFiveGames, nameFn) {
+    return (lastFiveGames || []).map(function (entry) {
+      return {
+        team: nameFn(entry.team && entry.team.displayName, entry.team && entry.team.abbreviation),
+        games: (entry.events || []).slice(0, 5).map(function (g) {
+          return {
+            result: (g.gameResult || '').toUpperCase() || 'D',
+            score: g.score || '',
+            opp: nameFn((g.opponent && g.opponent.displayName) || '', g.opponent && g.opponent.abbreviation),
+            home: g.atVs !== '@'
+          };
+        })
+      };
+    });
+  }
+
+  // NBA's summary has no recent-form block, so derive it from each club's schedule
+  function nbaForm(teamIds) {
+    return Promise.all(teamIds.map(function (id) {
+      if (!id) return Promise.resolve(null);
+      var key = 'form' + id;
+      if (nbaCache[key]) return Promise.resolve(nbaCache[key]);
+      return getJSON(API + NBA + 'teams/' + id + '/schedule').then(function (d) {
+        if (!d) return null;
+        var done = ((d.events || [])).filter(function (e) {
+          var c = (e.competitions || [])[0] || {};
+          return c.status && c.status.type && c.status.type.completed;
+        }).sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).slice(0, 5);
+        var out = {
+          team: nbaCN(d.team && d.team.displayName),
+          games: done.map(function (e) {
+            var c = (e.competitions || [])[0] || {};
+            var cs = c.competitors || [];
+            var me = cs.filter(function (x) { return String(x.team && x.team.id) === String(id); })[0] || {};
+            var opp = cs.filter(function (x) { return x !== me; })[0] || {};
+            return {
+              result: me.winner === true ? 'W' : 'L',
+              score: scoreOf(me) + '-' + scoreOf(opp),
+              opp: nbaCN(opp.team && opp.team.displayName),
+              home: me.homeAway === 'home'
+            };
+          })
+        };
+        nbaCache[key] = out;
+        return out;
+      });
+    })).then(function (list) { return list.filter(Boolean); });
+  }
+
   /* ---------- post-match highlights ---------- */
   function clipTime(sec) {
     if (!sec) return '';
@@ -3477,6 +3597,11 @@
         }).filter(Boolean).join('') + '</div>';
       }
 
+      html += seriesHTML(data.seasonseries, function (full, abbr) {
+        return nbaCN(full, abbr) || abbr || '';
+      });
+      html += '<div id="nform-' + esc(id) + '"></div>';
+
       var nbaClips = videosHTML(data.videos);
       if (nbaClips) html += nbaClips;
       else {
@@ -3497,6 +3622,13 @@
       }
 
       box.innerHTML = html || '<div class="kv"><span>这场比赛暂时没有更多资料。</span></div>';
+
+      var hd2 = (data.header && data.header.competitions && data.header.competitions[0]) || {};
+      var ids = (hd2.competitors || []).map(function (c) { return c.team && c.team.id; });
+      nbaForm(ids).then(function (sides) {
+        var slot = document.getElementById('nform-' + id);
+        if (slot && slot.isConnected) slot.innerHTML = formHTML(sides);
+      });
     });
   }
 
@@ -3703,6 +3835,14 @@
   }
 
   var esportsGame = lsGet('egame', 'lol');
+  var bballLeague = lsGet('bball', 'nba');
+  function renderBballChips() {
+    $('chips').hidden = false;
+    $('chips').innerHTML = [['nba', 'NBA'], ['cba', 'CBA']].map(function (g) {
+      return '<button class="chip" type="button" data-bball="' + g[0] + '" aria-pressed="' +
+        (g[0] === bballLeague) + '">' + g[1] + '</button>';
+    }).join('');
+  }
   var EGAMES = [{ id: 'lol', name: '英雄联盟' }, { id: 'cs2', name: 'CS2' }, { id: 'valorant', name: 'Valorant' }];
 
   function renderEsportsChips() {
@@ -3723,70 +3863,94 @@
       '仓库里的定时任务每 5 分钟跑一次，第一次抓取完成后这里就会有内容。</div>';
   }
 
-  function renderArchiveList(host, data, label, shape) {
-    if (!data) { host.innerHTML = archiveEmpty(label); return; }
-    var up = (data.upcoming || []).map(shape).filter(Boolean);
-    var re = (data.recent || []).map(shape).filter(Boolean);
-    if (!up.length && !re.length) { host.innerHTML = archiveEmpty(label); return; }
-    function rows(list) {
-      return '<div class="card">' + list.map(function (r) {
-        return '<div class="fix"><span class="when">' + esc(r.when) + '</span>' +
-          '<span class="vs">' + esc(r.title) + '</span>' +
-          '<span class="res" style="' + (r.score ? '' : 'color:var(--muted);font-weight:500') + '">' +
-          esc(r.score || r.note || '') + '</span></div>';
-      }).join('') + '</div>';
-    }
-    host.innerHTML = (up.length ? '<div class="group-name">接下来</div>' + rows(up.slice(0, 20)) : '') +
-      (re.length ? '<div class="group-name">最近结果</div>' + rows(re.slice(0, 20)) : '') +
-      '<footer style="border:none;padding-top:10px">' + esc(stamp(data.updatedAt)) +
+  function archiveRow(when, title, right, live) {
+    return '<div class="fix' + (live ? ' live-row' : '') + '">' +
+      '<span class="when">' + esc(when) + '</span>' +
+      '<span class="vs">' + title + '</span>' +
+      '<span class="res"' + (right && right.score ? '' : ' style="color:var(--muted);font-weight:500"') +
+      '>' + esc((right && (right.score || right.note)) || '') + '</span></div>';
+  }
+  function archiveWhen(iso) {
+    var d = new Date(iso || '');
+    return isNaN(d) ? '待定' : fmtDay(d) + ' ' + fmtTime(d);
+  }
+  function archiveFoot(data) {
+    return '<footer style="border:none;padding-top:10px">' + esc(stamp(data.updatedAt)) +
       (data.source ? ' · 来源 ' + esc(data.source) : '') + '</footer>';
   }
 
-  function renderCs2() {
+  // PandaScore: CS2 and Valorant share one shape
+  function renderPandaGame(file, label) {
     var host = $('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
-    $('status').textContent = 'CS2';
-    archiveGet('cs2.json').then(function (d) {
-      renderArchiveList(host, d, 'CS2', function (m) {
-        if (!m) return null;
-        var t1 = m.team1 && (m.team1.name || m.team1) || m.teams && m.teams[0] && m.teams[0].name || '';
-        var t2 = m.team2 && (m.team2.name || m.team2) || m.teams && m.teams[1] && m.teams[1].name || '';
-        if (!t1 && !t2) return null;
-        var when = m.time || m.date || m.matchTime || '';
-        var d0 = new Date(when);
-        return {
-          when: isNaN(d0) ? String(when).slice(0, 16) : fmtDay(d0) + ' ' + fmtTime(d0),
-          title: t1 + ' vs ' + t2,
-          score: (m.result || (m.team1 && m.team1.result !== undefined
-            ? m.team1.result + '-' + (m.team2 && m.team2.result) : '')) || '',
-          note: m.event && (m.event.name || m.event) || ''
-        };
-      });
+    $('status').textContent = label;
+    archiveGet(file).then(function (d) {
+      if (!d || (!(d.upcoming || []).length && !(d.recent || []).length)) {
+        host.innerHTML = archiveEmpty(label);
+        return;
+      }
+      function row(m) {
+        var t = m.teams || [];
+        var a = t[0] || {}, b = t[1] || {};
+        var name = function (x) { return x.acronym || x.name || 'TBD'; };
+        var live = m.status === 'running';
+        var score = (a.score !== null && a.score !== undefined && b.score !== null)
+          ? a.score + '-' + b.score : '';
+        var title = '<span class="lol-code">' + esc(name(a)) + '</span>' +
+          '<span class="vs-mid">vs</span><span class="lol-code">' + esc(name(b)) + '</span>';
+        return archiveRow(archiveWhen(m.start), title,
+          { score: score, note: (m.bo ? 'BO' + m.bo : '') || m.league }, live);
+      }
+      host.innerHTML =
+        ((d.upcoming || []).length ? '<div class="group-name">接下来</div><div class="card">' +
+          d.upcoming.slice(0, 20).map(row).join('') + '</div>' : '') +
+        ((d.recent || []).length ? '<div class="group-name">最近结果</div><div class="card">' +
+          d.recent.slice(0, 20).map(row).join('') + '</div>' : '') +
+        archiveFoot(d);
     });
   }
+  function renderCs2() { renderPandaGame('cs2.json', 'CS2'); }
+  function renderValorant() { renderPandaGame('valorant.json', 'Valorant'); }
 
-  function renderValorant() {
+  // API-Sports: CBA
+  var CBA_CN = {
+    'guangdong': '广东', 'liaoning': '辽宁', 'zhejiang': '浙江', 'xinjiang': '新疆',
+    'beijing': '北京', 'shanghai': '上海', 'shandong': '山东', 'shenzhen': '深圳',
+    'guangzhou': '广州', 'jiangsu': '江苏', 'shanxi': '山西', 'shaanxi': '陕西',
+    'sichuan': '四川', 'fujian': '福建', 'jilin': '吉林', 'tianjin': '天津',
+    'nanjing': '南京', 'qingdao': '青岛', 'ningbo': '宁波', 'beikong': '北控',
+    'shougang': '首钢', 'zhejiang guangsha': '浙江广厦', 'jiangsu dragons': '江苏',
+    'sichuan blue whales': '四川', 'chongqing': '重庆'
+  };
+  function cbaCN(name) {
+    var low = plain(name || '');
+    var keys = Object.keys(CBA_CN).sort(function (a, b) { return b.length - a.length; });
+    var hit = keys.filter(function (k) { return low.indexOf(k) !== -1; })[0];
+    return hit ? CBA_CN[hit] : (name || '');
+  }
+  function renderCba() {
     var host = $('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
-    $('status').textContent = 'Valorant';
-    archiveGet('valorant.json').then(function (d) {
-      renderArchiveList(host, d, 'Valorant', function (m) {
-        if (!m) return null;
-        var teams = m.teams || [];
-        var t1 = (teams[0] && (teams[0].name || teams[0])) || m.team1 || '';
-        var t2 = (teams[1] && (teams[1].name || teams[1])) || m.team2 || '';
-        if (!t1 && !t2) return null;
-        var d0 = new Date(m.utcDate || m.date || '');
-        var sc = teams.length === 2 && teams[0].score !== undefined
-          ? teams[0].score + '-' + teams[1].score : (m.score1 !== undefined ? m.score1 + '-' + m.score2 : '');
-        return {
-          when: isNaN(d0) ? String(m.in || m.time_until_match || m.date || '').slice(0, 16)
-            : fmtDay(d0) + ' ' + fmtTime(d0),
-          title: t1 + ' vs ' + t2,
-          score: sc || '',
-          note: m.event || m.tournament_name || m.match_event || ''
-        };
-      });
+    $('status').textContent = 'CBA';
+    archiveGet('cba.json').then(function (d) {
+      if (!d || (!(d.upcoming || []).length && !(d.recent || []).length)) {
+        host.innerHTML = archiveEmpty('CBA');
+        return;
+      }
+      function row(g) {
+        var live = /Q1|Q2|Q3|Q4|HT|OT/i.test(g.status || '');
+        var score = (g.home && g.home.score !== null && g.home.score !== undefined)
+          ? g.home.score + '-' + g.away.score : '';
+        var title = esc(cbaCN(g.home && g.home.name)) +
+          '<span class="vs-mid">vs</span>' + esc(cbaCN(g.away && g.away.name));
+        return archiveRow(archiveWhen(g.start), title, { score: score, note: '' }, live);
+      }
+      host.innerHTML =
+        ((d.upcoming || []).length ? '<div class="group-name">接下来</div><div class="card">' +
+          d.upcoming.slice(0, 20).map(row).join('') + '</div>' : '') +
+        ((d.recent || []).length ? '<div class="group-name">最近结果</div><div class="card">' +
+          d.recent.slice(0, 20).map(row).join('') + '</div>' : '') +
+        archiveFoot(d);
     });
   }
 
@@ -3952,6 +4116,31 @@
           (t.result ? ' · 本场 ' + esc(t.result.gameWins) + ' 分' : '') + '</span></div>';
       }).filter(Boolean).join('');
       if (recRows) html += '<h4>双方战绩</h4>' + recRows;
+
+      var sides = [btn.dataset.a, btn.dataset.b].map(function (code) {
+        if (!code) return null;
+        var games = [];
+        Object.keys(lolCache).forEach(function (k) {
+          if (k.indexOf('getSchedule') !== 0) return;
+          ((((lolCache[k] || {}).data || {}).schedule || {}).events || []).forEach(function (e) {
+            if (e.type !== 'match' || !e.match || e.state !== 'completed') return;
+            if (String(e.match.id) === String(m.id)) return;
+            var ts = e.match.teams || [];
+            var me = ts.filter(function (t) { return t.code === code; })[0];
+            if (!me) return;
+            var opp = ts.filter(function (t) { return t !== me; })[0] || {};
+            games.push({
+              when: new Date(e.startTime),
+              result: (me.result || {}).outcome === 'win' ? 'W' : 'L',
+              score: ((me.result || {}).gameWins) + '-' + ((opp.result || {}).gameWins),
+              opp: opp.code || '', home: true
+            });
+          });
+        });
+        games.sort(function (a, b) { return b.when - a.when; });
+        return { team: code, games: games.slice(0, 5) };
+      }).filter(function (x) { return x && x.games.length; });
+      if (sides.length) html += formHTML(sides);
 
       var h2h = lolH2H(btn.dataset.a, btn.dataset.b, m.id);
       if (h2h.length) {
@@ -4234,6 +4423,14 @@
   $('chips').addEventListener('click', function (e) {
     var b = e.target.closest('.chip');
     if (!b) return;
+    if (b.dataset.bball) {
+      bballLeague = b.dataset.bball;
+      lsSet('bball', bballLeague);
+      if (bballLeague !== 'nba') tab = 'fixtures';
+      renderSegTabs();
+      setTab(tab);
+      return;
+    }
     if (b.dataset.egame) {
       esportsGame = b.dataset.egame;
       lsSet('egame', esportsGame);

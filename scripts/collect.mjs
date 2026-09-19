@@ -140,98 +140,98 @@ async function collectLol() {
   return { liveMatches: live, gamesCaptured: captured };
 }
 
-/* --- mirrors for the feeds a browser cannot reach --- */
+/* --- mirrors for the feeds a browser cannot reach ---
+   These run with API keys held in GitHub Secrets. A key never reaches the
+   published page: the Action fetches, and only the resulting JSON is committed. */
 
-async function firstThatWorks(candidates) {
-  const errors = [];
-  for (const [label, run] of candidates) {
-    try {
-      const value = await run();
-      if (value) return { source: label, value };
-    } catch (err) { errors.push(`${label}: ${err.message}`); }
-  }
-  throw new Error(errors.join(' | ') || 'no source answered');
+const PANDA = process.env.PANDASCORE_TOKEN || '';
+const APISPORTS = process.env.APISPORTS_KEY || '';
+
+function pandaMatch(m) {
+  const sides = (m.opponents || []).map(o => o.opponent || {});
+  const scores = (m.results || []);
+  const scoreFor = id => {
+    const hit = scores.find(r => r.team_id === id);
+    return hit ? hit.score : null;
+  };
+  return {
+    id: m.id,
+    start: m.scheduled_at || m.begin_at || null,
+    status: m.status || '',
+    bo: m.number_of_games || null,
+    league: [m.league?.name, m.serie?.full_name].filter(Boolean).join(' · '),
+    teams: sides.map(t => ({
+      name: t.name || '',
+      acronym: t.acronym || '',
+      image: t.image_url || '',
+      score: scoreFor(t.id)
+    }))
+  };
 }
 
+async function collectPanda(game, file) {
+  if (!PANDA) throw new Error('missing PANDASCORE_TOKEN secret');
+  const headers = { authorization: `Bearer ${PANDA}` };
+  const base = `https://api.pandascore.co/${game}/matches`;
+  const [upcoming, past] = await Promise.all([
+    getJSON(`${base}/upcoming?per_page=30&sort=scheduled_at`, headers),
+    getJSON(`${base}/past?per_page=30&sort=-scheduled_at`, headers)
+  ]);
+  const value = {
+    upcoming: (upcoming || []).map(pandaMatch),
+    recent: (past || []).map(pandaMatch)
+  };
+  await save(file, { updatedAt: new Date().toISOString(), source: 'pandascore', ...value });
+  return { source: 'pandascore', upcoming: value.upcoming.length, recent: value.recent.length };
+}
+
+const collectCs2 = () => collectPanda('csgo', 'cs2.json');
+const collectValorant = () => collectPanda('valorant', 'valorant.json');
+
+/* API-Sports gives 100 requests a day on the free plan, so the CBA is polled
+   once an hour rather than on every five-minute tick. */
 async function collectCba() {
-  const { source, value } = await firstThatWorks([
-    ['sofascore', async () => {
-      const search = await getJSON(
-        'https://api.sofascore.com/api/v1/search/unique-tournaments?q=CBA'
-      );
-      const hit = (search?.results || [])
-        .map(r => r.entity)
-        .find(e => e && /CBA|Chinese Basketball/i.test(e.name || ''));
-      if (!hit) return null;
-      const season = await getJSON(
-        `https://api.sofascore.com/api/v1/unique-tournament/${hit.id}/seasons`
-      );
-      const current = season?.seasons?.[0];
-      if (!current) return null;
-      const [next, last] = await Promise.all([
-        getJSON(`https://api.sofascore.com/api/v1/unique-tournament/${hit.id}/season/${current.id}/events/next/0`)
-          .catch(() => null),
-        getJSON(`https://api.sofascore.com/api/v1/unique-tournament/${hit.id}/season/${current.id}/events/last/0`)
-          .catch(() => null)
-      ]);
-      const shape = e => ({
-        id: e.id,
-        start: e.startTimestamp ? new Date(e.startTimestamp * 1000).toISOString() : null,
-        status: e.status?.type || '',
-        home: { name: e.homeTeam?.name, id: e.homeTeam?.id, score: e.homeScore?.current ?? null },
-        away: { name: e.awayTeam?.name, id: e.awayTeam?.id, score: e.awayScore?.current ?? null }
-      });
-      return {
-        tournamentId: hit.id,
-        seasonId: current.id,
-        upcoming: (next?.events || []).slice(0, 30).map(shape),
-        recent: (last?.events || []).slice(-30).map(shape).reverse()
-      };
-    }]
-  ]);
-  await save('cba.json', { updatedAt: new Date().toISOString(), source, ...value });
-  return { source, upcoming: value.upcoming?.length || 0, recent: value.recent?.length || 0 };
-}
+  if (!APISPORTS) throw new Error('missing APISPORTS_KEY secret');
+  const now = new Date();
+  const previous = await load('cba.json');
+  const fresh = previous?.updatedAt &&
+    (now - new Date(previous.updatedAt)) < 55 * 60 * 1000;
+  if (fresh) return { source: previous.source, skipped: 'polled within the hour' };
 
-async function collectCs2() {
-  const { source, value } = await firstThatWorks([
-    ['hltv-api', async () => {
-      const [matches, results] = await Promise.all([
-        getJSON('https://hltv-api.vercel.app/api/matches.json').catch(() => null),
-        getJSON('https://hltv-api.vercel.app/api/results.json').catch(() => null)
-      ]);
-      if (!matches && !results) return null;
-      return { upcoming: (matches || []).slice(0, 30), recent: (results || []).slice(0, 30) };
-    }]
-  ]);
-  await save('cs2.json', { updatedAt: new Date().toISOString(), source, ...value });
-  return { source, upcoming: value.upcoming?.length || 0, recent: value.recent?.length || 0 };
-}
+  const headers = { 'x-apisports-key': APISPORTS };
+  const base = 'https://v1.basketball.api-sports.io/';
 
-async function collectValorant() {
-  const { source, value } = await firstThatWorks([
-    ['vlr-orlandomm', async () => {
-      const [up, res] = await Promise.all([
-        getJSON('https://vlr.orlandomm.net/api/v1/matches').catch(() => null),
-        getJSON('https://vlr.orlandomm.net/api/v1/results').catch(() => null)
-      ]);
-      if (!up && !res) return null;
-      return { upcoming: (up?.data || []).slice(0, 30), recent: (res?.data || []).slice(0, 30) };
-    }],
-    ['vlrggapi', async () => {
-      const [up, res] = await Promise.all([
-        getJSON('https://vlrggapi.vercel.app/match?q=upcoming').catch(() => null),
-        getJSON('https://vlrggapi.vercel.app/match?q=results').catch(() => null)
-      ]);
-      if (!up && !res) return null;
-      return {
-        upcoming: (up?.data?.segments || []).slice(0, 30),
-        recent: (res?.data?.segments || []).slice(0, 30)
-      };
-    }]
-  ]);
-  await save('valorant.json', { updatedAt: new Date().toISOString(), source, ...value });
-  return { source, upcoming: value.upcoming?.length || 0, recent: value.recent?.length || 0 };
+  let leagueId = previous?.leagueId;
+  let season = previous?.season;
+  if (!leagueId) {
+    const found = await getJSON(`${base}leagues?country=China`, headers);
+    const league = (found?.response || [])
+      .find(l => /CBA|Chinese Basketball/i.test(l.name || '')) || (found?.response || [])[0];
+    if (!league) throw new Error('no CBA league in API-Sports response');
+    leagueId = league.id;
+    const seasons = (league.seasons || []).map(s => s.season);
+    season = seasons[seasons.length - 1];
+  }
+  if (!season) throw new Error('no season for CBA');
+
+  const games = await getJSON(`${base}games?league=${leagueId}&season=${encodeURIComponent(season)}`, headers);
+  const all = (games?.response || []).map(g => ({
+    id: g.id,
+    start: g.date,
+    status: g.status?.short || '',
+    home: { name: g.teams?.home?.name, logo: g.teams?.home?.logo, score: g.scores?.home?.total ?? null },
+    away: { name: g.teams?.away?.name, logo: g.teams?.away?.logo, score: g.scores?.away?.total ?? null }
+  }));
+  const nowMs = now.getTime();
+  const value = {
+    leagueId, season,
+    upcoming: all.filter(g => new Date(g.start).getTime() >= nowMs - 3 * 3600e3)
+      .sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 30),
+    recent: all.filter(g => new Date(g.start).getTime() < nowMs - 3 * 3600e3)
+      .sort((a, b) => new Date(b.start) - new Date(a.start)).slice(0, 30)
+  };
+  await save('cba.json', { updatedAt: now.toISOString(), source: 'api-sports', ...value });
+  return { source: 'api-sports', league: leagueId, season, upcoming: value.upcoming.length, recent: value.recent.length };
 }
 
 /* Keep the repo from growing without bound. */

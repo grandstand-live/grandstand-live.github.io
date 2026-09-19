@@ -1460,6 +1460,9 @@
         lines[lineIndex(abbr)].push({ p: p, side: sideIndex(abbr), place: parseInt(p.formationPlace, 10) || 99 });
       });
       var used = lines.filter(function (l) { return l.length; });
+      // names sit under the dots, so the gap between position lines is the
+      // width budget — anything wider collides with the next column
+      var maxW = (used.length > 1 ? 38 / (used.length - 1) : 20) - 1.2;
       var out = '';
       used.forEach(function (line, i) {
         line.sort(function (a, b) { return a.side - b.side || a.place - b.place; });
@@ -1471,6 +1474,13 @@
           var name = ath.shortName || ath.displayName || '';
           var num = esc(item.p.jersey || '');
           var known = headshot(ath);
+          var full = ath.displayName || name;
+          var surname = (ath.lastName && String(ath.lastName).trim()) ||
+            full.split(' ').slice(-1)[0] || name;
+          var fit = function (label) {
+            var est = label.length * 2.1 * 0.55;
+            return est > maxW ? ' textLength="' + maxW.toFixed(1) + '" lengthAdjust="spacingAndGlyphs"' : '';
+          };
           var offClock = item.p.subbedOut ? (subs.off[ath.displayName] || '') : null;
           var cx = x.toFixed(1), cy = y.toFixed(1);
 
@@ -1490,9 +1500,10 @@
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="' + ring +
               '" stroke-width=".9"></circle>' +
             (offClock !== null ? '<text x="' + (x + R + .6).toFixed(1) + '" y="' + (y - R + 1).toFixed(1) +
-              '" font-size="2" fill="var(--loss)" font-weight="700">\u2193' + esc(offClock) + '</text>' : '') +
-            '<text x="' + cx + '" y="' + (y + R + 3).toFixed(1) + '" text-anchor="middle" font-size="2.3" ' +
-              'fill="var(--ink-2)"><tspan fill="var(--muted)">' + num + '</tspan> ' + esc(name) + '</text>' +
+              '" font-size="1.8" fill="var(--loss)" font-weight="700">\u2193' + esc(offClock) + '</text>' : '') +
+            '<text x="' + cx + '" y="' + (y + R + 3).toFixed(1) + '" text-anchor="middle" font-size="2.1" ' +
+              'fill="var(--ink-2)"' + fit(num + ' ' + surname) + '><tspan fill="var(--muted)">' + num +
+              '</tspan> ' + esc(surname) + '</text>' +
             '</g>';
         });
       });

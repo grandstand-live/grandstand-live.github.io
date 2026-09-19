@@ -629,6 +629,34 @@
     color: var(--muted); min-width: 16px;
   }
   .pk-team { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .stints { display: grid; gap: 3px; margin-top: 4px; }
+  .stint-row { display: flex; align-items: center; gap: 8px; }
+  .stint-row .sn {
+    font-family: var(--narrow); font-weight: 700; font-size: 10.5px;
+    color: var(--muted); min-width: 30px; letter-spacing: .04em;
+  }
+  .sbarline { display: flex; flex: 1; gap: 2px; height: 13px; }
+  .sbarline i {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 2px; min-width: 3px;
+    font-size: 8.5px; font-weight: 700; font-style: normal; color: rgba(0, 0, 0, .55);
+    overflow: hidden;
+  }
+  .steward { display: grid; gap: 1px; }
+  .st-row {
+    display: flex; gap: 9px; align-items: baseline;
+    font-size: 12px; padding: 5px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .st-row:last-child { border-bottom: none; }
+  .st-row .lap {
+    font-family: var(--narrow); font-weight: 700; font-size: 10.5px;
+    color: var(--muted); min-width: 44px; flex-shrink: 0;
+  }
+  .st-row .msg { color: var(--ink-2); line-height: 1.5; }
+  .st-row.pen .msg { color: var(--loss); }
+  .st-row.sc .msg { color: #C9A227; }
+  .st-row.red .msg { color: var(--loss); font-weight: 600; }
   .grid-res { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
   .grid-res.wide { padding: 10px 12px; }
   .res-row {
@@ -2226,8 +2254,12 @@
         if (!key) { if (slot) slot.innerHTML = '<div class="kv"><span>这一站还没有详细成绩。</span></div>'; return; }
         return Promise.all([f1RaceData(key), f1DriverMap()]).then(function (r) {
           if (!slot || !slot.isConnected) return;
-          var table = resultTable(r[0], r[1]);
-          slot.innerHTML = table || '<div class="kv"><span>这一站还没有详细成绩。</span></div>';
+          var data = r[0], drivers = r[1];
+          var table = resultTable(data, drivers);
+          slot.innerHTML = (table || '<div class="kv"><span>这一站还没有详细成绩。</span></div>') +
+            stintsHTML(data.stints, drivers, data.rows) +
+            stewardsHTML(data.rc, drivers) +
+            weatherHTML(data.weather);
         });
       });
     });
@@ -2309,7 +2341,10 @@
     return Promise.all([
       of1('session_result?session_key=' + key),
       of1('pit?session_key=' + key),
-      of1('laps?session_key=' + key)
+      of1('laps?session_key=' + key),
+      of1('race_control?session_key=' + key),
+      of1('stints?session_key=' + key),
+      of1('weather?session_key=' + key)
     ]).then(function (r) {
       var rows = (r[0] || []).slice().sort(function (a, b) {
         return (a.position || 99) - (b.position || 99);
@@ -2327,10 +2362,15 @@
         if (!l.lap_duration) return;
         if (!fastest || l.lap_duration < fastest.lap_duration) fastest = l;
       });
-      var out = { rows: rows, pits: pits, fastest: fastest };
+      var out = {
+        rows: rows, pits: pits, fastest: fastest,
+        rc: r[3] || [], stints: r[4] || [], weather: r[5] || []
+      };
       f1Cache[tag] = out;
       return out;
-    }).catch(function () { return { rows: [], pits: {}, fastest: null }; });
+    }).catch(function () {
+      return { rows: [], pits: {}, fastest: null, rc: [], stints: [], weather: [] };
+    });
   }
 
   function lapTime(sec) {
@@ -2388,6 +2428,96 @@
       '<th class="rk" style="text-align:left">#</th><th class="tm">车手</th><th class="dteam">车队</th>' +
       '<th>圈数</th><th class="gap">用时 / 差距</th><th>进站</th><th>积分</th>' +
       '</tr></thead><tbody>' + body + '</tbody></table></div>' + fl;
+  }
+
+  /* ---------- tyre strategy, stewards' decisions, weather ---------- */
+  var TYRE = {
+    SOFT: { c: '#E8413C', n: '软胎' }, MEDIUM: { c: '#E3C534', n: '中性胎' },
+    HARD: { c: '#DDE2E0', n: '硬胎' }, INTERMEDIATE: { c: '#3FA34D', n: '半雨胎' },
+    WET: { c: '#2F6FD0', n: '全雨胎' }, TEST_UNKNOWN: { c: '#8A9491', n: '未知' }
+  };
+  function tyre(c) { return TYRE[String(c || '').toUpperCase()] || TYRE.TEST_UNKNOWN; }
+
+  function stintsHTML(stints, drivers, rows) {
+    if (!stints || !stints.length) return '';
+    var byDriver = {};
+    var maxLap = 0;
+    stints.forEach(function (s) {
+      (byDriver[s.driver_number] = byDriver[s.driver_number] || []).push(s);
+      if (s.lap_end > maxLap) maxLap = s.lap_end;
+    });
+    if (!maxLap) return '';
+
+    // keep the classification order so the strategy lines up with the result table
+    var order = (rows || []).map(function (r) { return r.driver_number; })
+      .filter(function (n) { return byDriver[n]; });
+    Object.keys(byDriver).forEach(function (n) {
+      if (order.indexOf(Number(n)) === -1 && order.indexOf(n) === -1) order.push(Number(n));
+    });
+
+    var used = {};
+    var body = order.map(function (num) {
+      var list = (byDriver[num] || []).slice().sort(function (a, b) { return a.lap_start - b.lap_start; });
+      if (!list.length) return '';
+      var d = drivers[num] || {};
+      var bar = list.map(function (s) {
+        var laps = Math.max(1, (s.lap_end || 0) - (s.lap_start || 0) + 1);
+        var t = tyre(s.compound);
+        used[s.compound] = t;
+        return '<i style="flex:' + laps + ';background:' + t.c + '" title="' +
+          esc(t.n + ' ' + laps + ' 圈') + '">' + (laps >= 6 ? laps : '') + '</i>';
+      }).join('');
+      return '<div class="stint-row"><span class="sn">' +
+        esc(d.name_acronym || num) + '</span><span class="sbarline">' + bar + '</span></div>';
+    }).join('');
+
+    var legend = Object.keys(used).map(function (k) {
+      return '<span><i style="background:' + used[k].c + '"></i>' + used[k].n + '</span>';
+    }).join('');
+    return '<h4>轮胎策略</h4><div class="stints">' + body + '</div>' +
+      '<div class="legend">' + legend + '</div>';
+  }
+
+  function stewardsHTML(rc, drivers) {
+    if (!rc || !rc.length) return '';
+    var keep = /PENALTY|INVESTIGAT|WARNING|DELETED|REPRIMAND|DISQUALIF|DRIVE.THROUGH|STOP.GO|GRID DROP|BLACK/i;
+    var rows = rc.filter(function (m) {
+      var txt = m.message || '';
+      if (keep.test(txt)) return true;
+      if (m.category === 'SafetyCar') return true;
+      if (m.flag === 'RED') return true;
+      return false;
+    });
+    if (!rows.length) return '';
+    return '<h4>判罚与赛会通告</h4><div class="steward">' + rows.map(function (m) {
+      var d = drivers[m.driver_number];
+      var who = d ? (driverCN(d.full_name || '') || d.name_acronym) : '';
+      var tag = /PENALTY|DISQUALIF|DRIVE.THROUGH|STOP.GO/i.test(m.message || '') ? ' pen'
+        : m.category === 'SafetyCar' ? ' sc' : m.flag === 'RED' ? ' red' : '';
+      return '<div class="st-row' + tag + '">' +
+        '<span class="lap">' + (m.lap_number ? '第 ' + esc(m.lap_number) + ' 圈' : '') + '</span>' +
+        '<span class="msg">' + (who ? '<b>' + esc(who) + '</b> · ' : '') + esc(m.message || '') + '</span>' +
+        '</div>';
+    }).join('') + '</div>';
+  }
+
+  function weatherHTML(w) {
+    if (!w || !w.length) return '';
+    var air = w.map(function (x) { return x.air_temperature; }).filter(function (v) { return v || v === 0; });
+    var trk = w.map(function (x) { return x.track_temperature; }).filter(function (v) { return v || v === 0; });
+    var rain = w.some(function (x) { return x.rainfall; });
+    if (!air.length && !trk.length) return '';
+    function rng(a) {
+      var lo = Math.min.apply(null, a), hi = Math.max.apply(null, a);
+      return Math.round(lo) === Math.round(hi) ? Math.round(lo) + '°C'
+        : Math.round(lo) + '–' + Math.round(hi) + '°C';
+    }
+    var bits = [];
+    if (air.length) bits.push('气温 ' + rng(air));
+    if (trk.length) bits.push('地表 ' + rng(trk));
+    bits.push(rain ? '有降雨' : '全程干地');
+    return '<div class="kv" style="margin-top:10px"><span class="k">天气</span><span>' +
+      esc(bits.join(' · ')) + '</span></div>';
   }
 
   /* ---------- favourite drivers ---------- */
@@ -2494,7 +2624,15 @@
                   '<div class="fix-sub">' + (row.number_of_laps ? row.number_of_laps + ' 圈 · ' : '') +
                   '进站 ' + (pit ? pit.count : 0) + ' 次' +
                   (pit && pit.best ? '（最快 ' + pit.best.toFixed(1) + ' 秒）' : '') +
-                  (fastest ? ' · <b style="color:var(--accent)">全场最快圈</b>' : '') + '</div>';
+                  (fastest ? ' · <b style="color:var(--accent)">全场最快圈</b>' : '') +
+                  (function () {
+                    var mine = (data.rc || []).filter(function (m) {
+                      return String(m.driver_number) === String(f.num) &&
+                        /PENALTY|DISQUALIF|DRIVE.THROUGH|STOP.GO|REPRIMAND/i.test(m.message || '');
+                    });
+                    return mine.length ? '<br><span style="color:var(--loss)">' +
+                      esc(mine.map(function (m) { return m.message; }).join('；')) + '</span>' : '';
+                  })() + '</div>';
               } else {
                 last = '<div class="fix"><span class="when">' + esc(gpName(lastEv.name)) +
                   '</span><span class="vs">没有该场成绩</span></div>';

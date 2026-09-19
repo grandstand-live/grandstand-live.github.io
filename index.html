@@ -572,6 +572,31 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  .bench { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .bench-team {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 600; color: var(--ink);
+    margin-bottom: 5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bench-team i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .bench-row {
+    display: flex; align-items: baseline; gap: 6px;
+    font-size: 12px; padding: 2.5px 0;
+    color: var(--muted);
+  }
+  .bench-row.on { color: var(--ink-2); }
+  .bench-row .bn {
+    font-family: var(--narrow); font-weight: 700; font-size: 11px;
+    min-width: 16px; text-align: right; color: var(--muted);
+  }
+  .bench-row .bnm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bench-row .bin { margin-left: auto; font-size: 10.5px; color: var(--win); white-space: nowrap; }
+  .ev .in { color: var(--win); font-weight: 700; }
+  .ev .out { color: var(--loss); font-weight: 700; }
+  @media (max-width: 420px) {
+    .bench { grid-template-columns: 1fr; gap: 14px; }
+  }
   .schips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
   .schip {
     background: var(--surface);
@@ -785,9 +810,14 @@
     'cangzhou mighty lions': '沧州雄狮'
   };
   var CN_KEYS = Object.keys(CN).sort(function (a, b) { return b.length - a.length; });
+  // Atlético / Köln / Mönchengladbach — strip the accents before matching
+  function plain(s) {
+    try { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+    catch (e) { return s.toLowerCase(); }
+  }
   function cn(name, short) {
     if (!name) return short || '';
-    var low = name.toLowerCase();
+    var low = plain(name);
     for (var i = 0; i < CN_KEYS.length; i++) {
       if (low.indexOf(CN_KEYS[i]) !== -1) return CN[CN_KEYS[i]];
     }
@@ -1178,20 +1208,8 @@
     }
     function num(v, unit) { return unit === '%' ? Math.round(v) + '%' : String(Math.round(v * 10) / 10); }
 
-    // Two clubs in the same kit colour (Atlético vs Osasuna, both red) would make
-    // the comparison bars unreadable — fall back to the page's own two colours.
-    function rgb(hex) {
-      var v = parseInt(String(hex).replace('#', ''), 16);
-      return isNaN(v) ? null : [(v >> 16) & 255, (v >> 8) & 255, v & 255];
-    }
-    var ch = rgb(hColor), ca = rgb(aColor);
-    var distinct = false;
-    if (ch && ca) {
-      var d = Math.sqrt(Math.pow(ch[0] - ca[0], 2) + Math.pow(ch[1] - ca[1], 2) + Math.pow(ch[2] - ca[2], 2));
-      distinct = d > 110;
-    }
-    var left = distinct ? '#' + hColor : 'var(--accent)';
-    var right = distinct ? '#' + aColor : 'var(--loss)';
+    var kit = twoColors(hColor, aColor);
+    var left = kit.home, right = kit.away;
 
     var bars = STAT_BARS.map(function (r) {
       var p = pair(r[0]);
@@ -1234,6 +1252,21 @@
     if (/^R/.test(a) || /-R$/.test(a)) return 2;
     return 1;
   }
+  // Two clubs in near-identical kit colours (Atlético vs Osasuna, both red) would be
+  // impossible to tell apart, so fall back to the page's own two colours.
+  function twoColors(hColor, aColor) {
+    function rgb(hex) {
+      var v = parseInt(String(hex || '').replace('#', ''), 16);
+      return isNaN(v) ? null : [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+    }
+    var ch = rgb(hColor), ca = rgb(aColor);
+    if (ch && ca) {
+      var d = Math.sqrt(Math.pow(ch[0] - ca[0], 2) + Math.pow(ch[1] - ca[1], 2) + Math.pow(ch[2] - ca[2], 2));
+      if (d > 110) return { home: '#' + hColor, away: '#' + aColor, distinct: true };
+    }
+    return { home: '#12564A', away: '#B93C4C', distinct: false };
+  }
+
   function readableOn(hex) {
     var v = parseInt(String(hex || '').replace('#', ''), 16);
     if (isNaN(v)) return '#fff';
@@ -1241,14 +1274,40 @@
     return lum > 150 ? '#12181A' : '#fff';
   }
 
-  function pitchHTML(rosters, hColor, aColor) {
+  // Substitutions: participants are [player coming on, player going off].
+  function subMap(keyEvents) {
+    var on = {}, off = {}, list = [];
+    (keyEvents || []).forEach(function (k) {
+      if (!/substitut/i.test((k.type && k.type.text) || '')) return;
+      var parts = (k.participants || []).map(function (x) { return x.athlete && x.athlete.displayName; });
+      var inName = parts[0], outName = parts[1];
+      if (!inName || !outName) {
+        var m = (k.text || '').match(/\.\s*(.+?)\s+replaces\s+(.+?)\.?\s*$/i);
+        if (m) { inName = inName || m[1]; outName = outName || m[2]; }
+      }
+      var clock = (k.clock && k.clock.displayValue) || '';
+      if (inName) on[inName] = clock;
+      if (outName) off[outName] = clock;
+      list.push({ on: inName, off: outName, clock: clock, team: String((k.team && k.team.id) || '') });
+    });
+    return { on: on, off: off, list: list };
+  }
+
+  function headshot(ath) {
+    if (!ath) return '';
+    if (ath.headshot && ath.headshot.href) return ath.headshot.href;
+    return ath.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + ath.id + '.png' : '';
+  }
+
+  function pitchHTML(rosters, hColor, aColor, keyEvents) {
     if (!rosters || rosters.length < 2) return '';
     var sides = rosters.map(function (r) {
       return {
         team: r.team || {},
         formation: r.formation || '',
         homeAway: r.homeAway,
-        starters: (r.roster || []).filter(function (p) { return p.starter; })
+        starters: (r.roster || []).filter(function (p) { return p.starter; }),
+        bench: (r.roster || []).filter(function (p) { return !p.starter; })
       };
     });
     if (sides.some(function (s) { return s.starters.length < 7; })) return '';
@@ -1257,10 +1316,12 @@
     var away = sides.filter(function (s) { return s !== home; })[0];
     if (!away) return '';
 
-    var W = 100, H = 62;
-    function dots(side, color, isHome) {
-      var fill = color ? '#' + color : (isHome ? '#12564A' : '#B93C4C');
-      var ink = readableOn(color);
+    var subs = subMap(keyEvents);
+    var kit = twoColors(hColor, aColor);
+    var W = 100, H = 68, R = 3.4;
+
+    function dots(side, fill, isHome) {
+      var ink = readableOn(fill);
       var lines = [[], [], [], [], []];
       side.starters.forEach(function (p) {
         var abbr = (p.position && (p.position.abbreviation || p.position.name)) || '';
@@ -1271,43 +1332,88 @@
       used.forEach(function (line, i) {
         line.sort(function (a, b) { return a.side - b.side || a.place - b.place; });
         var t = used.length > 1 ? i / (used.length - 1) : 0;
-        var x = isHome ? 5 + 40 * t : 95 - 40 * t;
+        var x = isHome ? 6 + 38 * t : 94 - 38 * t;
         line.forEach(function (item, j) {
           var y = H * (j + 1) / (line.length + 1);
           var ath = item.p.athlete || {};
           var name = ath.shortName || ath.displayName || '';
-          out += '<g><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) +
-            '" r="2.9" fill="' + fill + '" stroke="var(--surface)" stroke-width=".5"></circle>' +
-            '<text x="' + x.toFixed(1) + '" y="' + (y + .85).toFixed(1) +
-            '" text-anchor="middle" font-size="2.3" font-weight="700" fill="' + ink + '">' +
-            esc(item.p.jersey || '') + '</text>' +
-            '<text x="' + x.toFixed(1) + '" y="' + (y + 6.4).toFixed(1) +
-            '" text-anchor="middle" font-size="2.3" fill="var(--ink-2)">' + esc(name) + '</text></g>';
+          var img = headshot(ath);
+          var num = esc(item.p.jersey || '');
+          var offClock = item.p.subbedOut ? (subs.off[ath.displayName] || '') : null;
+
+          out += '<g>' +
+            '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + R + '" fill="' + fill + '"></circle>' +
+            '<text x="' + x.toFixed(1) + '" y="' + (y + 1).toFixed(1) + '" text-anchor="middle" font-size="2.8" ' +
+              'font-weight="700" fill="' + ink + '">' + num + '</text>' +
+            (img ? '<image href="' + esc(img) + '" x="' + (x - R).toFixed(1) + '" y="' + (y - R).toFixed(1) +
+              '" width="' + (R * 2) + '" height="' + (R * 2) + '" preserveAspectRatio="xMidYMid slice" ' +
+              'style="clip-path:circle(50%)" onerror="this.style.display=\'none\'"></image>' : '') +
+            '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + R + '" fill="none" stroke="' + fill +
+              '" stroke-width=".9"></circle>' +
+            (offClock !== null ? '<text x="' + (x + R + .6).toFixed(1) + '" y="' + (y - R + 1).toFixed(1) +
+              '" font-size="2" fill="var(--loss)" font-weight="700">↓' + esc(offClock) + '</text>' : '') +
+            '<text x="' + x.toFixed(1) + '" y="' + (y + R + 3).toFixed(1) + '" text-anchor="middle" font-size="2.3" ' +
+              'fill="var(--ink-2)"><tspan fill="var(--muted)">' + num + '</tspan> ' + esc(name) + '</text>' +
+            '</g>';
         });
       });
       return out;
     }
 
+    var line = 'stroke="var(--pitch-line)" stroke-width=".4" fill="none"';
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="首发阵容" ' +
       'style="display:block;overflow:visible">' +
-      '<rect x="1" y="1" width="' + (W - 2) + '" height="' + (H - 2) + '" rx="2" fill="var(--pitch)" ' +
-      'stroke="var(--pitch-line)" stroke-width=".4"></rect>' +
-      '<line x1="50" y1="1" x2="50" y2="' + (H - 1) + '" stroke="var(--pitch-line)" stroke-width=".4"></line>' +
-      '<circle cx="50" cy="' + (H / 2) + '" r="7" fill="none" stroke="var(--pitch-line)" stroke-width=".4"></circle>' +
-      '<rect x="1" y="' + (H / 2 - 13) + '" width="11" height="26" fill="none" stroke="var(--pitch-line)" stroke-width=".4"></rect>' +
-      '<rect x="' + (W - 12) + '" y="' + (H / 2 - 13) + '" width="11" height="26" fill="none" stroke="var(--pitch-line)" stroke-width=".4"></rect>' +
-      '<rect x="1" y="' + (H / 2 - 6) + '" width="4.5" height="12" fill="none" stroke="var(--pitch-line)" stroke-width=".4"></rect>' +
-      '<rect x="' + (W - 5.5) + '" y="' + (H / 2 - 6) + '" width="4.5" height="12" fill="none" stroke="var(--pitch-line)" stroke-width=".4"></rect>' +
-      dots(home, hColor, true) + dots(away, aColor, false) +
+      '<rect x="1" y="1" width="' + (W - 2) + '" height="' + (H - 2) + '" rx="2" fill="var(--pitch)" ' + line + '></rect>' +
+      '<line x1="50" y1="1" x2="50" y2="' + (H - 1) + '" ' + line + '></line>' +
+      '<circle cx="50" cy="' + (H / 2) + '" r="7.5" ' + line + '></circle>' +
+      '<rect x="1" y="' + (H / 2 - 14) + '" width="11" height="28" ' + line + '></rect>' +
+      '<rect x="' + (W - 12) + '" y="' + (H / 2 - 14) + '" width="11" height="28" ' + line + '></rect>' +
+      '<rect x="1" y="' + (H / 2 - 6.5) + '" width="4.5" height="13" ' + line + '></rect>' +
+      '<rect x="' + (W - 5.5) + '" y="' + (H / 2 - 6.5) + '" width="4.5" height="13" ' + line + '></rect>' +
+      dots(home, kit.home, true) + dots(away, kit.away, false) +
       '</svg>';
 
     function cap(s, color) {
-      return '<span class="xi-team"><i style="background:' + (color ? '#' + color : 'var(--muted)') + '"></i>' +
+      return '<span class="xi-team"><i style="background:' + color + '"></i>' +
         esc(cn(s.team.displayName, s.team.shortDisplayName)) +
         (s.formation ? '<b>' + esc(s.formation) + '</b>' : '') + '</span>';
     }
-    return '<h4>首发阵容</h4><div class="xi-head">' + cap(home, hColor) + cap(away, aColor) + '</div>' +
-      '<div class="pitch">' + svg + '</div>';
+
+    // --- bench / matchday squad ---
+    function benchList(side, fill) {
+      if (!side.bench.length) return '';
+      return '<div class="bench-col"><div class="bench-team"><i style="background:' + fill + '"></i>' +
+        esc(cn(side.team.displayName, side.team.shortDisplayName)) + '</div>' +
+        side.bench.map(function (p) {
+          var ath = p.athlete || {};
+          var nm = ath.shortName || ath.displayName || '';
+          var came = p.subbedIn;
+          var clock = came ? (subs.on[ath.displayName] || '') : '';
+          var forWho = p.subbedInFor && p.subbedInFor.athlete &&
+            (p.subbedInFor.athlete.shortName || p.subbedInFor.athlete.displayName);
+          return '<div class="bench-row' + (came ? ' on' : '') + '">' +
+            '<span class="bn">' + esc(p.jersey || '') + '</span>' +
+            '<span class="bnm">' + esc(nm) + '</span>' +
+            (came ? '<span class="bin">↑' + esc(clock) + (forWho ? ' 替下 ' + esc(forWho) : '') + '</span>' : '') +
+            '</div>';
+        }).join('') + '</div>';
+    }
+    var bench = benchList(home, kit.home) + benchList(away, kit.away);
+
+    // --- substitution log ---
+    var homeId = String(home.team.id || '');
+    var subLog = subs.list.map(function (s) {
+      if (!s.on && !s.off) return '';
+      var side = s.team === homeId ? '' : ' away';
+      return '<div class="ev' + side + '"><span class="min">' + esc(s.clock) + '</span><span>' +
+        '<span class="in">↑</span>' + esc(s.on || '') +
+        '<span class="out"> ↓</span><span style="color:var(--muted)">' + esc(s.off || '') + '</span></span></div>';
+    }).filter(Boolean).join('');
+
+    return '<h4>首发阵容</h4><div class="xi-head">' + cap(home, kit.home) + cap(away, kit.away) + '</div>' +
+      '<div class="pitch">' + svg + '</div>' +
+      (bench ? '<h4>替补席</h4><div class="bench">' + bench + '</div>' : '') +
+      (subLog ? '<h4>换人</h4>' + subLog : '');
   }
 
   function impliedProb(ml) {
@@ -1387,7 +1493,7 @@
 
       // lineups — drawn on a pitch when the XI is out, otherwise a note
       var rosters = data.rosters || [];
-      var pitch = pitchHTML(rosters, t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
+      var pitch = pitchHTML(rosters, t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color, data.keyEvents);
       if (pitch) html += pitch;
       else if (rosters.length) html += '<h4>首发阵容</h4><div class="kv"><span>开赛前约 1 小时公布</span></div>';
 

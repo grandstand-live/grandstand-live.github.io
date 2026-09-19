@@ -109,18 +109,33 @@
     font-variant-numeric: tabular-nums;
   }
   .wrap { max-width: 660px; margin: 0 auto; padding: 0 16px; padding-block: 0 56px; }
+  .seg { border-bottom: 1px solid var(--hairline); margin-bottom: -1px; }
 
   /* ---- header ---- */
   header {
+    padding-block: 18px 0;
+  }
+  /* Only the navigation follows you down the page, and it slims down once it
+     detaches from the title so it stops feeling like a wall on top of the list. */
+  .stickybar {
     position: sticky;
     top: env(safe-area-inset-top, 0px);
     z-index: 20;
     background: var(--ground);
-    padding-block: 18px 0;
     margin: 0 -16px;
-    padding-inline: 16px;
-    border-bottom: 1px solid var(--hairline);
+    padding: 10px 16px 0;
+    border-bottom: 1px solid transparent;
+    transition: box-shadow .18s ease, border-color .18s ease, padding .18s ease;
   }
+  .stickybar.stuck {
+    border-bottom-color: var(--hairline);
+    box-shadow: 0 10px 18px -18px rgba(0, 0, 0, .55);
+    padding-top: 6px;
+  }
+  .stickybar.stuck .chips { display: none; }
+  .stickybar.stuck .sportnav { margin-top: 0; padding: 2px; }
+  .stickybar.stuck .sportnav button { padding: 4px 13px; font-size: 12.5px; }
+  .stickybar.stuck .seg button { padding: 6px 0 8px; }
   .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .eyebrow {
     font-family: var(--narrow);
@@ -933,16 +948,20 @@
         <button class="icon-btn" id="gearBtn" type="button">\u4e3b\u961f</button>
       </div>
     </div>
+  </header>
+
+  <div class="stickybar" id="stickybar">
     <div class="sportnav" id="sportnav"></div>
     <div id="footballHead">
       <div class="chips" id="chips"></div>
+      <div class="chips" id="chips2" hidden></div>
       <div class="seg" role="tablist">
         <button type="button" role="tab" data-tab="fixtures" aria-selected="true">赛程</button>
         <button type="button" role="tab" data-tab="table" aria-selected="false">积分榜</button>
         <button type="button" role="tab" data-tab="mine" aria-selected="false">我的球队<span class="badge" id="favCount">0</span></button>
       </div>
     </div>
-  </header>
+  </div>
 
   <div class="panel" id="settings" hidden>
     <p class="hint" id="pickHint">勾选你的主队，最多 5 支。切换上面的联赛可以选别的联赛球队，已选的会一直保留。</p>
@@ -1167,6 +1186,7 @@
     var isToday = id === 'today';
     $('footballHead').hidden = !ready || isToday;
     $('chips').hidden = (id !== 'football' && id !== 'esports');
+    $('chips2').hidden = id !== 'esports';
     if (id === 'football') renderChips();
     $('status').hidden = !ready || isToday;
     $('settings').hidden = true;
@@ -1204,10 +1224,12 @@
     football: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的球队']],
     f1: [['fixtures', '赛历'], ['table', '积分榜'], ['mine', '我的车手']],
     basketball: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的球队']],
-    esports: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的战队']]
+    esports: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的战队']],
+    esports_other: [['fixtures', '赛程']]
   };
   function renderSegTabs() {
-    var defs = TABS[sport] || TABS.football;
+    var defs = (sport === 'esports' && esportsGame !== 'lol')
+      ? TABS.esports_other : (TABS[sport] || TABS.football);
     document.querySelector('.seg').innerHTML = defs.map(function (t) {
       return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' +
         (t[0] === tab) + '">' + t[1] +
@@ -1237,6 +1259,9 @@
       return;
     }
     if (sport === 'esports') {
+      renderEsportsChips();
+      if (esportsGame === 'cs2') { renderCs2(); $('panel-table').hidden = true; $('panel-mine').hidden = true; $('panel-fixtures').hidden = false; return; }
+      if (esportsGame === 'valorant') { renderValorant(); $('panel-table').hidden = true; $('panel-mine').hidden = true; $('panel-fixtures').hidden = false; return; }
       if (next === 'fixtures') renderLolFixtures();
       else if (next === 'table') renderLolTable();
       else renderLolMine();
@@ -2938,9 +2963,7 @@
         encodeURIComponent(zh) + '&order=pubdate" target="_blank" rel="noopener">▶ 哔哩哔哩搜集锦</a>');
     }
     if (!chips.length) return '';
-    return '<h4>' + (label || '赛后集锦') + '</h4><div class="schips">' + chips.join('') +
-      '</div><div class="note" style="margin-top:8px">官方接口没提供这场的集锦。' +
-      '搜索词里带了比分和日期，并且限定了最近一年的结果，避免翻到往年同样的对阵。</div>';
+    return '<h4>' + (label || '赛后集锦') + '</h4><div class="schips">' + chips.join('') + '</div>';
   }
   function dayCN(d) {
     return isNaN(d) ? '' : (d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日');
@@ -3669,6 +3692,104 @@
     setTab('mine');
   }
 
+  /* ---------- data collected by the GitHub Action (same-origin JSON) ---------- */
+  var archive = {};
+  function archiveGet(path) {
+    if (path in archive) return Promise.resolve(archive[path]);
+    return fetch('data/' + path, { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (d) { archive[path] = d; return d; });
+  }
+
+  var esportsGame = lsGet('egame', 'lol');
+  var EGAMES = [{ id: 'lol', name: '英雄联盟' }, { id: 'cs2', name: 'CS2' }, { id: 'valorant', name: 'Valorant' }];
+
+  function renderEsportsChips() {
+    $('chips').hidden = false;
+    $('chips').innerHTML = EGAMES.map(function (g) {
+      return '<button class="chip" type="button" data-egame="' + g.id + '" aria-pressed="' +
+        (g.id === esportsGame) + '">' + g.name + '</button>';
+    }).join('');
+    $('chips2').hidden = esportsGame !== 'lol';
+  }
+
+  function stamp(iso) {
+    var d = new Date(iso || '');
+    return isNaN(d) ? '' : '数据更新于 ' + fmtDay(d) + ' ' + fmtTime(d);
+  }
+  function archiveEmpty(what) {
+    return '<div class="empty">' + what + '的数据还没抓到。<br><br>' +
+      '仓库里的定时任务每 5 分钟跑一次，第一次抓取完成后这里就会有内容。</div>';
+  }
+
+  function renderArchiveList(host, data, label, shape) {
+    if (!data) { host.innerHTML = archiveEmpty(label); return; }
+    var up = (data.upcoming || []).map(shape).filter(Boolean);
+    var re = (data.recent || []).map(shape).filter(Boolean);
+    if (!up.length && !re.length) { host.innerHTML = archiveEmpty(label); return; }
+    function rows(list) {
+      return '<div class="card">' + list.map(function (r) {
+        return '<div class="fix"><span class="when">' + esc(r.when) + '</span>' +
+          '<span class="vs">' + esc(r.title) + '</span>' +
+          '<span class="res" style="' + (r.score ? '' : 'color:var(--muted);font-weight:500') + '">' +
+          esc(r.score || r.note || '') + '</span></div>';
+      }).join('') + '</div>';
+    }
+    host.innerHTML = (up.length ? '<div class="group-name">接下来</div>' + rows(up.slice(0, 20)) : '') +
+      (re.length ? '<div class="group-name">最近结果</div>' + rows(re.slice(0, 20)) : '') +
+      '<footer style="border:none;padding-top:10px">' + esc(stamp(data.updatedAt)) +
+      (data.source ? ' · 来源 ' + esc(data.source) : '') + '</footer>';
+  }
+
+  function renderCs2() {
+    var host = $('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在读取…</div>';
+    $('status').textContent = 'CS2';
+    archiveGet('cs2.json').then(function (d) {
+      renderArchiveList(host, d, 'CS2', function (m) {
+        if (!m) return null;
+        var t1 = m.team1 && (m.team1.name || m.team1) || m.teams && m.teams[0] && m.teams[0].name || '';
+        var t2 = m.team2 && (m.team2.name || m.team2) || m.teams && m.teams[1] && m.teams[1].name || '';
+        if (!t1 && !t2) return null;
+        var when = m.time || m.date || m.matchTime || '';
+        var d0 = new Date(when);
+        return {
+          when: isNaN(d0) ? String(when).slice(0, 16) : fmtDay(d0) + ' ' + fmtTime(d0),
+          title: t1 + ' vs ' + t2,
+          score: (m.result || (m.team1 && m.team1.result !== undefined
+            ? m.team1.result + '-' + (m.team2 && m.team2.result) : '')) || '',
+          note: m.event && (m.event.name || m.event) || ''
+        };
+      });
+    });
+  }
+
+  function renderValorant() {
+    var host = $('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在读取…</div>';
+    $('status').textContent = 'Valorant';
+    archiveGet('valorant.json').then(function (d) {
+      renderArchiveList(host, d, 'Valorant', function (m) {
+        if (!m) return null;
+        var teams = m.teams || [];
+        var t1 = (teams[0] && (teams[0].name || teams[0])) || m.team1 || '';
+        var t2 = (teams[1] && (teams[1].name || teams[1])) || m.team2 || '';
+        if (!t1 && !t2) return null;
+        var d0 = new Date(m.utcDate || m.date || '');
+        var sc = teams.length === 2 && teams[0].score !== undefined
+          ? teams[0].score + '-' + teams[1].score : (m.score1 !== undefined ? m.score1 + '-' + m.score2 : '');
+        return {
+          when: isNaN(d0) ? String(m.in || m.time_until_match || m.date || '').slice(0, 16)
+            : fmtDay(d0) + ' ' + fmtTime(d0),
+          title: t1 + ' vs ' + t2,
+          score: sc || '',
+          note: m.event || m.tournament_name || m.match_event || ''
+        };
+      });
+    });
+  }
+
   /* ---------- 英雄联盟 (Riot esports API) ---------- */
   var LOL = 'https://esports-api.lolesports.com/persisted/gw/';
   var LOL_HDR = { headers: { 'x-api-key': '0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z' } };
@@ -3756,7 +3877,8 @@
               label = '<div class="state">' + bo + '</div>';
             }
             return '<button class="match' + (it.e.state === 'inProgress' ? ' live' : '') +
-              '" type="button" data-lolm="' + esc(m.id) + '" data-when="' + esc(it.e.startTime) + '">' +
+              '" type="button" data-lolm="' + esc(m.id) + '" data-when="' + esc(it.e.startTime) +
+              '" data-a="' + esc(a.code || '') + '" data-b="' + esc(b.code || '') + '">' +
               '<span class="side home">' + lolTeamCell(a, false) + '</span>' +
               '<span class="mid">' + mid + label + '</span>' +
               '<span class="side away">' + lolTeamCell(b, true) + '</span>' +
@@ -3772,6 +3894,29 @@
           esc(lg.name) + ' · ' + esc(lg.region);
       });
     });
+  }
+
+  // Riot's public livestats feed returns empty frames for these matches, so there
+  // is no per-game KDA or gold to show. Everything below is data that does exist.
+  function lolH2H(codeA, codeB, exceptId) {
+    var out = [];
+    Object.keys(lolCache).forEach(function (k) {
+      if (k.indexOf('getSchedule') !== 0) return;
+      ((((lolCache[k] || {}).data || {}).schedule || {}).events || []).forEach(function (e) {
+        if (e.type !== 'match' || !e.match || e.state !== 'completed') return;
+        if (String(e.match.id) === String(exceptId)) return;
+        var cs = (e.match.teams || []).map(function (t) { return t.code; });
+        if (cs.indexOf(codeA) === -1 || cs.indexOf(codeB) === -1) return;
+        out.push(e);
+      });
+    });
+    return out.sort(function (a, b) { return new Date(b.startTime) - new Date(a.startTime); }).slice(0, 5);
+  }
+
+  function pickVod(vods) {
+    var list = vods || [];
+    return list.filter(function (v) { return /zh/i.test(v.locale || ''); })[0] ||
+      list.filter(function (v) { return /en/i.test(v.locale || ''); })[0] || list[0];
   }
 
   function lolDetail(btn) {
@@ -3790,36 +3935,54 @@
       var teams = m.teams || [];
       var html = '';
 
-      if (ev.tournament || ev.league) {
-        html += '<div class="kv"><span class="k">赛事</span><span>' +
-          esc((ev.league && ev.league.name) || '') +
-          (m.strategy ? ' · BO' + m.strategy.count : '') + '</span></div>';
+      var bits = [];
+      if (ev.league && ev.league.name) bits.push(ev.league.name);
+      if (ev.tournament && ev.tournament.slug) {
+        bits.push(String(ev.tournament.slug).replace(/_/g, ' '));
+      }
+      if (m.strategy && m.strategy.count) bits.push('BO' + m.strategy.count);
+      if (bits.length) html += '<div class="kv"><span class="k">赛事</span><span>' + esc(bits.join(' · ')) + '</span></div>';
+
+      // season record of each side, straight off the schedule payload
+      var recRows = teams.map(function (t) {
+        var r = t.record;
+        if (!r) return '';
+        return '<div class="kv"><span class="k">' + esc(t.code) + '</span><span>赛季战绩 ' +
+          esc(r.wins) + ' 胜 ' + esc(r.losses) + ' 负' +
+          (t.result ? ' · 本场 ' + esc(t.result.gameWins) + ' 分' : '') + '</span></div>';
+      }).filter(Boolean).join('');
+      if (recRows) html += '<h4>双方战绩</h4>' + recRows;
+
+      var h2h = lolH2H(btn.dataset.a, btn.dataset.b, m.id);
+      if (h2h.length) {
+        html += '<h4>近期交锋</h4>' + h2h.map(function (e) {
+          var ts = e.match.teams || [];
+          var d0 = new Date(e.startTime);
+          return '<div class="fix" style="padding:6px 0"><span class="when">' + esc(fmtDay(d0)) + '</span>' +
+            '<span class="vs">' + esc(ts[0].code) + ' ' + esc((ts[0].result || {}).gameWins) + '-' +
+            esc((ts[1].result || {}).gameWins) + ' ' + esc(ts[1].code) + '</span>' +
+            '<span class="res" style="color:var(--muted);font-weight:500">' +
+            esc((e.league && e.league.name) || '') + '</span></div>';
+        }).join('');
       }
 
       var games = (m.games || []).filter(function (g) { return g.state !== 'unneeded'; });
       if (games.length) {
         html += '<h4>分局</h4><div class="games">' + games.map(function (g) {
-          var vod = (g.vods || [])[0];
+          var vod = pickVod(g.vods);
           var state = g.state === 'completed' ? '已结束' : g.state === 'inProgress' ? '进行中' : '未开始';
-          var win = '';
-          if (g.teams) {
-            var w = g.teams.filter(function (t) { return t.side && t.result && t.result.outcome === 'win'; })[0];
-            if (w) {
-              var tm = teams.filter(function (t) { return t.id === w.id; })[0];
-              if (tm) win = esc(tm.code) + ' 胜';
-            }
-          }
           return '<div class="game-row"><span class="gno">第 ' + esc(g.number) + ' 局</span>' +
-            '<span class="gstate">' + esc(win || state) + '</span>' +
+            '<span class="gstate">' + esc(state) + '</span>' +
             (vod && vod.parameter
               ? '<a class="gvod" href="https://www.youtube.com/watch?v=' + esc(vod.parameter) +
+                (vod.startMillis ? '&t=' + Math.floor(vod.startMillis / 1000) : '') +
                 '" target="_blank" rel="noopener">回放 →</a>'
               : '<span class="gvod" style="color:var(--muted)">暂无回放</span>') + '</div>';
         }).join('') + '</div>';
       }
 
       var streams = ev.streams || [];
-      if (streams.length) {
+      if (streams.length && ev.state !== 'completed') {
         var zh = streams.filter(function (x) { return /zh|cn/i.test(x.locale || ''); });
         var pick = (zh.length ? zh : streams).slice(0, 4);
         html += '<h4>直播</h4><div class="schips">' + pick.map(function (x) {
@@ -3832,13 +3995,13 @@
 
       var vods = [];
       games.forEach(function (g) {
-        (g.vods || []).forEach(function (v) {
-          if (!v.parameter) return;
-          vods.push({
-            headline: '第 ' + g.number + ' 局回放',
-            thumbnail: 'https://img.youtube.com/vi/' + v.parameter + '/mqdefault.jpg',
-            links: { web: { href: 'https://www.youtube.com/watch?v=' + v.parameter } }
-          });
+        var v = pickVod(g.vods);
+        if (!v || !v.parameter) return;
+        vods.push({
+          headline: '第 ' + g.number + ' 局回放',
+          thumbnail: 'https://img.youtube.com/vi/' + v.parameter + '/mqdefault.jpg',
+          links: { web: { href: 'https://www.youtube.com/watch?v=' + v.parameter +
+            (v.startMillis ? '&t=' + Math.floor(v.startMillis / 1000) : '') } }
         });
       });
       var lolClips = videosHTML(vods, '比赛回放');
@@ -3847,7 +4010,7 @@
       var codesTxt = wins[0] !== undefined && wins[0] !== null
         ? codes2[0] + ' ' + wins[0] + '-' + wins[1] + ' ' + codes2[1]
         : codes2.join(' vs ');
-      var lolDate = new Date(ev.match && ev.match.startTime ? ev.match.startTime : (btn.dataset.when || ''));
+      var lolDate = new Date(btn.dataset.when || '');
       var lgTxt = (ev.league && ev.league.name) || '';
       html += lolClips || clipSearchHTML(
         codesTxt + ' ' + lgTxt + ' highlights ' + (isNaN(lolDate) ? '' : dayEN(lolDate)),
@@ -3858,8 +4021,8 @@
   }
 
   function renderLolChips(leagues) {
-    $('chips').hidden = false;
-    $('chips').innerHTML = leagues.map(function (l) {
+    $('chips2').hidden = false;
+    $('chips2').innerHTML = leagues.map(function (l) {
       return '<button class="chip" type="button" data-lol="' + esc(l.slug) + '" aria-pressed="' +
         (l.slug === lolLeague) + '">' + esc(l.name) + '</button>';
     }).join('');
@@ -4071,6 +4234,14 @@
   $('chips').addEventListener('click', function (e) {
     var b = e.target.closest('.chip');
     if (!b) return;
+    if (b.dataset.egame) {
+      esportsGame = b.dataset.egame;
+      lsSet('egame', esportsGame);
+      if (esportsGame !== 'lol') tab = 'fixtures';
+      renderSegTabs();
+      setTab(tab);
+      return;
+    }
     if (b.dataset.lol) {
       lolLeague = b.dataset.lol;
       lsSet('lolLeague', lolLeague);
@@ -4090,6 +4261,14 @@
   $('sportnav').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-sport]');
     if (b) setSport(b.dataset.sport);
+  });
+
+  $('chips2').addEventListener('click', function (e) {
+    var b = e.target.closest('.chip');
+    if (!b || !b.dataset.lol) return;
+    lolLeague = b.dataset.lol;
+    lsSet('lolLeague', lolLeague);
+    setTab(tab);
   });
 
   document.querySelector('.seg').addEventListener('click', function (e) {
@@ -4215,6 +4394,23 @@
   renderSportNav();
   setSport(sport);
   setFavCount();
+  (function () {
+    var bar = $('stickybar');
+    if (!bar) return;
+    var inset = 0;
+    try {
+      inset = parseFloat(getComputedStyle(document.documentElement).paddingTop) || 0;
+    } catch (e) {}
+    var stuck = false;
+    function onScroll() {
+      var hit = bar.getBoundingClientRect().top <= inset + 1;
+      if (hit !== stuck) { stuck = hit; bar.classList.toggle('stuck', hit); }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    onScroll();
+  })();
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function () {});

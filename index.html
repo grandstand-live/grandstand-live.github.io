@@ -649,14 +649,31 @@
     border-bottom: 1px solid var(--hairline);
   }
   .st-row:last-child { border-bottom: none; }
+  .st-row { padding: 7px 0; }
   .st-row .lap {
     font-family: var(--narrow); font-weight: 700; font-size: 10.5px;
-    color: var(--muted); min-width: 44px; flex-shrink: 0;
+    color: var(--muted); margin-left: auto; flex-shrink: 0;
   }
-  .st-row .msg { color: var(--ink-2); line-height: 1.5; }
-  .st-row.pen .msg { color: var(--loss); }
-  .st-row.sc .msg { color: #C9A227; }
-  .st-row.red .msg { color: var(--loss); font-weight: 600; }
+  .st-row .msg { color: var(--ink-2); line-height: 1.5; flex: 1; min-width: 0; }
+  .st-tag {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+    border-radius: 4px; padding: 2px 6px; flex-shrink: 0;
+    background: var(--surface-2); color: var(--muted);
+    min-width: 50px; text-align: center;
+  }
+  .st-row.pen .st-tag { background: var(--loss); color: #fff; }
+  .st-row.del .st-tag { background: var(--hairline-strong); color: var(--ink); }
+  .st-row.inv .st-tag { background: var(--accent-soft); color: var(--accent-ink); }
+  .st-row.sc .st-tag { background: #E3C534; color: #2A2306; }
+  .st-row.red .st-tag { background: var(--loss); color: #fff; }
+  .wx { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .wx-pill {
+    display: inline-flex; flex-direction: column; gap: 2px;
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 8px; padding: 7px 12px; min-width: 84px;
+  }
+  .wx-pill .wl { font-size: 10.5px; color: var(--muted); }
+  .wx-pill b { font-size: 14px; font-weight: 700; color: var(--ink); }
   .grid-res { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
   .grid-res.wide { padding: 10px 12px; }
   .res-row {
@@ -2397,9 +2414,12 @@
 
   function lapTime(sec) {
     if (!sec && sec !== 0) return '';
-    var m = Math.floor(sec / 60);
-    var s = (sec - m * 60).toFixed(3);
-    return m ? m + ':' + (s < 10 ? '0' : '') + s : s;
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec - h * 3600) / 60);
+    var s = (sec - h * 3600 - m * 60).toFixed(3);
+    var pad = (s < 10 ? '0' : '') + s;
+    if (h) return h + ':' + String(m).padStart(2, '0') + ':' + pad;
+    return m ? m + ':' + pad : s;
   }
   function gapText(row, lead) {
     if (row.dnf) return '退赛';
@@ -2500,6 +2520,29 @@
       '<div class="legend">' + legend + '</div>';
   }
 
+  var RC_CN = [
+    [/VIRTUAL SAFETY CAR DEPLOYED/gi, '虚拟安全车启用'], [/VIRTUAL SAFETY CAR ENDING/gi, '虚拟安全车结束'],
+    [/SAFETY CAR DEPLOYED/gi, '安全车出动'], [/SAFETY CAR IN THIS LAP/gi, '安全车本圈返回'],
+    [/DRIVE THROUGH PENALTY/gi, '通过维修道处罚'], [/STOP AND GO PENALTY/gi, '停车罚时'],
+    [/(\d+) SECOND TIME PENALTY/gi, '$1 秒罚时'], [/TIME PENALTY/gi, '罚时'],
+    [/GRID (?:PLACE )?PENALTY/gi, '发车位罚退'], [/PENALTY POINTS?/gi, '罚分'],
+    [/UNDER INVESTIGATION/gi, '调查中'], [/INVESTIGATION AFTER THE RACE/gi, '赛后调查'],
+    [/NO FURTHER ACTION/gi, '不予处罚'], [/NOTED/gi, '已记录'],
+    [/INCIDENT INVOLVING/gi, '事故涉及'], [/INCIDENT/gi, '事故'],
+    [/TRACK LIMITS/gi, '越出赛道界限'], [/DELETED/gi, '成绩取消'],
+    [/DISQUALIFIED/gi, '取消资格'], [/REPRIMAND/gi, '书面警告'], [/WARNING/gi, '警告'],
+    [/FALSE START/gi, '起步违例'], [/UNSAFE RELEASE/gi, '危险放车'],
+    [/PIT LANE/gi, '维修道'], [/RED FLAG/gi, '红旗'], [/CHEQUERED FLAG/gi, '方格旗'],
+    [/TURN (\d+)/gi, '$1 号弯'], [/LAP (\d+)/gi, '第 $1 圈'],
+    [/CARS? (\d+) \(([A-Z]{3})\)/gi, '$1 号车（$2）'], [/CAR (\d+)/gi, '$1 号车'],
+    [/\bAND\b/g, '与'], [/\bFOR\b/g, '原因：'], [/\bIN\b/g, '于'], [/\bAT\b/g, '于']
+  ];
+  function rcCN(msg) {
+    var out = String(msg || '');
+    RC_CN.forEach(function (r) { out = out.replace(r[0], r[1]); });
+    return out.replace(/\s+/g, ' ').trim();
+  }
+
   function stewardsHTML(rc, drivers) {
     if (!rc || !rc.length) return '';
     var keep = /PENALTY|INVESTIGAT|WARNING|DELETED|REPRIMAND|DISQUALIF|DRIVE.THROUGH|STOP.GO|GRID DROP|BLACK/i;
@@ -2512,13 +2555,22 @@
     });
     if (!rows.length) return '';
     return '<h4>判罚与赛会通告</h4><div class="steward">' + rows.map(function (m) {
+      var txt = m.message || '';
       var d = drivers[m.driver_number];
       var who = d ? (driverCN(d.full_name || '') || d.name_acronym) : '';
-      var tag = /PENALTY|DISQUALIF|DRIVE.THROUGH|STOP.GO/i.test(m.message || '') ? ' pen'
-        : m.category === 'SafetyCar' ? ' sc' : m.flag === 'RED' ? ' red' : '';
-      return '<div class="st-row' + tag + '">' +
-        '<span class="lap">' + (m.lap_number ? '第 ' + esc(m.lap_number) + ' 圈' : '') + '</span>' +
-        '<span class="msg">' + (who ? '<b>' + esc(who) + '</b> · ' : '') + esc(m.message || '') + '</span>' +
+      var kind, tag;
+      if (/DISQUALIF/i.test(txt)) { kind = 'pen'; tag = '取消资格'; }
+      else if (/PENALTY|DRIVE.THROUGH|STOP.GO/i.test(txt)) { kind = 'pen'; tag = '罚时'; }
+      else if (/DELETED/i.test(txt)) { kind = 'del'; tag = '成绩取消'; }
+      else if (/INVESTIGAT|NOTED/i.test(txt)) { kind = 'inv'; tag = '调查'; }
+      else if (/REPRIMAND|WARNING/i.test(txt)) { kind = 'inv'; tag = '警告'; }
+      else if (m.category === 'SafetyCar') { kind = 'sc'; tag = '安全车'; }
+      else if (m.flag === 'RED') { kind = 'red'; tag = '红旗'; }
+      else { kind = ''; tag = '通告'; }
+      return '<div class="st-row ' + kind + '">' +
+        '<span class="st-tag">' + tag + '</span>' +
+        '<span class="msg">' + (who ? '<b>' + esc(who) + '</b> ' : '') + esc(rcCN(txt)) + '</span>' +
+        '<span class="lap">' + (m.lap_number ? 'L' + esc(m.lap_number) : '') + '</span>' +
         '</div>';
     }).join('') + '</div>';
   }
@@ -2534,12 +2586,13 @@
       return Math.round(lo) === Math.round(hi) ? Math.round(lo) + '°C'
         : Math.round(lo) + '–' + Math.round(hi) + '°C';
     }
-    var bits = [];
-    if (air.length) bits.push('气温 ' + rng(air));
-    if (trk.length) bits.push('地表 ' + rng(trk));
-    bits.push(rain ? '有降雨' : '全程干地');
-    return '<div class="kv" style="margin-top:10px"><span class="k">天气</span><span>' +
-      esc(bits.join(' · ')) + '</span></div>';
+    var pills = [];
+    if (air.length) pills.push(['气温', rng(air)]);
+    if (trk.length) pills.push(['地表温度', rng(trk)]);
+    pills.push(['路况', rain ? '有降雨' : '干地']);
+    return '<h4>赛道条件</h4><div class="wx">' + pills.map(function (p) {
+      return '<span class="wx-pill"><span class="wl">' + p[0] + '</span><b>' + esc(p[1]) + '</b></span>';
+    }).join('') + '</div>';
   }
 
   /* ---------- favourite drivers ---------- */

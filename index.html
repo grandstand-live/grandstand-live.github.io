@@ -1098,7 +1098,9 @@
     box.innerHTML = renderGoals(id) + '<div class="skeleton" style="padding:14px 0">正在获取赛况…</div>';
     btn.parentNode.insertBefore(box, btn.nextSibling);
     loadSummary(id).then(function (html) {
-      if (box.isConnected) box.innerHTML = html;
+      if (!box.isConnected) return;
+      box.innerHTML = html;
+      fillPhotos(box);
     });
   }
 
@@ -1274,6 +1276,127 @@
     return lum > 150 ? '#12181A' : '#fff';
   }
 
+  /* ---------- player photos, from TheSportsDB (free, no key needed) ----------
+     Coverage is partial, so every dot draws a silhouette first and a photo is
+     swapped in only when one is found. Answers are cached in localStorage, and
+     the network queue is throttled to stay inside the free tier's 30/min. */
+  var TSDB = 'https://www.thesportsdb.com/api/v1/json/3/';
+  var photoQueue = [];
+  var photoRunning = false;
+
+  function normName(s) {
+    return plain(String(s || '')).replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+  }
+  function lastName(s) {
+    var parts = normName(s).split(' ');
+    return parts[parts.length - 1] || '';
+  }
+
+  function cacheGet(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return undefined;
+      var o = JSON.parse(raw);
+      if (o && o.t && Date.now() - o.t < 30 * 24 * 3600 * 1000) return o.v;
+    } catch (e) {}
+    return undefined;
+  }
+  function cacheSet(key, value) {
+    try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), v: value })); } catch (e) {}
+  }
+
+  // One call per club gives a partial squad with cutouts — cheap and high yield.
+  function squadPhotos(teamName) {
+    var key = 'sq:' + normName(teamName);
+    var hit = cacheGet(key);
+    if (hit !== undefined) return Promise.resolve(hit);
+    return getJSON(TSDB + 'searchteams.php?t=' + encodeURIComponent(teamName))
+      .then(function (d) {
+        var id = d && d.teams && d.teams[0] && d.teams[0].idTeam;
+        if (!id) return {};
+        return getJSON(TSDB + 'lookup_all_players.php?id=' + id).then(function (sq) {
+          var map = {};
+          ((sq && sq.player) || []).forEach(function (p) {
+            if (p.strCutout) {
+              map[normName(p.strPlayer)] = p.strCutout;
+              var ln = lastName(p.strPlayer);
+              if (ln && !map['~' + ln]) map['~' + ln] = p.strCutout;
+            }
+          });
+          return map;
+        });
+      })
+      .then(function (map) { cacheSet(key, map); return map; })
+      .catch(function () { return {}; });
+  }
+
+  function lookupPlayer(name, teamName) {
+    var key = 'pl:' + normName(name);
+    var hit = cacheGet(key);
+    if (hit !== undefined) return Promise.resolve(hit);
+    return getJSON(TSDB + 'searchplayers.php?p=' + encodeURIComponent(name))
+      .then(function (d) {
+        var rows = (d && d.player) || [];
+        var wantTeam = normName(teamName);
+        // Only trust a hit whose club matches — same surname, wrong player is worse
+        // than no photo at all.
+        var row = rows.filter(function (p) {
+          if (!p.strCutout) return false;
+          var t = normName(p.strTeam);
+          return t && wantTeam && (t.indexOf(wantTeam) !== -1 || wantTeam.indexOf(t) !== -1);
+        })[0];
+        var url = (row && row.strCutout) || '';
+        cacheSet(key, url);
+        return url;
+      })
+      .catch(function () { return ''; });
+  }
+
+  function runPhotoQueue() {
+    if (photoRunning) return;
+    photoRunning = true;
+    (function step() {
+      var job = photoQueue.shift();
+      if (!job) { photoRunning = false; return; }
+      if (!job.node.isConnected) { step(); return; }
+      lookupPlayer(job.name, job.team).then(function (url) {
+        if (url && job.node.isConnected) {
+          job.node.setAttribute('href', url);
+          job.node.setAttribute('opacity', '1');
+        }
+        setTimeout(step, 2200);
+      });
+    })();
+  }
+
+  // Called right after a match detail is inserted into the page.
+  function fillPhotos(root) {
+    if (!root) return;
+    var nodes = [].slice.call(root.querySelectorAll('image[data-player]'));
+    if (!nodes.length) return;
+    var byTeam = {};
+    nodes.forEach(function (n) {
+      var t = n.getAttribute('data-team') || '';
+      (byTeam[t] = byTeam[t] || []).push(n);
+    });
+    Object.keys(byTeam).forEach(function (team) {
+      squadPhotos(team).then(function (map) {
+        byTeam[team].forEach(function (n) {
+          if (!n.isConnected) return;
+          var nm = normName(n.getAttribute('data-player'));
+          var url = map[nm] || map['~' + lastName(nm)];
+          if (url) {
+            n.setAttribute('href', url);
+            n.setAttribute('opacity', '1');
+          } else {
+            photoQueue.push({ node: n, name: n.getAttribute('data-player'), team: team });
+          }
+        });
+        runPhotoQueue();
+      });
+    });
+  }
+
   // Substitutions: participants are [player coming on, player going off].
   function subMap(keyEvents) {
     var on = {}, off = {}, list = [];
@@ -1299,10 +1422,6 @@
   function headshot(ath) {
     return (ath && ath.headshot && ath.headshot.href) || '';
   }
-  function photoWorthIt(starters) {
-    var have = starters.filter(function (p) { return headshot(p.athlete); }).length;
-    return have >= Math.ceil(starters.length / 2);
-  }
 
   function pitchHTML(rosters, hColor, aColor, keyEvents) {
     if (!rosters || rosters.length < 2) return '';
@@ -1327,7 +1446,7 @@
 
     function dots(side, fill, isHome) {
       var ink = readableOn(fill);
-      var photos = photoWorthIt(side.starters);
+      var teamName = side.team.displayName || side.team.shortDisplayName || '';
       var lines = [[], [], [], [], []];
       side.starters.forEach(function (p) {
         var abbr = (p.position && (p.position.abbreviation || p.position.name)) || '';
@@ -1343,22 +1462,29 @@
           var y = H * (j + 1) / (line.length + 1);
           var ath = item.p.athlete || {};
           var name = ath.shortName || ath.displayName || '';
-          var img = photos ? headshot(ath) : '';
           var num = esc(item.p.jersey || '');
+          var known = headshot(ath);
           var offClock = item.p.subbedOut ? (subs.off[ath.displayName] || '') : null;
+          var cx = x.toFixed(1), cy = y.toFixed(1);
 
           out += '<g>' +
-            '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + R + '" fill="' + fill + '"></circle>' +
-            '<text x="' + x.toFixed(1) + '" y="' + (y + 1).toFixed(1) + '" text-anchor="middle" font-size="2.8" ' +
-              'font-weight="700" fill="' + ink + '">' + num + '</text>' +
-            (img ? '<image href="' + esc(img) + '" x="' + (x - R).toFixed(1) + '" y="' + (y - R).toFixed(1) +
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="' + fill + '"></circle>' +
+            // generic silhouette, shown until (or unless) a photo arrives
+            '<g fill="' + ink + '" opacity=".5">' +
+              '<circle cx="' + cx + '" cy="' + (y - .7).toFixed(1) + '" r="1.15"></circle>' +
+              '<path d="M' + (x - 2.1).toFixed(1) + ' ' + (y + 3.2).toFixed(1) +
+                ' a 2.1 2.3 0 0 1 4.2 0 z"></path>' +
+            '</g>' +
+            '<image data-player="' + esc(ath.displayName || name) + '" data-team="' + esc(teamName) + '"' +
+              (known ? ' href="' + esc(known) + '" opacity="1"' : ' opacity="0"') +
+              ' x="' + (x - R).toFixed(1) + '" y="' + (y - R).toFixed(1) +
               '" width="' + (R * 2) + '" height="' + (R * 2) + '" preserveAspectRatio="xMidYMid slice" ' +
-              'style="clip-path:circle(50%)" onerror="this.style.display=\'none\'"></image>' : '') +
-            '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + R + '" fill="none" stroke="' + fill +
+              'style="clip-path:circle(50%)"></image>' +
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="' + fill +
               '" stroke-width=".9"></circle>' +
             (offClock !== null ? '<text x="' + (x + R + .6).toFixed(1) + '" y="' + (y - R + 1).toFixed(1) +
-              '" font-size="2" fill="var(--loss)" font-weight="700">↓' + esc(offClock) + '</text>' : '') +
-            '<text x="' + x.toFixed(1) + '" y="' + (y + R + 3).toFixed(1) + '" text-anchor="middle" font-size="2.3" ' +
+              '" font-size="2" fill="var(--loss)" font-weight="700">\u2193' + esc(offClock) + '</text>' : '') +
+            '<text x="' + cx + '" y="' + (y + R + 3).toFixed(1) + '" text-anchor="middle" font-size="2.3" ' +
               'fill="var(--ink-2)"><tspan fill="var(--muted)">' + num + '</tspan> ' + esc(name) + '</text>' +
             '</g>';
         });

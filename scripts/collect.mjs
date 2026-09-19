@@ -194,15 +194,22 @@ async function collectCba() {
   if (!APISPORTS) throw new Error('missing APISPORTS_KEY secret');
   const now = new Date();
   const previous = await load('cba.json');
-  const fresh = previous?.updatedAt &&
+  // The hourly throttle exists to protect a 100-a-day quota, but it must not
+  // pin a bad answer in place: a stored season from a bygone year is re-fetched
+  // straight away, while a current season that simply has no fixtures yet waits.
+  const era = [now.getFullYear(), now.getFullYear() - 1].map(String);
+  const seasonLooksCurrent = era.some(y => String(previous?.season || '').includes(y));
+  const recentlyPolled = previous?.updatedAt &&
     (now - new Date(previous.updatedAt)) < 55 * 60 * 1000;
-  if (fresh) return { source: previous.source, skipped: 'polled within the hour' };
+  if (recentlyPolled && seasonLooksCurrent) {
+    return { source: previous.source, season: previous.season, skipped: 'polled within the hour' };
+  }
 
   const headers = { 'x-apisports-key': APISPORTS };
   const base = 'https://v1.basketball.api-sports.io/';
 
   let leagueId = previous?.leagueId;
-  let season = previous?.season;
+  let season = seasonLooksCurrent ? previous?.season : null;
   let leagueName = previous?.leagueName;
   if (!leagueId || !season) {
     const found = await getJSON(`${base}leagues?country=China`, headers);

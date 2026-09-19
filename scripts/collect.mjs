@@ -144,6 +144,9 @@ async function collectLol() {
    These run with API keys held in GitHub Secrets. A key never reaches the
    published page: the Action fetches, and only the resulting JSON is committed. */
 
+// A hand-triggered run is someone asking a question of the data, so it must
+// never be answered from cache — throttles exist for the scheduled cadence.
+const MANUAL = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
 const PANDA = process.env.PANDASCORE_TOKEN || '';
 const APISPORTS = process.env.APISPORTS_KEY || '';
 
@@ -205,7 +208,7 @@ async function collectCba() {
   // three hours, so a league that is simply between seasons cannot drain the
   // 100-calls-a-day quota. A stale season is always re-fetched at once.
   const holdFor = hasGames ? 55 * 60 * 1000 : 3 * 60 * 60 * 1000;
-  if (seasonLooksCurrent && age < holdFor) {
+  if (!MANUAL && seasonLooksCurrent && age < holdFor) {
     return {
       source: previous.source, season: previous.season,
       skipped: hasGames ? 'polled within the hour' : 'empty, waiting 3h before retry'

@@ -2256,7 +2256,8 @@
           if (!slot || !slot.isConnected) return;
           var data = r[0], drivers = r[1];
           var table = resultTable(data, drivers);
-          slot.innerHTML = (table || '<div class="kv"><span>这一站还没有详细成绩。</span></div>') +
+          slot.innerHTML = (table || '<div class="err" style="padding:12px 0">成绩接口暂时限流了，' +
+            '收起再展开重试一次。</div>') +
             stintsHTML(data.stints, drivers, data.rows) +
             stewardsHTML(data.rc, drivers) +
             weatherHTML(data.weather);
@@ -2307,19 +2308,40 @@
   var MAX_DRIVERS = 3;
   var favDrivers = lsGet('favDrivers', []);
 
+  // OpenF1 rate-limits bursts (HTTP 429), so requests go out one at a time with
+  // a gap, a 429 is retried with backoff, and only real answers are cached.
+  var of1Queue = Promise.resolve();
+  var of1Pending = {};
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function of1Fetch(url, attempt) {
+    return fetch(url).then(function (r) {
+      if (r.status === 429 && attempt < 3) {
+        return wait(1000 * (attempt + 1)).then(function () { return of1Fetch(url, attempt + 1); });
+      }
+      return r.ok ? r.json() : null;
+    }).catch(function () { return null; });
+  }
+
   function of1(path) {
     if (f1Cache[path]) return Promise.resolve(f1Cache[path]);
-    return getJSON(OF1 + path).then(function (d) {
-      f1Cache[path] = d || [];
-      return f1Cache[path];
-    });
+    if (of1Pending[path]) return of1Pending[path];
+    var run = of1Queue.then(function () { return of1Fetch(OF1 + path, 0); })
+      .then(function (d) {
+        delete of1Pending[path];
+        if (d) f1Cache[path] = d;   // a failure is never cached, so it can retry later
+        return d || [];
+      });
+    of1Pending[path] = run;
+    of1Queue = run.catch(function () {}).then(function () { return wait(350); });
+    return run;
   }
   function f1DriverMap() {
     if (f1Cache.drivers) return Promise.resolve(f1Cache.drivers);
     return of1('drivers?session_key=latest').then(function (list) {
       var map = {};
       (list || []).forEach(function (d) { map[d.driver_number] = d; });
-      f1Cache.drivers = map;
+      if (list && list.length) f1Cache.drivers = map;
       return map;
     });
   }
@@ -2366,7 +2388,7 @@
         rows: rows, pits: pits, fastest: fastest,
         rc: r[3] || [], stints: r[4] || [], weather: r[5] || []
       };
-      f1Cache[tag] = out;
+      if (rows.length) f1Cache[tag] = out;
       return out;
     }).catch(function () {
       return { rows: [], pits: {}, fastest: null, rc: [], stints: [], weather: [] };

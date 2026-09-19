@@ -203,18 +203,30 @@ async function collectCba() {
 
   let leagueId = previous?.leagueId;
   let season = previous?.season;
-  if (!leagueId) {
+  let leagueName = previous?.leagueName;
+  if (!leagueId || !season) {
     const found = await getJSON(`${base}leagues?country=China`, headers);
-    const league = (found?.response || [])
-      .find(l => /CBA|Chinese Basketball/i.test(l.name || '')) || (found?.response || [])[0];
-    if (!league) throw new Error('no CBA league in API-Sports response');
+    const leagues = found?.response || [];
+    const league = leagues.find(l => /^CBA$|Chinese Basketball/i.test(l.name || '')) ||
+      leagues.find(l => /CBA/i.test(l.name || '')) || leagues[0];
+    if (!league) throw new Error('no Chinese league in API-Sports response');
     leagueId = league.id;
-    const seasons = (league.seasons || []).map(s => s.season);
-    season = seasons[seasons.length - 1];
+    leagueName = league.name;
+    // the seasons array is not in chronological order, so sort by start date
+    const seasons = (league.seasons || []).slice().sort((a, b) =>
+      new Date(b.start || 0) - new Date(a.start || 0));
+    season = (seasons.find(s => s.current) || seasons[0])?.season;
   }
   if (!season) throw new Error('no season for CBA');
 
-  const games = await getJSON(`${base}games?league=${leagueId}&season=${encodeURIComponent(season)}`, headers);
+  let games = await getJSON(`${base}games?league=${leagueId}&season=${encodeURIComponent(season)}`, headers);
+  if (!(games?.response || []).length && /^\d{4}-\d{4}$/.test(season)) {
+    // a season that has not started yet returns nothing — show the previous one
+    const [a, b] = season.split('-').map(Number);
+    const older = `${a - 1}-${b - 1}`;
+    const retry = await getJSON(`${base}games?league=${leagueId}&season=${older}`, headers);
+    if ((retry?.response || []).length) { games = retry; season = older; }
+  }
   const all = (games?.response || []).map(g => ({
     id: g.id,
     start: g.date,
@@ -224,14 +236,19 @@ async function collectCba() {
   }));
   const nowMs = now.getTime();
   const value = {
-    leagueId, season,
+    leagueId, season, leagueName,
     upcoming: all.filter(g => new Date(g.start).getTime() >= nowMs - 3 * 3600e3)
       .sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 30),
     recent: all.filter(g => new Date(g.start).getTime() < nowMs - 3 * 3600e3)
       .sort((a, b) => new Date(b.start) - new Date(a.start)).slice(0, 30)
   };
-  await save('cba.json', { updatedAt: now.toISOString(), source: 'api-sports', ...value });
-  return { source: 'api-sports', league: leagueId, season, upcoming: value.upcoming.length, recent: value.recent.length };
+  await save('cba.json', {
+    updatedAt: now.toISOString(), source: 'api-sports', leagueName, ...value
+  });
+  return {
+    source: 'api-sports', league: leagueId, leagueName, season,
+    upcoming: value.upcoming.length, recent: value.recent.length
+  };
 }
 
 /* Keep the repo from growing without bound. */

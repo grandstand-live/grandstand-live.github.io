@@ -1293,10 +1293,15 @@
     return { on: on, off: off, list: list };
   }
 
+  // ESPN only stores headshots for a handful of footballers — a constructed URL
+  // 404s for most of them. Only trust the field, and only switch a team over to
+  // photos when most of its XI actually has one, so the row stays consistent.
   function headshot(ath) {
-    if (!ath) return '';
-    if (ath.headshot && ath.headshot.href) return ath.headshot.href;
-    return ath.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + ath.id + '.png' : '';
+    return (ath && ath.headshot && ath.headshot.href) || '';
+  }
+  function photoWorthIt(starters) {
+    var have = starters.filter(function (p) { return headshot(p.athlete); }).length;
+    return have >= Math.ceil(starters.length / 2);
   }
 
   function pitchHTML(rosters, hColor, aColor, keyEvents) {
@@ -1322,6 +1327,7 @@
 
     function dots(side, fill, isHome) {
       var ink = readableOn(fill);
+      var photos = photoWorthIt(side.starters);
       var lines = [[], [], [], [], []];
       side.starters.forEach(function (p) {
         var abbr = (p.position && (p.position.abbreviation || p.position.name)) || '';
@@ -1337,7 +1343,7 @@
           var y = H * (j + 1) / (line.length + 1);
           var ath = item.p.athlete || {};
           var name = ath.shortName || ath.displayName || '';
-          var img = headshot(ath);
+          var img = photos ? headshot(ath) : '';
           var num = esc(item.p.jersey || '');
           var offClock = item.p.subbedOut ? (subs.off[ath.displayName] || '') : null;
 

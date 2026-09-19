@@ -572,6 +572,61 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- F1 ---- */
+  .gp {
+    display: flex; align-items: center; gap: 11px;
+    width: 100%; background: none; border: none;
+    border-top: 1px solid var(--hairline);
+    padding: 11px 12px; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  }
+  .gp:first-child { border-top: none; }
+  .gp:hover { background: var(--surface-2); }
+  .gp.done { color: var(--muted); }
+  .gp.next { background: var(--accent-soft); }
+  .rd {
+    font-family: var(--narrow); font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    color: var(--muted); min-width: 26px; flex-shrink: 0;
+  }
+  .gp .info { flex: 1; min-width: 0; }
+  .gp .gp-name {
+    display: block; font-size: 14px; font-weight: 600; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .gp.done .gp-name { color: var(--ink-2); font-weight: 500; }
+  .gp .sub {
+    display: block; font-size: 11.5px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .gp-win, .gp-when {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12.5px; flex-shrink: 0; max-width: 42%;
+  }
+  .gp-win { color: var(--ink); font-weight: 600; }
+  .gp-when { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .flag {
+    width: 18px; height: 12px; object-fit: cover; border-radius: 2px; flex-shrink: 0;
+    box-shadow: 0 0 0 1px var(--hairline);
+  }
+  .grid-res { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
+  .grid-res.wide { padding: 10px 12px; }
+  .res-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; padding: 4px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .res-row .pos {
+    font-family: var(--narrow); font-weight: 700; font-size: 11.5px;
+    min-width: 18px; text-align: right; color: var(--muted);
+  }
+  .res-row .dn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .res-row.p1 .pos { color: #C9A227; }
+  .res-row.p2 .pos { color: #9AA3A8; }
+  .res-row.p3 .pos { color: #B07A4A; }
+  .res-row.p1 .dn, .res-row.p2 .dn, .res-row.p3 .dn { font-weight: 600; color: var(--ink); }
+  @media (max-width: 420px) {
+    .grid-res { grid-template-columns: 1fr; }
+    .gp-win, .gp-when { max-width: 38%; }
+  }
   .bench { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .bench-team {
     display: flex; align-items: center; gap: 6px;
@@ -892,7 +947,7 @@
   /* ---------- sports ---------- */
   var SPORTS = [
     { id: 'football', name: '足球', ready: true, sub: '足球' },
-    { id: 'f1', name: 'F1', sub: 'F1', blurb: '排位赛和正赛时间、车手与车队积分榜、每站的圈速和进站。' },
+    { id: 'f1', name: 'F1', ready: true, sub: 'F1' },
     { id: 'esports', name: '电竞', sub: '电竞', blurb: 'LOL、DOTA2、CS 的赛程、比分和战队排名。' },
     { id: 'fight', name: '格斗', sub: '格斗', blurb: 'UFC 和拳击的赛事卡、对阵、称重结果和胜负记录。' },
     { id: 'basketball', name: '篮球', sub: '篮球', blurb: 'NBA 和 CBA 的赛程、实时比分、球员数据和east/west 排名。' }
@@ -914,15 +969,17 @@
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
     $('subtitle').textContent = '实时赛事板 · ' + s.sub;
 
-    var isFootball = id === 'football';
-    $('footballHead').hidden = !isFootball;
-    $('status').hidden = !isFootball;
+    var ready = !!s.ready;
+    $('footballHead').hidden = !ready;
+    $('chips').hidden = id !== 'football';
+    $('status').hidden = !ready;
     $('settings').hidden = true;
-    $('panel-soon').hidden = isFootball;
-    $('gearBtn').hidden = !isFootball;
-    $('refreshBtn').hidden = !isFootball;
+    $('panel-soon').hidden = ready;
+    $('gearBtn').hidden = id !== 'football';
+    $('refreshBtn').hidden = !ready;
 
-    if (isFootball) {
+    if (ready) {
+      renderSegTabs();
       setTab(tab);
     } else {
       $('panel-fixtures').hidden = true;
@@ -941,6 +998,25 @@
         (l.id === league) + '">' + l.name + '</button>';
     }).join('');
   }
+  var TABS = {
+    football: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的球队']],
+    f1: [['fixtures', '赛历'], ['table', '积分榜'], ['mine', '上一站成绩']]
+  };
+  function renderSegTabs() {
+    var defs = TABS[sport] || TABS.football;
+    document.querySelector('.seg').innerHTML = defs.map(function (t) {
+      return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' +
+        (t[0] === tab) + '">' + t[1] +
+        (t[0] === 'mine' && sport === 'football'
+          ? '<span class="badge" id="favCount">' + favorites.length + '</span>' : '') +
+        '</button>';
+    }).join('');
+  }
+  function setFavCount() {
+    var el = $('favCount');
+    if (el) el.textContent = favorites.length;
+  }
+
   function setTab(next) {
     tab = next;
     Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (b) {
@@ -949,6 +1025,13 @@
     $('panel-fixtures').hidden = next !== 'fixtures';
     $('panel-table').hidden = next !== 'table';
     $('panel-mine').hidden = next !== 'mine';
+
+    if (sport === 'f1') {
+      if (next === 'fixtures') renderF1Fixtures();
+      else if (next === 'table') renderF1Table();
+      else renderF1Last();
+      return;
+    }
     if (next === 'table') loadStandings();
     if (next === 'mine') renderMine();
   }
@@ -1938,6 +2021,240 @@
     });
   }
 
+  /* ---------- Formula 1 ---------- */
+  var GP_CN = {
+    'australian': '澳大利亚', 'chinese': '中国', 'japanese': '日本', 'bahrain': '巴林',
+    'saudi': '沙特阿拉伯', 'miami': '迈阿密', 'emilia': '艾米利亚-罗马涅', 'imola': '伊莫拉',
+    'monaco': '摩纳哥', 'canadian': '加拿大', 'spanish': '西班牙', 'austrian': '奥地利',
+    'british': '英国', 'belgian': '比利时', 'hungarian': '匈牙利', 'dutch': '荷兰',
+    'italian': '意大利', 'azerbaijan': '阿塞拜疆', 'singapore': '新加坡', 'united states': '美国',
+    'mexico': '墨西哥', 'méxico': '墨西哥', 'brazil': '巴西', 'são paulo': '圣保罗',
+    'sao paulo': '圣保罗', 'las vegas': '拉斯维加斯', 'qatar': '卡塔尔', 'abu dhabi': '阿布扎比',
+    'malaysian': '马来西亚', 'french': '法国', 'german': '德国', 'portuguese': '葡萄牙',
+    'turkish': '土耳其', 'russian': '俄罗斯', 'korean': '韩国', 'madrid': '马德里'
+  };
+  var GP_KEYS = Object.keys(GP_CN).sort(function (a, b) { return b.length - a.length; });
+  function gpName(name) {
+    var low = plain(name || '');
+    for (var i = 0; i < GP_KEYS.length; i++) {
+      if (low.indexOf(GP_KEYS[i]) !== -1) return GP_CN[GP_KEYS[i]] + '大奖赛';
+    }
+    return (name || '').replace(/^[^ ]+ /, '');
+  }
+  var SESSION_CN = {
+    FP1: '练习赛一', FP2: '练习赛二', FP3: '练习赛三', Qual: '排位赛', Race: '正赛',
+    Sprint: '冲刺赛', SprintQual: '冲刺排位', 'Sprint Qual': '冲刺排位', Practice: '练习赛'
+  };
+  var DRIVER_CN = {
+    'verstappen': '维斯塔潘', 'hamilton': '汉密尔顿', 'leclerc': '勒克莱尔', 'norris': '诺里斯',
+    'russell': '拉塞尔', 'piastri': '皮亚斯特里', 'sainz': '塞恩斯', 'alonso': '阿隆索',
+    'antonelli': '安东内利', 'perez': '佩雷斯', 'gasly': '加斯利', 'ocon': '奥孔',
+    'hulkenberg': '胡尔肯伯格', 'stroll': '斯特罗尔', 'tsunoda': '角田裕毅', 'albon': '阿尔本',
+    'bearman': '贝尔曼', 'lawson': '劳森', 'hadjar': '哈贾尔', 'bortoleto': '博托莱托',
+    'colapinto': '科拉平托', 'doohan': '杜汉', 'zhou': '周冠宇', 'ricciardo': '里卡多',
+    'bottas': '博塔斯', 'magnussen': '马格努森', 'sargeant': '萨金特', 'aron': '阿隆',
+    'browning': '布朗宁', 'lindblad': '林德布拉德', 'dunne': '邓恩', 'iwasa': '岩佐步梦'
+  };
+  var TEAM_CN = {
+    'mercedes': '梅赛德斯', 'red bull': '红牛', 'ferrari': '法拉利', 'mclaren': '迈凯伦',
+    'aston martin': '阿斯顿·马丁', 'alpine': '阿尔派', 'williams': '威廉姆斯',
+    'racing bulls': '红牛二队', 'rb': '红牛二队', 'haas': '哈斯', 'sauber': '索伯',
+    'audi': '奥迪', 'cadillac': '凯迪拉克', 'alfa romeo': '阿尔法罗密欧', 'alphatauri': '阿尔法托利'
+  };
+  function driverCN(name) {
+    var low = plain(name || '');
+    var k = Object.keys(DRIVER_CN).filter(function (x) { return low.indexOf(x) !== -1; })[0];
+    return k ? DRIVER_CN[k] : (name || '');
+  }
+  function teamCN(name) {
+    var low = plain(name || '');
+    var keys = Object.keys(TEAM_CN).sort(function (a, b) { return b.length - a.length; });
+    var k = keys.filter(function (x) { return low.indexOf(x) !== -1; })[0];
+    return k ? TEAM_CN[k] : (name || '');
+  }
+
+  var f1Cache = {};
+  function f1Season() {
+    if (f1Cache.season) return Promise.resolve(f1Cache.season);
+    var year = new Date().getFullYear();
+    return getJSON(API + 'site/v2/sports/racing/f1/scoreboard?dates=' + year).then(function (d) {
+      f1Cache.season = d;
+      return d;
+    });
+  }
+  function f1Standings() {
+    if (f1Cache.standings) return Promise.resolve(f1Cache.standings);
+    return getJSON(API + 'v2/sports/racing/f1/standings').then(function (d) {
+      f1Cache.standings = d;
+      return d;
+    });
+  }
+  function raceOf(ev) {
+    var comps = ev.competitions || [];
+    return comps.filter(function (c) {
+      return ((c.type && (c.type.text || c.type.abbreviation)) || '') === 'Race';
+    })[0] || comps[comps.length - 1];
+  }
+  function flagImg(ath) {
+    var href = ath && ath.flag && ath.flag.href;
+    return href ? '<img class="flag" src="' + esc(href) + '" alt="" loading="lazy">' : '';
+  }
+
+  function renderF1Fixtures() {
+    var host = $('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
+    f1Season().then(function (d) {
+      var evs = (d && d.events) || [];
+      if (!evs.length) {
+        host.innerHTML = '<div class="err">赛历没取到，刷新一下重试。</div>';
+        $('status').textContent = '数据接口没连上';
+        return;
+      }
+      evs = evs.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+      var nextIdx = evs.findIndex(function (e) {
+        return !(e.status && e.status.type && e.status.type.completed);
+      });
+
+      host.innerHTML = '<div class="card">' + evs.map(function (ev, i) {
+        var race = raceOf(ev) || {};
+        var done = ev.status && ev.status.type && ev.status.type.completed;
+        var d0 = new Date(race.date || ev.date);
+        var winner = ((race.competitors || []).filter(function (c) { return c.winner; })[0]) ||
+          (race.competitors || [])[0];
+        var right = done && winner && winner.athlete
+          ? '<span class="gp-win">' + flagImg(winner.athlete) +
+            esc(driverCN(winner.athlete.displayName)) + '</span>'
+          : '<span class="gp-when">' + (isNaN(d0) ? '待定' : fmtTime(d0)) + '</span>';
+        return '<button class="gp' + (i === nextIdx ? ' next' : '') + (done ? ' done' : '') +
+            '" type="button" data-ev="' + esc(ev.id) + '"' + (i === nextIdx ? ' id="nextGp"' : '') + '>' +
+            '<span class="rd">R' + (i + 1) + '</span>' +
+            '<span class="info"><span class="gp-name">' + esc(gpName(ev.name)) +
+              (i === nextIdx ? '<span class="today">下一站</span>' : '') + '</span>' +
+              '<span class="sub">' + esc((ev.circuit && ev.circuit.fullName) || '') +
+              (isNaN(d0) ? '' : ' · ' + fmtDay(d0)) + '</span></span>' +
+            right +
+          '</button>';
+      }).join('') + '</div>';
+
+      var s = $('status');
+      s.innerHTML = '2026 赛季 · ' + evs.length + ' 站，已完赛 ' +
+        evs.filter(function (e) { return e.status && e.status.type && e.status.type.completed; }).length +
+        ' 站' + (nextIdx > 0 ? '<button class="jump" type="button" id="jumpNext">跳到下一站 ↓</button>' : '');
+      var jump = $('jumpNext');
+      if (jump) jump.addEventListener('click', function () {
+        var el = $('nextGp');
+        if (el) window.scrollTo({ top: el.offsetTop - 120, behavior: 'smooth' });
+      });
+    });
+  }
+
+  function toggleGp(btn) {
+    var next = btn.nextElementSibling;
+    if (next && next.classList.contains('detail')) { next.remove(); return; }
+    var id = btn.dataset.ev;
+    f1Season().then(function (d) {
+      var ev = ((d && d.events) || []).filter(function (e) { return String(e.id) === String(id); })[0];
+      if (!ev) return;
+      var html = '';
+      var comps = (ev.competitions || []).slice().sort(function (a, b) {
+        return new Date(a.date) - new Date(b.date);
+      });
+      if (comps.length) {
+        html += '<h4>赛程安排</h4>' + comps.map(function (c) {
+          var t = (c.type && (c.type.text || c.type.abbreviation)) || '';
+          var cd = new Date(c.date);
+          return '<div class="kv"><span class="k">' + esc(SESSION_CN[t] || t) + '</span><span>' +
+            (isNaN(cd) ? '待定' : esc(fmtDay(cd) + ' ' + fmtTime(cd))) + '</span></div>';
+        }).join('');
+      }
+      var race = raceOf(ev);
+      var field = (race && race.competitors) || [];
+      if (field.length && ev.status && ev.status.type && ev.status.type.completed) {
+        html += '<h4>正赛成绩</h4><div class="grid-res">' + field.slice().sort(function (a, b) {
+          return (a.order || 99) - (b.order || 99);
+        }).map(function (c) {
+          var pos = c.order || '';
+          var cls = pos === 1 ? ' p1' : pos === 2 ? ' p2' : pos === 3 ? ' p3' : '';
+          return '<div class="res-row' + cls + '"><span class="pos">' + esc(pos) + '</span>' +
+            flagImg(c.athlete) + '<span class="dn">' +
+            esc(driverCN(c.athlete && c.athlete.displayName)) + '</span></div>';
+        }).join('') + '</div>';
+      }
+      if (ev.circuit) {
+        var ci = ev.circuit;
+        html += '<div class="kv" style="margin-top:12px"><span class="k">赛道</span><span>' +
+          esc(ci.fullName || '') + (ci.address && ci.address.city ? ' · ' + esc(ci.address.city) : '') +
+          '</span></div>';
+      }
+      var box = document.createElement('div');
+      box.className = 'detail';
+      box.innerHTML = html || '<div class="kv"><span>这一站暂时没有更多资料。</span></div>';
+      btn.parentNode.insertBefore(box, btn.nextSibling);
+    });
+  }
+
+  function renderF1Table() {
+    var host = $('panel-table');
+    host.innerHTML = '<div class="skeleton">正在获取积分榜…</div>';
+    f1Standings().then(function (d) {
+      var groups = (d && d.children) || [];
+      if (!groups.length) { host.innerHTML = '<div class="err">积分榜没取到。</div>'; return; }
+      host.innerHTML = groups.map(function (g) {
+        var isDriver = /driver/i.test(g.name || '');
+        var rows = ((g.standings && g.standings.entries) || []).map(function (e) {
+          var s = {};
+          (e.stats || []).forEach(function (x) { s[x.name] = x.displayValue; });
+          var who = e.athlete || e.team || {};
+          var label = isDriver ? driverCN(who.displayName) : teamCN(who.displayName);
+          var pts = s.championshipPts || s.points || '0';
+          var rank = parseInt(s.rank, 10) || 99;
+          return { rank: rank, label: label, pts: pts, ath: isDriver ? who : null, team: isDriver ? null : who };
+        }).sort(function (a, b) { return a.rank - b.rank; });
+
+        return '<div class="group-name">' + (isDriver ? '车手积分榜' : '车队积分榜') + '</div>' +
+          '<div class="card"><div class="table-scroll"><table><thead><tr>' +
+          '<th class="rk" style="text-align:left">#</th><th class="tm">' + (isDriver ? '车手' : '车队') +
+          '</th><th>积分</th></tr></thead><tbody>' +
+          rows.map(function (r) {
+            var zone = r.rank <= 3 ? 'z-top' : '';
+            var logo = r.team && r.team.logos && r.team.logos[0] && r.team.logos[0].href;
+            return '<tr class="' + zone + '"><td class="rk">' + r.rank + '</td>' +
+              '<td class="tm">' + (r.ath ? flagImg(r.ath) : (logo ?
+                '<img class="crest" src="' + esc(logo) + '" alt="" loading="lazy" style="width:20px;height:20px">' : '')) +
+              '<span class="nm">' + esc(r.label) + '</span></td>' +
+              '<td class="pts">' + esc(r.pts) + '</td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }).join('');
+    });
+  }
+
+  function renderF1Last() {
+    var host = $('panel-mine');
+    host.innerHTML = '<div class="skeleton">正在获取上一站成绩…</div>';
+    f1Season().then(function (d) {
+      var done = ((d && d.events) || []).filter(function (e) {
+        return e.status && e.status.type && e.status.type.completed;
+      }).sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+      var ev = done[done.length - 1];
+      if (!ev) { host.innerHTML = '<div class="empty">本赛季还没有已完赛的分站。</div>'; return; }
+      var race = raceOf(ev) || {};
+      var field = (race.competitors || []).slice().sort(function (a, b) {
+        return (a.order || 99) - (b.order || 99);
+      });
+      var rd = new Date(race.date || ev.date);
+      host.innerHTML = '<div class="group-name">' + esc(gpName(ev.name)) + ' · ' +
+        (isNaN(rd) ? '' : esc(fmtDay(rd))) + '</div><div class="card"><div class="grid-res wide">' +
+        field.map(function (c) {
+          var pos = c.order || '';
+          var cls = pos === 1 ? ' p1' : pos === 2 ? ' p2' : pos === 3 ? ' p3' : '';
+          return '<div class="res-row' + cls + '"><span class="pos">' + esc(pos) + '</span>' +
+            flagImg(c.athlete) + '<span class="dn">' +
+            esc(driverCN(c.athlete && c.athlete.displayName)) + '</span></div>';
+        }).join('') + '</div></div>' +
+        '<footer style="border:none;padding-top:10px">ESPN 的 F1 接口只提供完赛名次，没有圈速、进站和每站得分。</footer>';
+    });
+  }
+
   /* ---------- picker ---------- */
   function renderPicker() {
     var host = $('picker');
@@ -2014,6 +2331,8 @@
   });
 
   $('panel-fixtures').addEventListener('click', function (e) {
+    var g = e.target.closest('.gp');
+    if (g) { toggleGp(g); return; }
     var b = e.target.closest('.match');
     if (b) toggleDetail(b);
   });
@@ -2021,6 +2340,12 @@
   $('refreshBtn').addEventListener('click', function () {
     var el = $('refreshBtn');
     el.classList.add('spinning');
+    if (sport === 'f1') {
+      f1Cache = {};
+      setTab(tab);
+      setTimeout(function () { el.classList.remove('spinning'); }, 500);
+      return;
+    }
     summaryCache = {};
     standingsCache = {};
     loadFixtures().then(function () {
@@ -2053,7 +2378,7 @@
     });
     favorites = kept.concat(picked).slice(0, MAX_TEAMS);
     lsSet('favTeams', favorites);
-    $('favCount').textContent = favorites.length;
+    setFavCount();
     $('settings').hidden = true;
     standingsCache = {};
     if (tab === 'table') loadStandings();
@@ -2066,8 +2391,8 @@
   renderChips();
   renderSportNav();
   setSport(sport);
-  $('favCount').textContent = favorites.length;
-  loadFixtures().then(checkKickoffs);
+  setFavCount();
+  if (sport === 'football') loadFixtures().then(checkKickoffs);
 })();
 </script>
 

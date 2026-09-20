@@ -4941,7 +4941,9 @@
           (b.time ? ' ' + b.time : '')) + '</div>';
     } else {
       var d0 = new Date(b.start || '');
-      mid = '<div class="kick">' + esc(isNaN(d0) ? '待定' : fmtTime(d0)) + '</div>' +
+      // the boxing source publishes the date but never the opening bell
+      var noClock = isNaN(d0) || b.timeKnown === false;
+      mid = '<div class="kick">' + esc(noClock ? '待定' : fmtTime(d0)) + '</div>' +
         '<div class="method-sub">' + esc(b.rounds ? b.rounds + ' 回合' : '') + '</div>';
     }
     return '<div class="match bout">' +

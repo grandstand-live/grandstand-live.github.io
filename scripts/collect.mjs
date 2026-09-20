@@ -247,8 +247,10 @@ function harvestMatches(node, out = [], depth = 0) {
 }
 
 async function collectCbaChina(notes) {
+  // columnId=100000 is Tencent's NBA column — it never carries a CBA fixture,
+  // so ask for everything and keep only what is actually the CBA.
   const candidates = [
-    ['tencent', `https://matchweb.sports.qq.com/matchUnion/list?columnId=100000&startTime=${ymdLocal(-10)}&endTime=${ymdLocal(21)}`],
+    ['tencent', `https://matchweb.sports.qq.com/matchUnion/list?startTime=${ymdLocal(-10)}&endTime=${ymdLocal(21)}`],
     ['baidu', `https://tiyu.baidu.com/api/match/%E4%B8%AD%E5%9B%BD%E7%94%B7%E7%AF%AE/live/date/${ymdLocal(0)}/direction/after?showNum=40`]
   ];
   for (const [label, url] of candidates) {
@@ -259,16 +261,19 @@ async function collectCbaChina(notes) {
       try { parsed = JSON.parse(body); }
       catch { notes.push(`${label} -> not JSON: ${body.slice(0, 120)}`); continue; }
 
-      const found = harvestMatches(parsed)
-        .filter(m => /CBA|男篮|中国男子篮球/i.test(`${m.league} ${m.home.name} ${m.away.name}`) || true);
+      const found = harvestMatches(parsed);
       if (!found.length) {
         notes.push(`${label} -> 200 but no fixtures; keys: ${Object.keys(parsed).slice(0, 6).join(',')}`);
         continue;
       }
-      const cba = found.filter(m => /CBA/i.test(m.league || ''));
-      const use = cba.length ? cba : found;
-      notes.push(`${label} -> ${found.length} fixtures (${cba.length} tagged CBA)`);
-      return { source: label, matches: use.map(m => ({
+      // Only the CBA. An earlier version fell back to "whatever came back",
+      // which quietly filled the CBA tab with NBA preseason games.
+      const isCba = m => /CBA|中国男子篮球/i.test(`${m.league} ${m.status}`);
+      const cba = found.filter(isCba);
+      const seen = [...new Set(found.map(m => m.league || m.status || '?'))].slice(0, 10);
+      notes.push(`${label} -> ${found.length} fixtures, ${cba.length} CBA; saw: ${seen.join(' / ')}`);
+      if (!cba.length) continue;
+      return { source: label, matches: cba.map(m => ({
         start: m.start, status: m.status, league: m.league,
         home: m.home, away: m.away
       })) };
@@ -494,28 +499,43 @@ function parseUfcRankings(html) {
   return out.filter(d => (seen.has(d.key) ? false : (seen.add(d.key), true)));
 }
 
-const normName = n => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+/* NFD only splits accents off letters that decompose; ł, ø, đ and ß are
+   letters in their own right and survive it, which is how Jan Błachowicz
+   failed to match ESPN's "Blachowicz". */
+const deLetter = s => String(s || '')
+  .replace(/[łŁ]/g, 'l').replace(/[øØ]/g, 'o').replace(/[đĐ]/g, 'd')
+  .replace(/[ıİ]/g, 'i').replace(/[ßẞ]/g, 'ss')
+  .replace(/[æÆ]/g, 'ae').replace(/[œŒ]/g, 'oe').replace(/[þÞ]/g, 'th')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+const normName = n => deLetter(n)
   .toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
 
 /* Find a fighter on ESPN. Everything here is best-effort: a fighter ESPN does
    not know about still shows up in the ladder, just without a flag or record. */
 async function espnFighter(name) {
-  const url = `${ESPN_SEARCH}?region=us&lang=en&limit=5&page=1&type=player&sport=mma` +
-    `&query=${encodeURIComponent(name)}`;
+  // ask twice at most: as written, then with the accents flattened
+  const queries = [name];
+  if (deLetter(name) !== name) queries.push(deLetter(name));
   let id = '';
-  try {
-    const found = await getJSON(url);
-    for (const group of (found && found.results) || []) {
-      for (const item of group.contents || []) {
-        const uid = String(item.uid || '');
-        if (!/s:3301~a:(\d+)/.test(uid)) continue;
-        if (normName(item.displayName) !== normName(name)) continue;
-        id = uid.match(/a:(\d+)/)[1];
-        break;
+  for (const q of queries) {
+    const url = `${ESPN_SEARCH}?region=us&lang=en&limit=5&page=1&type=player&sport=mma` +
+      `&query=${encodeURIComponent(q)}`;
+    try {
+      const found = await getJSON(url);
+      for (const group of (found && found.results) || []) {
+        for (const item of group.contents || []) {
+          const uid = String(item.uid || '');
+          if (!/s:3301~a:(\d+)/.test(uid)) continue;
+          if (normName(item.displayName) !== normName(name)) continue;
+          id = uid.match(/a:(\d+)/)[1];
+          break;
+        }
+        if (id) break;
       }
-      if (id) break;
-    }
-  } catch { /* fall through to an empty entry */ }
+    } catch { /* fall through to an empty entry */ }
+    if (id) break;
+  }
   if (!id) return { id: '', flag: '', headshot: '', record: '' };
 
   const entry = { id, flag: '', headshot: '', record: '' };

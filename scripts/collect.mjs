@@ -395,6 +395,570 @@ async function collectCbaApiSports() {
   };
 }
 
+/* ==========================================================================
+   UFC rankings.
+
+   ESPN publishes a rankings endpoint, but it has been frozen since 2022 — it
+   still has Usman at welterweight — so it is unusable. The UFC's own rankings
+   page is server-rendered and current, so the ladder comes from there and the
+   per-fighter detail the site needs (ESPN athlete id, flag, record) is looked
+   up on ESPN and cached in data/ufc-athletes.json, because an id and a flag
+   never change and a record changes only when the fighter fights.
+
+   The ESPN id matters: it is what the "my fighters" tab matches against the
+   competitors on ESPN's event cards.
+   ========================================================================== */
+const UFC_RANKINGS_PAGE = 'https://www.ufc.com/rankings';
+const ESPN_SEARCH = 'https://site.web.api.espn.com/apis/search/v2';
+const ESPN_ATHLETE = 'https://sports.core.api.espn.com/v2/sports/mma/athletes';
+
+// header on ufc.com -> [key, Chinese name, order]
+const UFC_DIVISIONS = [
+  [/men'?s?\s*pound[\s-]*for[\s-]*pound/i, ['p4p', '男子磅对磅', 0]],
+  [/women'?s?\s*pound[\s-]*for[\s-]*pound/i, ['wp4p', '女子磅对磅', 1]],
+  [/^pound[\s-]*for[\s-]*pound/i, ['p4p', '男子磅对磅', 0]],
+  [/women'?s?\s*strawweight/i, ['wsw', '女子草量级 (115 lb)', 20]],
+  [/women'?s?\s*flyweight/i, ['wfw', '女子蝇量级 (125 lb)', 21]],
+  [/women'?s?\s*bantamweight/i, ['wbw', '女子雏量级 (135 lb)', 22]],
+  [/women'?s?\s*featherweight/i, ['wfe', '女子羽量级 (145 lb)', 23]],
+  [/heavyweight/i, ['hw', '重量级 (265 lb)', 10]],
+  [/light\s*heavyweight/i, ['lhw', '轻重量级 (205 lb)', 11]],
+  [/middleweight/i, ['mw', '中量级 (185 lb)', 12]],
+  [/welterweight/i, ['ww', '次中量级 (170 lb)', 13]],
+  [/lightweight/i, ['lw', '轻量级 (155 lb)', 14]],
+  [/featherweight/i, ['fw', '羽量级 (145 lb)', 15]],
+  [/bantamweight/i, ['bw', '雏量级 (135 lb)', 16]],
+  [/flyweight/i, ['flw', '蝇量级 (125 lb)', 17]]
+];
+
+function ufcDivision(header) {
+  // "light heavyweight" also matches /heavyweight/, so test the long names first
+  const ordered = [...UFC_DIVISIONS].sort((a, b) => b[0].source.length - a[0].source.length);
+  for (const [re, meta] of ordered) if (re.test(header)) return meta;
+  return null;
+}
+
+function htmlText(s) {
+  return String(s || '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&#039;|&apos;/g, "'")
+    .replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/* The page is a Drupal view: one .view-grouping per division, a caption
+   holding the champion, then one table row per ranked fighter. Rank numbers
+   and names are pulled separately and zipped, which survives the markup
+   changing around them far better than one big row-shaped regex would. */
+function parseUfcRankings(html) {
+  const chunks = html.split('<div class="view-grouping">').slice(1);
+  const out = [];
+  for (const chunk of chunks) {
+    const header = htmlText((chunk.match(/<div class="view-grouping-header">([\s\S]*?)<\/div>/) || [])[1]);
+    if (!header) continue;
+    const meta = ufcDivision(header);
+    if (!meta) continue;
+
+    // The caption holds a champion for a weight division and the number one
+    // for pound-for-pound, and the only thing telling them apart is the label
+    // underneath, so read that rather than assuming.
+    const capMatch = chunk.match(
+      /rankings--athlete--champion[\s\S]{0,1200}?<h5>\s*<a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>([\s\S]{0,300}?)<\/h6>/);
+    const captioned = capMatch
+      ? { name: htmlText(capMatch[2]), slug: capMatch[1], label: htmlText(capMatch[3]) }
+      : null;
+    const isChampion = !!captioned && /champion/i.test(captioned.label) &&
+      meta[0] !== 'p4p' && meta[0] !== 'wp4p';
+
+    const body = chunk.split('<tbody>')[1] || chunk;
+    const ranks = [...body.matchAll(/views-field-meta-weight-class-rank"[^>]*>\s*(\d+)/g)]
+      .map(m => m[1]);
+    const names = [...body.matchAll(/views-field-title"[^>]*>\s*<a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)]
+      .map(m => ({ slug: m[1], name: htmlText(m[2]) }));
+    if (!names.length && !captioned) continue;
+
+    const ladder = names.map((n, i) => ({ ...n, rank: ranks[i] || String(i + 1) }));
+    if (captioned && !isChampion && !ladder.some(r => r.slug === captioned.slug)) {
+      ladder.unshift({ slug: captioned.slug, name: captioned.name, rank: '1' });
+    }
+
+    out.push({
+      key: meta[0], nameCN: meta[1], order: meta[2], name: header,
+      champion: isChampion ? { name: captioned.name, slug: captioned.slug } : null,
+      ranks: ladder
+    });
+  }
+  // the page repeats some groupings; first one wins
+  const seen = new Set();
+  return out.filter(d => (seen.has(d.key) ? false : (seen.add(d.key), true)));
+}
+
+const normName = n => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+
+/* Find a fighter on ESPN. Everything here is best-effort: a fighter ESPN does
+   not know about still shows up in the ladder, just without a flag or record. */
+async function espnFighter(name) {
+  const url = `${ESPN_SEARCH}?region=us&lang=en&limit=5&page=1&type=player&sport=mma` +
+    `&query=${encodeURIComponent(name)}`;
+  let id = '';
+  try {
+    const found = await getJSON(url);
+    for (const group of (found && found.results) || []) {
+      for (const item of group.contents || []) {
+        const uid = String(item.uid || '');
+        if (!/s:3301~a:(\d+)/.test(uid)) continue;
+        if (normName(item.displayName) !== normName(name)) continue;
+        id = uid.match(/a:(\d+)/)[1];
+        break;
+      }
+      if (id) break;
+    }
+  } catch { /* fall through to an empty entry */ }
+  if (!id) return { id: '', flag: '', headshot: '', record: '' };
+
+  const entry = { id, flag: '', headshot: '', record: '' };
+  try {
+    const a = await getJSON(`${ESPN_ATHLETE}/${id}?lang=en&region=us`);
+    entry.flag = (a && a.flag && a.flag.href) || '';
+    entry.headshot = (a && a.headshot && a.headshot.href) || '';
+  } catch { /* a missing flag is not worth failing the run over */ }
+  try {
+    const r = await getJSON(`${ESPN_ATHLETE}/${id}/records/0?lang=en&region=us`);
+    entry.record = (r && (r.summary || r.displayValue)) || '';
+  } catch { /* same for the record */ }
+  return entry;
+}
+
+/* Small pool so ESPN is never hit with 150 requests at once. */
+async function mapPool(items, size, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await worker(items[i], i);
+    }
+  }));
+  return results;
+}
+
+async function collectUfcRankings() {
+  // The UFC moves this ladder once a week; a scheduled run refreshes it every
+  // six hours and a hand-triggered run always refetches.
+  const previous = await load('ufc-rankings.json');
+  if (!MANUAL && previous && (previous.divisions || []).length &&
+      Date.now() - new Date(previous.updatedAt).getTime() < 6 * 3600e3) {
+    return { skipped: 'fresh', divisions: previous.divisions.length };
+  }
+
+  const page = await getText(UFC_RANKINGS_PAGE, { accept: 'text/html' });
+  if (page.status !== 200) throw new Error(`ufc.com/rankings HTTP ${page.status}`);
+  const parsed = parseUfcRankings(page.body);
+  if (!parsed.length) {
+    throw new Error(`ufc.com/rankings did not parse (${page.body.length} bytes)`);
+  }
+
+  // one cache entry per fighter: the id and flag never change, the record only
+  // moves when they fight, so a day-old entry is reused as is
+  const cache = (await load('ufc-athletes.json')) || { updatedAt: 0, fighters: {} };
+  const stale = Date.now() - new Date(cache.updatedAt || 0).getTime() > 24 * 3600e3;
+
+  const wanted = [];
+  for (const d of parsed) {
+    if (d.champion) wanted.push(d.champion.name);
+    for (const r of d.ranks) wanted.push(r.name);
+  }
+  const unique = [...new Set(wanted)];
+  const missing = unique.filter(n => stale || !cache.fighters[normName(n)]);
+  const looked = await mapPool(missing, 6, espnFighter);
+  missing.forEach((n, i) => { cache.fighters[normName(n)] = looked[i]; });
+  cache.updatedAt = new Date().toISOString();
+  await save('ufc-athletes.json', cache);
+
+  const dress = (who, rank) => {
+    if (!who) return null;
+    const hit = cache.fighters[normName(who.name)] || {};
+    return {
+      id: hit.id || ('ufc:' + who.slug.split('/').pop()),
+      name: who.name,
+      flag: hit.flag || '',
+      headshot: hit.headshot || '',
+      record: hit.record || '',
+      rank: rank,
+      link: who.slug ? 'https://www.ufc.com' + who.slug : ''
+    };
+  };
+
+  const divisions = parsed
+    .sort((a, b) => a.order - b.order)
+    .map(d => ({
+      name: d.name,
+      nameCN: d.nameCN,
+      champion: dress(d.champion, 'C'),
+      ranks: d.ranks.map(r => dress(r, r.rank)).filter(Boolean)
+    }))
+    .filter(d => d.champion || d.ranks.length);
+
+  await save('ufc-rankings.json', {
+    updatedAt: new Date().toISOString(), source: 'UFC.com', divisions
+  });
+  const fighters = divisions.reduce((n, d) => n + d.ranks.length + (d.champion ? 1 : 0), 0);
+  return {
+    source: 'UFC.com', divisions: divisions.length, fighters,
+    lookedUp: missing.length,
+    withEspnId: divisions.reduce((n, d) => n +
+      [d.champion, ...d.ranks].filter(f => f && !/^ufc:/.test(f.id)).length, 0)
+  };
+}
+
+/* ==========================================================================
+   Boxing — no promoter and no broadcaster publishes a free feed, and ESPN has
+   no boxing league at all. Wikipedia's per-fight articles all carry the same
+   {{Infobox boxing match}}, which gives date, venue, both records and the
+   official result, so that is what this reads. Coverage is therefore "the
+   fights notable enough to have an article", which is close to what a fan
+   would look for anyway.
+   ========================================================================== */
+const WIKI_API = 'https://en.wikipedia.org/w/api.php';
+
+const MONTHS = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7,
+  august: 8, september: 9, october: 10, november: 11, december: 12,
+  jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9,
+  oct: 10, nov: 11, dec: 12
+};
+
+// hometown -> IOC code, which is what ESPN's flag CDN is keyed on
+const COUNTRY_CODE = {
+  'us': 'usa', 'u.s.': 'usa', 'usa': 'usa', 'united states': 'usa', 'america': 'usa',
+  'england': 'eng', 'scotland': 'sco', 'wales': 'wal', 'northern ireland': 'nir',
+  'uk': 'gbr', 'u.k.': 'gbr', 'united kingdom': 'gbr', 'great britain': 'gbr',
+  'ireland': 'irl', 'republic of ireland': 'irl',
+  'mexico': 'mex', 'mex.': 'mex', 'japan': 'jpn', 'philippines': 'phi',
+  'russia': 'rus', 'ukraine': 'ukr', 'kyrgyzstan': 'kgz', 'kazakhstan': 'kaz',
+  'uzbekistan': 'uzb', 'georgia (country)': 'geo', 'armenia': 'arm',
+  'azerbaijan': 'aze', 'sweden': 'swe', 'norway': 'nor', 'denmark': 'den',
+  'finland': 'fin', 'iceland': 'isl', 'netherlands': 'ned', 'belgium': 'bel',
+  'france': 'fra', 'germany': 'ger', 'spain': 'esp', 'portugal': 'por',
+  'italy': 'ita', 'greece': 'gre', 'switzerland': 'sui', 'austria': 'aut',
+  'poland': 'pol', 'czech republic': 'cze', 'czechia': 'cze', 'slovakia': 'svk',
+  'hungary': 'hun', 'romania': 'rou', 'bulgaria': 'bul', 'serbia': 'srb',
+  'croatia': 'cro', 'lithuania': 'ltu', 'latvia': 'lat', 'estonia': 'est',
+  'turkey': 'tur', 'israel': 'isr', 'lebanon': 'lbn', 'iran': 'irn',
+  'saudi arabia': 'ksa', 'uae': 'uae', 'united arab emirates': 'uae',
+  'kuwait': 'kuw', 'egypt': 'egy', 'morocco': 'mar', 'algeria': 'alg',
+  'tunisia': 'tun', 'nigeria': 'ngr', 'ghana': 'gha', 'cameroon': 'cmr',
+  'kenya': 'ken', 'ethiopia': 'eth', 'tanzania': 'tan', 'uganda': 'uga',
+  'zimbabwe': 'zim', 'south africa': 'rsa', 'canada': 'can', 'australia': 'aus',
+  'new zealand': 'nzl', 'cuba': 'cub', 'puerto rico': 'pur',
+  'dominican republic': 'dom', 'jamaica': 'jam', 'haiti': 'hai',
+  'bahamas': 'bah', 'panama': 'pan', 'costa rica': 'crc', 'nicaragua': 'nca',
+  'venezuela': 'ven', 'colombia': 'col', 'ecuador': 'ecu', 'peru': 'per',
+  'chile': 'chi', 'argentina': 'arg', 'uruguay': 'uru', 'paraguay': 'par',
+  'bolivia': 'bol', 'brazil': 'bra', 'guyana': 'guy',
+  'china': 'chn', 'south korea': 'kor', 'korea': 'kor', 'north korea': 'prk',
+  'taiwan': 'tpe', 'hong kong': 'hkg', 'thailand': 'tha', 'vietnam': 'vie',
+  'indonesia': 'idn', 'malaysia': 'mas', 'singapore': 'sgp', 'india': 'ind',
+  'pakistan': 'pak', 'bangladesh': 'ban', 'sri lanka': 'sri', 'nepal': 'nep',
+  'mongolia': 'mgl', 'myanmar': 'mya', 'cambodia': 'cam', 'laos': 'lao',
+  'papua new guinea': 'png', 'fiji': 'fij', 'samoa': 'sam', 'tonga': 'tga'
+};
+
+// longest first so "super bantamweight" never matches as "bantamweight"
+const WEIGHT_CLASSES = [
+  [/super\s*heavy/i,                                   '超重量级'],
+  [/cruiser|junior\s*heavy/i,                          '次重量级'],
+  [/light\s*heavy/i,                                   '轻重量级'],
+  [/super\s*middle/i,                                  '超中量级'],
+  [/junior\s*middle|super\s*welter/i,                  '超次中量级'],
+  [/junior\s*welter|super\s*light/i,                   '超轻量级'],
+  [/junior\s*light|super\s*feather/i,                  '超羽量级'],
+  [/junior\s*feather|super\s*bantam/i,                 '超雏量级'],
+  [/junior\s*bantam|super\s*fly/i,                     '超蝇量级'],
+  [/junior\s*fly|light\s*fly/i,                        '轻蝇量级'],
+  [/mini\s*-?\s*fly|minimum\s*weight|straw\s*weight/i, '草量级'],
+  [/heavy\s*weight/i,                                  '重量级'],
+  [/middle\s*weight/i,                                 '中量级'],
+  [/welter\s*weight/i,                                 '次中量级'],
+  [/light\s*weight/i,                                  '轻量级'],
+  [/feather\s*weight/i,                                '羽量级'],
+  [/bantam\s*weight/i,                                 '雏量级'],
+  [/fly\s*weight/i,                                    '蝇量级']
+];
+
+const METHODS = [
+  [/unanimous\s*decision|\bUD\b/i,            '一致判定'],
+  [/split\s*decision|\bSD\b/i,                '分歧判定'],
+  [/majority\s*decision|\bMD\b/i,             '多数判定'],
+  [/technical\s*decision|\bTD\b/i,            '技术判定'],
+  [/majority\s*draw/i,                        '多数平局'],
+  [/split\s*draw/i,                           '分歧平局'],
+  [/technical\s*draw/i,                       '技术平局'],
+  [/\bdraw\b/i,                               '平局'],
+  [/no\s*contest|\bNC\b/,                     '无效比赛'],
+  [/disqualification|\bDQ\b/i,                '取消资格'],
+  [/retirement|\bRTD\b|corner\s*stoppage/i,   '中途弃权'],
+  [/\bTKO\b|technical\s*knockout/i,           'TKO'],
+  [/\bKO\b|knockout/i,                        'KO'],
+  [/decision/i,                               '点数判定']
+];
+
+/* Wikitext is not a data format, so everything below is deliberately
+   defensive: anything that does not parse is dropped rather than guessed at. */
+function wikiPlain(value) {
+  if (!value) return '';
+  let s = String(value).split('{{efn')[0].split('{{Efn')[0];
+  s = s.replace(/<ref[^>]*\/>/g, '').replace(/<ref[\s\S]*?<\/ref>/g, '');
+  s = s.replace(/\{\{[^{}]*\}\}/g, ' ');
+  s = s.replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, '$2').replace(/\[\[([^\]]*)\]\]/g, '$1');
+  s = s.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '');
+  s = s.replace(/'''''|'''|''/g, '');
+  return s.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/* Pull {{Infobox boxing match}} out and split it on its top-level pipes. */
+function wikiInfobox(wikitext) {
+  const start = wikitext.search(/\{\{\s*Infobox\s+boxing\s*match/i);
+  if (start < 0) return null;
+  let depth = 0, end = -1;
+  for (let i = start; i < wikitext.length - 1; i++) {
+    if (wikitext[i] === '{' && wikitext[i + 1] === '{') { depth++; i++; }
+    else if (wikitext[i] === '}' && wikitext[i + 1] === '}') {
+      depth--; i++;
+      if (!depth) { end = i + 1; break; }
+    }
+  }
+  if (end < 0) return null;
+  const body = wikitext.slice(start, end);
+  const parts = [];
+  let buf = '', braces = 0, brackets = 0;
+  for (let i = 0; i < body.length; i++) {
+    const two = body.slice(i, i + 2);
+    if (two === '{{') { braces++; buf += two; i++; continue; }
+    if (two === '}}') { braces--; buf += two; i++; continue; }
+    if (two === '[[') { brackets++; buf += two; i++; continue; }
+    if (two === ']]') { brackets--; buf += two; i++; continue; }
+    if (body[i] === '|' && braces <= 1 && brackets <= 0) { parts.push(buf); buf = ''; continue; }
+    buf += body[i];
+  }
+  parts.push(buf);
+  const fields = {};
+  for (const part of parts.slice(1)) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    fields[part.slice(0, eq).trim().toLowerCase().replace(/\s+/g, ' ')] =
+      part.slice(eq + 1).replace(/\}\}\s*$/, '');
+  }
+  return fields;
+}
+
+function wikiDate(raw) {
+  const text = wikiPlain(raw);
+  let m = text.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if (m && MONTHS[m[2].toLowerCase()]) {
+    return `${m[3]}-${String(MONTHS[m[2].toLowerCase()]).padStart(2, '0')}-${String(+m[1]).padStart(2, '0')}`;
+  }
+  m = text.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m && MONTHS[m[1].toLowerCase()]) {
+    return `${m[3]}-${String(MONTHS[m[1].toLowerCase()]).padStart(2, '0')}-${String(+m[2]).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+/* Accents matter here: the result line writes "Hrgovic" where the infobox
+   writes "Hrgović". */
+function fold(s) {
+  return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function countryFlag(hometown) {
+  const plain = wikiPlain(hometown);
+  if (!plain) return '';
+  const tail = plain.split(',').map(s => s.trim()).filter(Boolean).pop();
+  if (!tail) return '';
+  const code = COUNTRY_CODE[tail.toLowerCase().replace(/\.$/, '')] ||
+               COUNTRY_CODE[tail.toLowerCase()];
+  return code ? `https://a.espncdn.com/i/teamlogos/countries/500/${code}.png` : '';
+}
+
+/* Records are written freehand — "23–0 (14 KO)", "0–0 (Boxing) 76–9–1
+   (Kickboxing)" — so take the leading boxing record and drop the commentary
+   rather than cutting the string at a fixed length. */
+function boxRecord(raw) {
+  const plain = wikiPlain(raw);
+  const m = plain.match(/^\d+[–—-]\d+(?:[–—-]\d+)*(?:\s*\(\d+\))?(?:\s*\(\d+\s*KOs?\))?/i);
+  if (m) return m[0].trim();
+  return plain.length > 28 ? '' : plain;
+}
+
+/* Which fighter's name shows up first in the result line is the winner —
+   "DeMoor defeated Tate", "Crawford wins via…", "Chisora won by…". */
+function boxWinner(result, nameA, nameB) {
+  const text = fold(result);
+  if (!text) return null;
+  if (/\bdraw\b|no contest/.test(text) && !/\bwins?\b|\bwon\b|defeat/.test(text)) return null;
+  const surname = n => fold(n).split(/\s+/).filter(w => w.length > 2).pop() || fold(n);
+  const at = n => {
+    const i = text.indexOf(surname(n));
+    return i < 0 ? Infinity : i;
+  };
+  const ia = at(nameA), ib = at(nameB);
+  if (ia === Infinity && ib === Infinity) return null;
+  if (ia === ib) return null;
+  return ia < ib ? 'a' : 'b';
+}
+
+function boxMethod(result) {
+  const text = wikiPlain(result);
+  if (!text) return '';
+  for (const [re, cn] of METHODS) if (re.test(text)) return cn;
+  return '';
+}
+
+function boxRound(result) {
+  const text = wikiPlain(result);
+  let m = text.match(/(\d{1,2})(?:st|nd|rd|th)[\s-]*round/i) ||
+          text.match(/round\s*(\d{1,2})/i) ||
+          text.match(/\bR(\d{1,2})\b/);
+  // "12-round unanimous decision" is the distance, not a stoppage round
+  if (m && /decision|draw/i.test(text) && !/stopp|ko\b|tko/i.test(text)) return null;
+  return m ? Number(m[1]) : null;
+}
+
+function boxRounds(result, titles) {
+  const m = `${wikiPlain(result)} ${wikiPlain(titles)}`.match(/(\d{1,2})[\s-]*round/i);
+  return m ? Number(m[1]) : null;
+}
+
+function boxWeight(fields, wikitext) {
+  const titles = wikiPlain(fields.titles);
+  const lead = wikiPlain(wikitext.slice(0, 3000).split("'''").slice(1).join("'''")).slice(0, 600);
+  const belts = [];
+  for (const b of ['WBA', 'WBC', 'IBF', 'WBO', 'IBO', 'WBF']) {
+    if (new RegExp(`\\b${b}\\b`).test(titles)) belts.push(b);
+  }
+  if (/The Ring/i.test(titles)) belts.push('The Ring');
+  let cn = '';
+  for (const [re, name] of WEIGHT_CLASSES) {
+    if (re.test(titles)) { cn = name; break; }
+  }
+  if (!cn) for (const [re, name] of WEIGHT_CLASSES) {
+    if (re.test(lead)) { cn = name; break; }
+  }
+  return [belts.join('·'), cn].filter(Boolean).join(' ') ||
+    (/non-?title/i.test(titles) ? '非冠军战' : '');
+}
+
+async function wikiCategory(title) {
+  const url = `${WIKI_API}?action=query&format=json&formatversion=2&list=categorymembers` +
+    `&cmnamespace=0&cmlimit=500&cmtitle=${encodeURIComponent(title)}`;
+  const data = await getJSON(url);
+  return ((data && data.query && data.query.categorymembers) || []).map(p => p.title);
+}
+
+async function wikiSource(titles) {
+  const out = {};
+  for (let i = 0; i < titles.length; i += 20) {
+    const url = `${WIKI_API}?action=query&format=json&formatversion=2&prop=revisions` +
+      `&rvprop=content&rvslots=main&titles=${encodeURIComponent(titles.slice(i, i + 20).join('|'))}`;
+    const data = await getJSON(url);
+    for (const page of (data && data.query && data.query.pages) || []) {
+      const content = page.revisions && page.revisions[0] &&
+        page.revisions[0].slots && page.revisions[0].slots.main &&
+        page.revisions[0].slots.main.content;
+      if (content) out[page.title] = content;
+    }
+  }
+  return out;
+}
+
+function boxBout(title, wikitext) {
+  if (/^\s*#REDIRECT/i.test(wikitext)) return null;
+  const fields = wikiInfobox(wikitext);
+  if (!fields) return null;
+  const date = wikiDate(fields['fight date']);
+  if (!date) return null;
+  // a cancelled or postponed bout is not a fixture and not a result
+  if (/cancel|postpon|called off/i.test(
+    `${wikiPlain(fields['fight date'])} ${wikiPlain(fields.result)}`)) return null;
+
+  const nameA = wikiPlain(fields.fighter1);
+  const nameB = wikiPlain(fields.fighter2);
+  if (!nameA || !nameB) return null;
+
+  const result = fields.result || '';
+  const decided = !!wikiPlain(result);
+  return {
+    event: title,
+    start: `${date}T00:00:00Z`,
+    timeKnown: false,
+    venue: wikiPlain(fields.location),
+    weight: boxWeight(fields, wikitext),
+    rounds: boxRounds(result, fields.titles),
+    a: { name: nameA, record: boxRecord(fields.record1), flag: countryFlag(fields.hometown1) },
+    b: { name: nameB, record: boxRecord(fields.record2), flag: countryFlag(fields.hometown2) },
+    winner: decided ? boxWinner(result, nameA, nameB) : null,
+    method: decided ? (boxMethod(result) || '完场') : '',
+    round: decided ? boxRound(result) : null,
+    time: null
+  };
+}
+
+async function collectBoxing() {
+  // Wikipedia is a courtesy source: an hourly touch on the scheduled cadence.
+  const previous = await load('boxing.json');
+  if (!MANUAL && previous &&
+      Date.now() - new Date(previous.updatedAt).getTime() < 55 * 60e3) {
+    return {
+      skipped: 'throttled',
+      upcoming: (previous.upcoming || []).length,
+      recent: (previous.recent || []).length
+    };
+  }
+
+  const year = new Date().getUTCFullYear();
+  const titles = [];
+  const notes = [];
+  for (const y of [year - 1, year, year + 1]) {
+    try {
+      const found = await wikiCategory(`Category:${y} boxing matches`);
+      notes.push(`${y}: ${found.length}`);
+      for (const t of found) if (!titles.includes(t)) titles.push(t);
+    } catch (err) {
+      notes.push(`${y}: ${String(err.message || err).slice(0, 60)}`);
+    }
+  }
+  if (!titles.length) throw new Error('no articles in the boxing categories');
+
+  const sources = await wikiSource(titles);
+  const bouts = [];
+  for (const [title, wikitext] of Object.entries(sources)) {
+    const bout = boxBout(title, wikitext);
+    if (bout) bouts.push(bout);
+  }
+
+  // a fight is "past" once the day it was on has ended, in the latest timezone
+  const cutoff = Date.now() - 36 * 3600e3;
+  const upcoming = bouts
+    .filter(b => new Date(b.start).getTime() >= cutoff && !b.winner && !b.method)
+    .sort((a, b) => new Date(a.start) - new Date(b.start))
+    .slice(0, 40);
+  const recent = bouts
+    .filter(b => upcoming.indexOf(b) === -1)
+    .sort((a, b) => new Date(b.start) - new Date(a.start))
+    .slice(0, 40);
+
+  await save('boxing.json', {
+    updatedAt: new Date().toISOString(), source: 'Wikipedia', upcoming, recent
+  });
+  return {
+    source: 'Wikipedia', articles: titles.length, parsed: bouts.length,
+    upcoming: upcoming.length, recent: recent.length, tried: notes
+  };
+}
+
 /* Keep the repo from growing without bound. */
 async function prune(dir, keep = 400) {
   try {
@@ -415,7 +979,9 @@ const tasks = [
   ['lol', collectLol],
   ['cba', collectCba],
   ['cs2', collectCs2],
-  ['valorant', collectValorant]
+  ['valorant', collectValorant],
+  ['ufc', collectUfcRankings],
+  ['boxing', collectBoxing]
 ];
 
 for (const [name, run] of tasks) {

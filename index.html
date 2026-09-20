@@ -651,6 +651,58 @@
     color: var(--muted); min-width: 16px;
   }
   .pk-team { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  /* ---- 选手选择：按量级分，照片优先 ---- */
+  .picker.faces { max-height: 430px; }
+  .fpick-bar {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; gap: 6px; overflow-x: auto;
+    padding: 8px 9px; background: var(--surface);
+    border-bottom: 1px solid var(--hairline);
+    scrollbar-width: none;
+  }
+  .fpick-bar::-webkit-scrollbar { display: none; }
+  .fpick-bar button {
+    flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--hairline); background: transparent;
+    color: var(--muted); border-radius: 999px;
+    padding: 4px 11px; font: inherit; font-size: 12px;
+  }
+  .fpick-bar button[aria-pressed="true"] {
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+  }
+  .fpick-grid {
+    display: grid; gap: 8px; padding: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
+  }
+  .fpick {
+    position: relative; cursor: pointer; font: inherit; color: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    border: 1px solid var(--hairline); border-radius: 10px;
+    background: transparent; padding: 9px 5px 8px; text-align: center;
+  }
+  .fpick[aria-pressed="true"] {
+    border-color: var(--accent); background: var(--accent-soft);
+  }
+  .fpick .fp-shot {
+    width: 54px; height: 54px; border-radius: 50%;
+    object-fit: cover; object-position: top center;
+    background: var(--surface-2); border: 1px solid var(--hairline);
+  }
+  .fpick .fp-nm { font-size: 12px; font-weight: 600; line-height: 1.25; }
+  .fpick .fp-rec { font-family: var(--narrow); font-size: 10.5px; color: var(--muted); }
+  .fpick .fp-rank {
+    position: absolute; top: 5px; left: 7px;
+    font-family: var(--narrow); font-size: 10px; font-weight: 700; color: var(--muted);
+  }
+  .fpick[aria-pressed="true"] .fp-rank,
+  .fpick[aria-pressed="true"] .fp-rec { color: var(--accent-ink); }
+  .fpick .fp-flag {
+    position: absolute; top: 6px; right: 6px;
+    width: 17px; height: 12px; border-radius: 2px;
+  }
+  .fpick-none { padding: 18px 12px; font-size: 13px; color: var(--muted); text-align: center; }
+
   /* ---- 格斗 ---- */
   .card-tag {
     font-family: var(--narrow); font-size: 10px; font-weight: 700;
@@ -839,6 +891,29 @@
   }
   .lol-code.dim { color: var(--muted); font-weight: 600; }
   .lol-code.win { color: var(--ink); }
+
+  /* ---- CS2 / Valorant ---- */
+  .chip .chip-n {
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    opacity: .6; margin-left: 3px;
+  }
+  /* a team with no crest still holds the column, it just shows nothing */
+  span.crest:empty { visibility: hidden; }
+  .panda-detail {
+    padding: 2px 13px 11px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .panda-detail:last-child { border-bottom: none; }
+  .pd-line { font-size: 12px; color: var(--ink-2); padding: 2px 0; }
+  .pd-line.muted { color: var(--muted); }
+  .pd-line a { color: var(--accent); text-decoration: none; }
+  .pd-line a:hover { text-decoration: underline; }
+  .map-row { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px 0 2px; }
+  .map-pill {
+    font-family: var(--narrow); font-size: 11px; letter-spacing: .02em;
+    background: var(--surface-2); color: var(--ink-2);
+    border-radius: 4px; padding: 3px 7px; white-space: nowrap;
+  }
   .lol-full {
     display: block; font-size: 11px; color: var(--muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1004,13 +1079,16 @@
   .err { color: var(--loss); }
   .skeleton { padding: 30px 10px; text-align: center; color: var(--muted); font-size: 13px; }
   footer {
-    margin-top: 28px;
-    padding-top: 14px;
+    margin-top: 26px;
+    padding-top: 12px;
     border-top: 1px solid var(--hairline);
-    font-size: 11.5px;
-    line-height: 1.7;
+    font-size: 10.5px;
+    line-height: 1.6;
     color: var(--muted);
+    opacity: .75;
+    text-align: center;
   }
+  footer .sep { opacity: .5; padding: 0 5px; }
   @media (max-width: 420px) {
     .match { grid-template-columns: 1fr 66px 1fr; padding: 10px 9px; gap: 5px; }
     .nm { font-size: 13px; }
@@ -1066,7 +1144,7 @@
   <section id="panel-soon" hidden></section>
 
   <footer>
-    数据来自 ESPN 公共接口，每次打开都会重新拉取，比分和积分榜跟着比赛实时更新。有比赛正在进行时页面每分钟自动刷新一次。点一场比赛可以展开进球和红黄牌时间线、控球射门等全场数据、首发、伤病、裁判和赛前胜负预测。「我的球队」里有过去一周的战绩（含红黄牌）、接下来两周的赛程和俱乐部新闻。时间是你设备的本地时区。「开赛提醒」只在这个页面开着的时候才会响。
+    ESPN<span class="sep">·</span>OpenF1<span class="sep">·</span>Riot<span class="sep">·</span>PandaScore<span class="sep">·</span>UFC.com<span class="sep">·</span>Wikipedia
   </footer>
 </div>
 
@@ -3262,7 +3340,7 @@
       }));
     }
     if (favFighters.length) {
-      jobs.push(ufcNearbyCards(2, 3).then(function (chunks) {
+      jobs.push(ufcCardsForFighters(favFighters.map(function (f) { return f.id; }), 14).then(function (chunks) {
         return { kind: 'fight', chunks: chunks };
       }));
     }
@@ -3990,7 +4068,9 @@
       return '<button class="chip" type="button" data-egame="' + g.id + '" aria-pressed="' +
         (g.id === esportsGame) + '">' + g.name + '</button>';
     }).join('');
-    $('chips2').hidden = esportsGame !== 'lol';
+    // CS2 and Valorant get a second chip row too, built from the events that
+    // are actually in the data rather than a hard-coded league list
+    $('chips2').hidden = false;
   }
 
   function stamp(iso) {
@@ -4019,37 +4099,142 @@
   }
 
   // PandaScore: CS2 and Valorant share one shape
-  function renderPandaGame(file, label) {
+  /* CS2 and Valorant used to be two flat lists of 20 rows with no crests and no
+     idea which event a match belonged to. They now read like the League of
+     Legends board: a chip per event, matches grouped by day, crests, series
+     score, and the maps inside a series when you open one. */
+  var pandaLeague = { cs2: lsGet('cs2League', ''), valorant: lsGet('valLeague', '') };
+  var pandaOpen = {};
+
+  function pandaTeamCell(t, right, dim, win) {
+    t = t || {};
+    var img = t.image
+      ? '<img class="crest" src="' + esc(t.image) + '" alt="" loading="lazy">'
+      : '<span class="crest" aria-hidden="true"></span>';
+    var name = '<span class="lol-code' + (dim ? ' dim' : '') + (win ? ' win' : '') + '">' +
+      esc(t.acronym || t.name || 'TBD') + '</span>';
+    return right ? img + name : name + img;
+  }
+
+  function pandaRow(m, game) {
+    var t = m.teams || [];
+    var a = t[0] || {}, b = t[1] || {};
+    var live = m.status === 'running';
+    var done = m.status === 'finished';
+    var has = a.score !== null && a.score !== undefined && b.score !== null && b.score !== undefined;
+    var aw = done && has && a.score > b.score;
+    var bw = done && has && b.score > a.score;
+    var bo = m.bo ? 'BO' + m.bo : '';
+    var mid, label;
+    if (live || (done && has)) {
+      mid = '<div class="score">' + esc(has ? a.score : 0) +
+        ' <span style="color:var(--muted)">-</span> ' + esc(has ? b.score : 0) + '</div>';
+      label = '<div class="state' + (live ? ' is-live' : '') + '">' +
+        (live ? '进行中' : '完场') + (bo ? ' · ' + bo : '') + '</div>';
+    } else {
+      var d0 = new Date(m.start || '');
+      mid = '<div class="kick">' + esc(isNaN(d0) ? '待定' : fmtTime(d0)) + '</div>';
+      label = '<div class="state">' + esc(bo) + '</div>';
+    }
+    var key = game + ':' + m.id;
+    var open = !!pandaOpen[key];
+    var maps = (m.games || []).filter(function (g) { return g.status === 'finished'; });
+    var detail = '';
+    if (open) {
+      var cells = maps.map(function (g) {
+        var who = g.winner === a.id ? (a.acronym || a.name) :
+          g.winner === b.id ? (b.acronym || b.name) : '—';
+        return '<span class="map-pill">第 ' + esc(g.pos || '?') + ' 图 · ' + esc(who) +
+          (g.length ? ' · ' + Math.round(g.length / 60) + ' 分钟' : '') + '</span>';
+      }).join('');
+      detail = '<div class="panda-detail">' +
+        (m.event ? '<div class="pd-line">' + esc(m.event) + '</div>' : '') +
+        (cells ? '<div class="map-row">' + cells + '</div>'
+               : '<div class="pd-line muted">这场还没有分图结果。</div>') +
+        (m.stream ? '<div class="pd-line"><a href="' + esc(m.stream.url) +
+          '" target="_blank" rel="noopener">观看直播/回放 ↗</a></div>' : '') +
+        '</div>';
+    }
+    return '<button class="match' + (live ? ' live' : '') + '" type="button"' +
+      ' data-panda="' + esc(key) + '" aria-expanded="' + open + '">' +
+      '<span class="side home">' + pandaTeamCell(a, false, bw, aw) + '</span>' +
+      '<span class="mid">' + mid + label + '</span>' +
+      '<span class="side away">' + pandaTeamCell(b, true, aw, bw) + '</span>' +
+      '</button>' + detail;
+  }
+
+  function renderPandaGame(file, label, game) {
     var host = $('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
     $('status').textContent = label;
     archiveGet(file).then(function (d) {
-      if (!d || (!(d.upcoming || []).length && !(d.recent || []).length)) {
-        host.innerHTML = archiveEmpty(label);
+      var all = (d && (d.upcoming || []).concat(d.recent || [])) || [];
+      if (!all.length) { $('chips2').hidden = true; host.innerHTML = archiveEmpty(label); return; }
+
+      // chips: the events present in the data, busiest first
+      var counts = {}, imgs = {};
+      all.forEach(function (m) {
+        if (!m.league) return;
+        counts[m.league] = (counts[m.league] || 0) + 1;
+        if (m.leagueImage && !imgs[m.league]) imgs[m.league] = m.leagueImage;
+      });
+      var leagues = Object.keys(counts).sort(function (x, y) { return counts[y] - counts[x]; });
+      var current = pandaLeague[game];
+      if (leagues.indexOf(current) === -1) current = '';
+      $('chips2').hidden = false;
+      $('chips2').innerHTML = '<button class="chip" type="button" data-panda-lg="" data-game="' +
+        game + '" aria-pressed="' + (current === '') + '">全部</button>' +
+        leagues.map(function (l) {
+          return '<button class="chip" type="button" data-panda-lg="' + esc(l) +
+            '" data-game="' + game + '" aria-pressed="' + (l === current) + '">' +
+            esc(l) + ' <span class="chip-n">' + counts[l] + '</span></button>';
+        }).join('');
+
+      var keep = function (m) { return !current || m.league === current; };
+      var soon = (d.upcoming || []).filter(keep);
+      var past = (d.recent || []).filter(keep);
+      if (!soon.length && !past.length) {
+        host.innerHTML = '<div class="empty">这个赛事现在没有比赛。</div>' + archiveFoot(d);
         return;
       }
-      function row(m) {
-        var t = m.teams || [];
-        var a = t[0] || {}, b = t[1] || {};
-        var name = function (x) { return x.acronym || x.name || 'TBD'; };
-        var live = m.status === 'running';
-        var score = (a.score !== null && a.score !== undefined && b.score !== null)
-          ? a.score + '-' + b.score : '';
-        var title = '<span class="lol-code">' + esc(name(a)) + '</span>' +
-          '<span class="vs-mid">vs</span><span class="lol-code">' + esc(name(b)) + '</span>';
-        return archiveRow(archiveWhen(m.start), title,
-          { score: score, note: (m.bo ? 'BO' + m.bo : '') || m.league }, live);
+
+      // group by day, the way the LoL board does
+      function days(list, reverse) {
+        var groups = [], idx = {};
+        list.forEach(function (m) {
+          var d0 = new Date(m.start || '');
+          var k = isNaN(d0) ? 'tbd' : dayKey(d0);
+          if (!(k in idx)) {
+            idx[k] = groups.length;
+            groups.push({ key: k, label: isNaN(d0) ? '待定' : fmtDay(d0), items: [] });
+          }
+          groups[idx[k]].items.push(m);
+        });
+        if (reverse) groups.reverse();
+        return groups;
       }
+      var todayKey = dayKey(new Date());
+      function block(groups) {
+        return groups.map(function (g) {
+          return '<div class="day"><div class="day-head"><span class="d">' + esc(g.label) + '</span>' +
+            (g.key === todayKey ? '<span class="today">今天</span>' : '') +
+            '<span class="n">' + g.items.length + ' 场</span></div>' +
+            '<div class="card">' + g.items.map(function (m) { return pandaRow(m, game); }).join('') +
+            '</div></div>';
+        }).join('');
+      }
+
+      var liveCount = soon.filter(function (m) { return m.status === 'running'; }).length;
       host.innerHTML =
-        ((d.upcoming || []).length ? '<div class="group-name">接下来</div><div class="card">' +
-          d.upcoming.slice(0, 20).map(row).join('') + '</div>' : '') +
-        ((d.recent || []).length ? '<div class="group-name">最近结果</div><div class="card">' +
-          d.recent.slice(0, 20).map(row).join('') + '</div>' : '') +
+        (soon.length ? '<div class="group-name">接下来</div>' + block(days(soon)) : '') +
+        (past.length ? '<div class="group-name">最近结果</div>' + block(days(past, true)) : '') +
         archiveFoot(d);
+      $('status').innerHTML = (liveCount ? '<span class="dot"></span>' + liveCount + ' 场进行中 · ' : '') +
+        esc(label) + ' · ' + esc(current || '全部赛事') + ' · ' + (soon.length + past.length) + ' 场';
     });
   }
-  function renderCs2() { renderPandaGame('cs2.json', 'CS2'); }
-  function renderValorant() { renderPandaGame('valorant.json', 'Valorant'); }
+  function renderCs2() { renderPandaGame('cs2.json', 'CS2', 'cs2'); }
+  function renderValorant() { renderPandaGame('valorant.json', 'Valorant', 'valorant'); }
 
   // API-Sports: CBA
   var CBA_CN = {
@@ -4781,25 +4966,87 @@
   }
 
   /* ---------- my fighters ---------- */
-  // Scan the cards either side of today; that is enough for a last result and a
-  // next booking without pulling the whole season.
-  function ufcNearbyCards(back, ahead) {
+  // One request per card day, kept for the life of the page: the scans below
+  // overlap heavily and a card that has already been fought never changes.
+  var ufcDayCache = {};
+  function ufcDayOnce(key) {
+    if (!ufcDayCache[key]) {
+      ufcDayCache[key] = ufcDay(key).catch(function () { return null; });
+    }
+    return ufcDayCache[key];
+  }
+  function ufcChunk(c) {
+    return ufcDayOnce(ymdET(new Date(c.startDate))).then(function (day) {
+      return { cal: c, events: (day && day.events) || [] };
+    });
+  }
+  function ufcCalendar() {
     return ufcSeason().then(function (d) {
       var cal = (((d && d.leagues) || [])[0] || {}).calendar || [];
-      var rows = cal.slice().sort(function (a, b) {
+      return cal.slice().sort(function (a, b) {
         return new Date(a.startDate) - new Date(b.startDate);
       });
+    });
+  }
+
+  // Scan the cards either side of today. Good enough for building a name pool;
+  // not for finding a given fighter — see ufcCardsForFighters.
+  function ufcNearbyCards(back, ahead) {
+    return ufcCalendar().then(function (rows) {
       var now = Date.now();
       var idx = rows.findIndex(function (c) {
         return new Date(c.endDate || c.startDate).getTime() >= now;
       });
       if (idx === -1) idx = rows.length;
-      var pick = rows.slice(Math.max(0, idx - back), idx + ahead);
-      return Promise.all(pick.map(function (c) {
-        return ufcDay(ymdET(new Date(c.startDate))).then(function (day) {
-          return { cal: c, events: (day && day.events) || [] };
+      return Promise.all(rows.slice(Math.max(0, idx - back), idx + ahead).map(ufcChunk));
+    });
+  }
+
+  /* A fighter competes two or three times a year, so looking a few cards either
+     side of today finds nothing at all — which is why "我的选手" kept saying there
+     were no bouts. Take every card still to come (there are only a dozen, and
+     that is where a booking would be), then walk backwards through finished
+     cards until each fighter has a result, six at a time. */
+  function ufcCardsForFighters(ids, backStop) {
+    backStop = backStop || 26;
+    return ufcCalendar().then(function (rows) {
+      var now = Date.now();
+      var isPast = function (c) {
+        return new Date(c.endDate || c.startDate).getTime() < now;
+      };
+      var future = rows.filter(function (c) { return !isPast(c); });
+      var past = rows.filter(isPast).reverse();
+      var order = future.concat(past.slice(0, backStop));
+
+      var wanted = {};
+      ids.forEach(function (id) { if (id) wanted[String(id)] = false; });
+      var keys = Object.keys(wanted);
+      var found = function () {
+        return keys.every(function (k) { return wanted[k]; });
+      };
+
+      var out = [], i = 0;
+      function step() {
+        if (i >= order.length) return out;
+        if (i >= future.length && (!keys.length || found())) return out;
+        var batch = order.slice(i, i + 6);
+        i += batch.length;
+        return Promise.all(batch.map(ufcChunk)).then(function (chunk) {
+          chunk.forEach(function (ch) {
+            out.push(ch);
+            if (!isPast(ch.cal)) return;   // only a fought card settles a fighter
+            ch.events.forEach(function (ev) {
+              (ev.competitions || []).forEach(function (cp) {
+                (cp.competitors || []).forEach(function (x) {
+                  if (String(x.id) in wanted) wanted[String(x.id)] = true;
+                });
+              });
+            });
+          });
+          return step();
         });
-      }));
+      }
+      return step();
     });
   }
   function boutsOfFighter(chunks, id) {
@@ -4825,7 +5072,7 @@
       return;
     }
     host.innerHTML = '<div class="skeleton">正在获取选手动态…</div>';
-    ufcNearbyCards(4, 5).then(function (chunks) {
+    ufcCardsForFighters(favFighters.map(function (f) { return f.id; })).then(function (chunks) {
       host.innerHTML = favFighters.map(function (f) {
         var list = boutsOfFighter(chunks, f.id);
         var done = list.filter(function (x) {
@@ -4869,53 +5116,128 @@
     });
   }
 
+  /* One flat list of 200-odd names was unusable, so the picker is split by
+     weight division and shows the face first — that is how anyone actually
+     recognises a fighter. Only one division is on screen at a time, so the
+     selection lives in fightPicked rather than in the checked inputs. */
+  var fightGroups = [];   // [{ key, label, fighters: [...] }]
+  var fightGroup = 0;     // which division is on screen
+  var fightPicked = [];   // the working selection, saved on 保存
+
+  // a portrait is not always there; fall back to a neutral silhouette
+  var FACE_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">' +
+    '<rect width="40" height="40" fill="%23d8dedb"/>' +
+    '<circle cx="20" cy="15" r="7" fill="%23fff" opacity=".85"/>' +
+    '<path d="M6 40a14 14 0 0 1 28 0z" fill="%23fff" opacity=".85"/></svg>');
+
+  function fighterTile(f) {
+    var on = fightPicked.some(function (p) { return String(p.id) === String(f.id); });
+    return '<button class="fpick" type="button" data-fid="' + esc(f.id) + '"' +
+      ' aria-pressed="' + on + '">' +
+      (f.rank ? '<span class="fp-rank">' + esc(f.rank) + '</span>' : '') +
+      (f.flag ? '<img class="fp-flag" src="' + esc(f.flag) + '" alt="" loading="lazy">' : '') +
+      '<img class="fp-shot" src="' + esc(f.shot || FACE_FALLBACK) + '" alt="" loading="lazy"' +
+      ' onerror="this.src=\'' + FACE_FALLBACK + '\'">' +
+      '<span class="fp-nm">' + esc(f.name) + '</span>' +
+      (f.rec ? '<span class="fp-rec">' + esc(f.rec) + '</span>' : '') +
+      '</button>';
+  }
+
+  function paintFighterPicker() {
+    var bar = fightGroups.map(function (g, i) {
+      var n = g.fighters.filter(function (f) {
+        return fightPicked.some(function (p) { return String(p.id) === String(f.id); });
+      }).length;
+      return '<button type="button" data-fgroup="' + i + '" aria-pressed="' +
+        (i === fightGroup) + '">' + esc(g.label) + (n ? ' · ' + n : '') + '</button>';
+    }).join('');
+    var here = (fightGroups[fightGroup] || {}).fighters || [];
+    $('picker').innerHTML = '<div class="fpick-bar">' + bar + '</div>' +
+      (here.length
+        ? '<div class="fpick-grid">' + here.map(fighterTile).join('') + '</div>'
+        : '<div class="fpick-none">这个量级还没有名单。</div>');
+    $('pickCount').textContent = '已选 ' + fightPicked.length + ' / ' + MAX_FIGHTERS;
+  }
+
   function renderFighterPicker() {
     var host = $('picker');
-    $('pickHint').textContent = '勾选你关注的选手，最多 ' + MAX_FIGHTERS +
-      ' 位。名单来自近期的赛事对阵卡。';
+    host.classList.add('faces');
+    $('pickHint').textContent = '按量级挑人，最多 ' + MAX_FIGHTERS +
+      ' 位。切换量级不会丢掉已选的，选完点保存。';
     host.innerHTML = '<div class="skeleton">正在载入选手…</div>';
+    fightPicked = favFighters.slice(0, MAX_FIGHTERS);
     Promise.all([ufcNearbyCards(4, 6), archiveGet('ufc-rankings.json')]).then(function (r) {
       var chunks = r[0], ranked = r[1];
-      var seen = {}, list = [];
-      function add(id, name, flag, rec) {
-        if (!id || seen[id] || !name) return;
-        seen[id] = 1;
-        list.push({ id: id, name: name, flag: flag || '', rec: rec || '' });
-      }
+      var ranking = {};   // id -> true, so the card list only carries the rest
+      var groups = [];
+
+      ((ranked && ranked.divisions) || []).forEach(function (g) {
+        var rows = [];
+        [].concat(g.champion || [], g.ranks || []).forEach(function (f) {
+          if (!f || !f.id || !f.name) return;
+          ranking[String(f.id)] = true;
+          rows.push({
+            id: f.id, name: f.name, flag: f.flag || '', rec: f.record || '',
+            shot: f.headshot || '', rank: f === g.champion ? '冠军' : (f.rank || '')
+          });
+        });
+        if (rows.length) {
+          groups.push({ key: g.nameCN || g.name, label: (g.nameCN || g.name || '').replace(/\s*\(.*\)$/, ''), fighters: rows });
+        }
+      });
+
+      // anyone booked on a nearby card but outside the top 15 still deserves a tile
+      var seen = {}, extra = [];
       chunks.forEach(function (ch) {
         ch.events.forEach(function (ev) {
           (ev.competitions || []).forEach(function (c) {
             (c.competitors || []).forEach(function (x) {
               var a = x.athlete || {};
-              add(x.id, a.displayName, a.flag && a.flag.href, ((x.records || [])[0] || {}).summary);
+              var id = String(x.id || a.id || '');
+              if (!id || !a.displayName || seen[id] || ranking[id]) return;
+              seen[id] = 1;
+              extra.push({
+                id: id, name: a.displayName,
+                flag: (a.flag && a.flag.href) || '',
+                rec: ((x.records || [])[0] || {}).summary || '',
+                shot: (a.headshot && (a.headshot.href || a.headshot)) || '', rank: ''
+              });
             });
           });
         });
       });
-      // a ranked name with no booking on the near cards is still worth following
-      ((ranked && ranked.divisions) || []).forEach(function (g) {
-        [].concat(g.champion || [], g.ranks || []).forEach(function (f) {
-          if (f) add(f.id, f.name, f.flag, f.record);
-        });
-      });
-      if (!list.length) { host.innerHTML = '<div class="skeleton">选手名单没取到</div>'; return; }
-      var picked = favFighters.map(function (f) { return String(f.id); });
-      host.innerHTML = list.sort(function (a, b) { return a.name.localeCompare(b.name); })
-        .map(function (f) {
-          return '<label><input type="checkbox" value="' + esc(f.id) + '" data-name="' + esc(f.name) +
-            '" data-flag="' + esc(f.flag) + '" data-rec="' + esc(f.rec) + '"' +
-            (picked.indexOf(String(f.id)) !== -1 ? ' checked' : '') + '>' +
-            (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="">' : '') +
-            esc(f.name) + '<span class="pk-team">' + esc(f.rec) + '</span></label>';
-        }).join('');
-      $('pickCount').textContent = '已选 ' + favFighters.length + ' / ' + MAX_FIGHTERS;
+      if (extra.length) {
+        extra.sort(function (a, b) { return a.name.localeCompare(b.name); });
+        groups.push({ key: 'card', label: '近期赛事', fighters: extra });
+      }
+
+      if (!groups.length) { host.innerHTML = '<div class="skeleton">选手名单没取到</div>'; return; }
+      fightGroups = groups;
+      fightGroup = Math.min(fightGroup, groups.length - 1);
+      paintFighterPicker();
     });
   }
-  function saveFavFighters() {
-    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, MAX_FIGHTERS);
-    favFighters = checked.map(function (c) {
-      return { id: c.value, name: c.dataset.name, flag: c.dataset.flag, rec: c.dataset.rec };
+
+  function toggleFighter(id) {
+    var at = -1;
+    fightPicked.forEach(function (p, i) { if (String(p.id) === String(id)) at = i; });
+    if (at !== -1) { fightPicked.splice(at, 1); paintFighterPicker(); return; }
+    if (fightPicked.length >= MAX_FIGHTERS) {
+      alert('最多只能选 ' + MAX_FIGHTERS + ' 位选手。');
+      return;
+    }
+    var found = null;
+    fightGroups.forEach(function (g) {
+      g.fighters.forEach(function (f) { if (!found && String(f.id) === String(id)) found = f; });
     });
+    if (!found) return;
+    fightPicked.push({ id: found.id, name: found.name, flag: found.flag, rec: found.rec });
+    paintFighterPicker();
+  }
+
+  function saveFavFighters() {
+    favFighters = fightPicked.slice(0, MAX_FIGHTERS);
     lsSet('favFighters', favFighters);
     $('settings').hidden = true;
     setTab('mine');
@@ -5090,10 +5412,29 @@
 
   $('chips2').addEventListener('click', function (e) {
     var b = e.target.closest('.chip');
-    if (!b || !b.dataset.lol) return;
-    lolLeague = b.dataset.lol;
-    lsSet('lolLeague', lolLeague);
-    setTab(tab);
+    if (!b) return;
+    if (b.dataset.lol) {
+      lolLeague = b.dataset.lol;
+      lsSet('lolLeague', lolLeague);
+      setTab(tab);
+      return;
+    }
+    if (b.dataset.game) {
+      var g = b.dataset.game;
+      pandaLeague[g] = b.dataset.pandaLg || '';
+      lsSet(g === 'cs2' ? 'cs2League' : 'valLeague', pandaLeague[g]);
+      setTab(tab);
+    }
+  });
+
+  // open a CS2 / Valorant series to see the maps inside it
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-panda]');
+    if (!b) return;
+    var key = b.dataset.panda;
+    pandaOpen[key] = !pandaOpen[key];
+    if (esportsGame === 'cs2') renderCs2();
+    else if (esportsGame === 'valorant') renderValorant();
   });
 
   document.querySelector('.seg').addEventListener('click', function (e) {
@@ -5163,12 +5504,22 @@
     p.hidden = !p.hidden;
     $('notifyBtn').hidden = sport !== 'football';
     if (!p.hidden) {
+      // only the fighter picker uses the photo grid
+      if (sport !== 'fight') $('picker').classList.remove('faces');
       if (sport === 'f1') renderDriverPicker();
       else if (sport === 'esports') renderLolPicker();
       else if (sport === 'basketball') renderNbaPicker();
       else if (sport === 'fight') renderFighterPicker();
       else renderPicker();
     }
+  });
+
+  // the fighter picker is tiles, not checkboxes, so it listens for clicks
+  $('picker').addEventListener('click', function (e) {
+    var chip = e.target.closest && e.target.closest('[data-fgroup]');
+    if (chip) { fightGroup = Number(chip.dataset.fgroup); paintFighterPicker(); return; }
+    var tile = e.target.closest && e.target.closest('[data-fid]');
+    if (tile) toggleFighter(tile.dataset.fid);
   });
 
   $('picker').addEventListener('change', function (e) {

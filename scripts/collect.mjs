@@ -150,25 +150,51 @@ const MANUAL = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
 const PANDA = process.env.PANDASCORE_TOKEN || '';
 const APISPORTS = process.env.APISPORTS_KEY || '';
 
+/* Keep enough of a PandaScore match to render it the way the League of Legends
+   board renders Riot's: grouped under its own event, with crests, a series
+   score, the maps inside it and somewhere to watch. */
 function pandaMatch(m) {
   const sides = (m.opponents || []).map(o => o.opponent || {});
-  const scores = (m.results || []);
+  const scores = m.results || [];
   const scoreFor = id => {
     const hit = scores.find(r => r.team_id === id);
     return hit ? hit.score : null;
   };
+  const league = m.league || {};
+  const serie = m.serie || {};
+  const tournament = m.tournament || {};
+  const streams = (m.streams_list || []).filter(s => s.raw_url);
+  const stream = streams.find(s => s.main && s.language === 'en') ||
+    streams.find(s => s.main) || streams.find(s => s.language === 'zh') || streams[0];
   return {
     id: m.id,
-    start: m.scheduled_at || m.begin_at || null,
+    name: m.name || '',
+    start: m.begin_at || m.scheduled_at || null,
     status: m.status || '',
     bo: m.number_of_games || null,
-    league: [m.league?.name, m.serie?.full_name].filter(Boolean).join(' · '),
+    // the chip row groups on this, so it has to be the bare league name
+    league: league.name || '',
+    leagueSlug: league.slug || '',
+    leagueImage: league.image_url || '',
+    // ...and the card heading is the specific event inside it
+    event: [serie.full_name, tournament.name].filter(Boolean).join(' · ') ||
+      serie.full_name || tournament.name || league.name || '',
+    tier: tournament.tier || '',
+    winner: m.winner_id || null,
     teams: sides.map(t => ({
+      id: t.id,
       name: t.name || '',
       acronym: t.acronym || '',
       image: t.image_url || '',
       score: scoreFor(t.id)
-    }))
+    })),
+    games: (m.games || []).map(g => ({
+      pos: g.position || null,
+      status: g.status || '',
+      winner: (g.winner || {}).id || null,
+      length: g.length || null
+    })),
+    stream: stream ? { url: stream.raw_url, lang: stream.language || '' } : null
   };
 }
 
@@ -176,16 +202,26 @@ async function collectPanda(game, file) {
   if (!PANDA) throw new Error('missing PANDASCORE_TOKEN secret');
   const headers = { authorization: `Bearer ${PANDA}` };
   const base = `https://api.pandascore.co/${game}/matches`;
-  const [upcoming, past] = await Promise.all([
-    getJSON(`${base}/upcoming?per_page=30&sort=scheduled_at`, headers),
-    getJSON(`${base}/past?per_page=30&sort=-scheduled_at`, headers)
+  // 50 a side rather than 30: the board now splits by event, and a dozen
+  // events share those rows, so 30 left most of them with one or two matches
+  const [upcoming, past, running] = await Promise.all([
+    getJSON(`${base}/upcoming?per_page=50&sort=scheduled_at`, headers),
+    getJSON(`${base}/past?per_page=50&sort=-scheduled_at`, headers),
+    getJSON(`${base}/running?per_page=20`, headers).catch(() => [])
   ]);
+  const live = (running || []).map(pandaMatch);
+  const liveIds = new Set(live.map(m => m.id));
   const value = {
-    upcoming: (upcoming || []).map(pandaMatch),
+    upcoming: live.concat((upcoming || []).map(pandaMatch).filter(m => !liveIds.has(m.id))),
     recent: (past || []).map(pandaMatch)
   };
   await save(file, { updatedAt: new Date().toISOString(), source: 'pandascore', ...value });
-  return { source: 'pandascore', upcoming: value.upcoming.length, recent: value.recent.length };
+  return {
+    source: 'pandascore', live: live.length,
+    upcoming: value.upcoming.length, recent: value.recent.length,
+    leagues: [...new Set(value.upcoming.concat(value.recent)
+      .map(m => m.league).filter(Boolean))].length
+  };
 }
 
 const collectCs2 = () => collectPanda('csgo', 'cs2.json');
@@ -225,9 +261,9 @@ function harvestMatches(node, out = [], depth = 0) {
 
   const keys = Object.keys(node);
   const pick = re => keys.find(k => re.test(k));
-  const leftName = pick(/^(leftname|hostname|homename|team1|hometeam)$/i);
-  const rightName = pick(/^(rightname|guestname|awayname|team2|awayteam)$/i);
-  const when = pick(/^(starttime|matchtime|startdate|date|time)$/i);
+  const leftName = pick(/^(leftname|hostname|homename|team1|hometeam|home_?team_?name|teamaname|team_?a_?name|host_?team|homeName)$/i);
+  const rightName = pick(/^(rightname|guestname|awayname|team2|awayteam|away_?team_?name|teambname|team_?b_?name|guest_?team|awayName)$/i);
+  const when = pick(/^(starttime|matchtime|startdate|date|time|start_?time|match_?time|begin_?time|start_?at|matchdate|match_?date)$/i);
   if (leftName && rightName && when) {
     const g = k => (k ? node[k] : undefined);
     out.push({
@@ -246,11 +282,35 @@ function harvestMatches(node, out = [], depth = 0) {
   return out;
 }
 
+/* When a source returns JSON the sniffer does not recognise, report the key
+   sets of the objects it does contain — that is what names the fields. */
+function sniffKeys(node, out = [], depth = 0) {
+  if (!node || depth > 6 || out.length > 40) return out;
+  if (Array.isArray(node)) {
+    for (const item of node.slice(0, 3)) sniffKeys(item, out, depth + 1);
+    return out;
+  }
+  if (typeof node !== 'object') return out;
+  const keys = Object.keys(node);
+  if (keys.length >= 4) out.push(keys.slice(0, 12));
+  for (const k of keys) sniffKeys(node[k], out, depth + 1);
+  return out;
+}
+
 async function collectCbaChina(notes) {
   // columnId=100000 is Tencent's NBA column — it never carries a CBA fixture,
   // so ask for everything and keep only what is actually the CBA.
+  // Last sweep of the Chinese sources. This runs on a US runner, so a block or
+  // a redirect to an HTML page is a real possibility; each one is reported in
+  // status.json rather than swallowed, and the shape sniffer below means a
+  // source only has to return JSON that *contains* fixtures somewhere.
   const candidates = [
     ['tencent', `https://matchweb.sports.qq.com/matchUnion/list?startTime=${ymdLocal(-10)}&endTime=${ymdLocal(21)}`],
+    ['tencent-cba', `https://matchweb.sports.qq.com/matchUnion/list?columnId=100014&startTime=${ymdLocal(-10)}&endTime=${ymdLocal(21)}`],
+    ['sina', `https://match.sports.sina.com.cn/basketball/cba/api/match/get_match_list?dpc=1&date_begin=${ymdLocal(-10)}&date_end=${ymdLocal(21)}`],
+    ['sina-live', 'https://interface.sina.cn/sports/basketball/cba/getMatchList.d.json?date_begin=' + ymdLocal(-10) + '&date_end=' + ymdLocal(21)],
+    ['cbaleague', 'https://www.cbaleague.com/api/v1/match/list?pageSize=40&pageNum=1'],
+    ['dongqiudi', 'https://api.dongqiudi.com/data/v3/basketball/match/list?competition_id=1004'],
     ['baidu', `https://tiyu.baidu.com/api/match/%E4%B8%AD%E5%9B%BD%E7%94%B7%E7%AF%AE/live/date/${ymdLocal(0)}/direction/after?showNum=40`]
   ];
   for (const [label, url] of candidates) {
@@ -263,7 +323,10 @@ async function collectCbaChina(notes) {
 
       const found = harvestMatches(parsed);
       if (!found.length) {
-        notes.push(`${label} -> 200 but no fixtures; keys: ${Object.keys(parsed).slice(0, 6).join(',')}`);
+        // Say what the payload actually looked like, so the next attempt can
+        // teach the sniffer the right key names instead of guessing again.
+        notes.push(`${label} -> 200, no fixtures; top: ${Object.keys(parsed).slice(0, 6).join(',')}` +
+          `; inner: ${sniffKeys(parsed).slice(0, 3).map(k => k.join('+')).join(' | ')}`);
         continue;
       }
       // Only the CBA. An earlier version fell back to "whatever came back",

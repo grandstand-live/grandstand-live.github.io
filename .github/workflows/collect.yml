@@ -42,6 +42,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
           git commit -m "Update data $(date -u '+%Y-%m-%d %H:%M UTC')"
-          # a scheduled run can collide with a push, so rebase and retry once
-          git pull --rebase --autostash || true
-          git push
+          # A hand-triggered run and a scheduled one can still start seconds
+          # apart, and then whichever pushes second is rejected. Rebase onto
+          # what landed and try again rather than failing the whole run.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected; rebasing and retrying (attempt $attempt)"
+            git pull --rebase --autostash origin main || true
+            sleep $((attempt * 5))
+          done
+          echo "could not push after 5 attempts" >&2
+          exit 1

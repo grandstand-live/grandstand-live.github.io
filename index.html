@@ -213,6 +213,43 @@
     padding: 0 13px 10px; margin-top: -4px;
   }
   .match-note .story { padding: 0; }
+  .pick-bar { display: inline-flex; gap: 4px; margin-left: auto; }
+  .pick-btn {
+    font: inherit; font-size: 11px; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--hairline); border-radius: 999px;
+    padding: 3px 10px; white-space: nowrap;
+    transition: transform .12s ease, background .12s ease, color .12s ease;
+  }
+  .pick-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .pick-btn:active { transform: scale(.94); }
+  .pick-btn.on {
+    background: var(--accent); border-color: var(--accent);
+    color: var(--on-accent); font-weight: 600;
+  }
+  .pick-done {
+    margin-left: auto; font-size: 11.5px; font-weight: 700; white-space: nowrap;
+  }
+  .pick-done.hit { color: var(--win); }
+  .pick-done.miss { color: var(--muted); }
+  .rec-card { padding: 14px 6px 12px; }
+  .rec-row { display: flex; }
+  .rec-cell {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    border-right: 1px solid var(--hairline);
+  }
+  .rec-cell:last-child { border-right: none; }
+  .rec-num {
+    font-size: 21px; font-weight: 700; color: var(--ink);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .rec-num.hot { color: var(--accent); }
+  .rec-lbl { font-size: 10.5px; color: var(--muted); }
+  .rec-line {
+    text-align: center; font-size: 12px; color: var(--ink-2);
+    padding: 11px 12px 2px; margin-top: 10px;
+    border-top: 1px solid var(--hairline);
+  }
   .sport-mark {
     color: var(--accent); font-size: 13px; margin-right: 6px;
     display: inline-block; vertical-align: -1px; letter-spacing: 0;
@@ -1932,6 +1969,93 @@
     }).join('') + '</span>';
   }
 
+  /* ---------- predictions ----------
+     The one thing that reliably brings someone back is having something
+     riding on it. A call costs one tap before kick-off and settles itself
+     from the score we already fetch — no account, no server, all local. */
+  var picks = lsGet('picks', {});
+  var PICK_KEEP = 120;   // rows, oldest pruned
+
+  function pickKey(sport, id) { return sport + ':' + id; }
+  function pickOf(sport, id) { return picks[pickKey(sport, id)] || null; }
+
+  function makePick(sport, id, side, meta) {
+    var k = pickKey(sport, id);
+    var row = picks[k] || {};
+    if (row.result) return;   // settled calls are not up for revision
+    picks[k] = {
+      side: side, at: Date.now(), sport: sport,
+      home: meta.home || '', away: meta.away || '',
+      when: meta.when || '', tag: meta.tag || ''
+    };
+    prunePicks();
+    lsSet('picks', picks);
+  }
+  function prunePicks() {
+    var keys = Object.keys(picks);
+    if (keys.length <= PICK_KEEP) return;
+    keys.sort(function (a, b) { return (picks[a].at || 0) - (picks[b].at || 0); })
+      .slice(0, keys.length - PICK_KEEP)
+      .forEach(function (k) { delete picks[k]; });
+  }
+
+  /* Called wherever a finished score passes through: works out whether the
+     call was right and freezes it. */
+  function settlePick(sport, id, outcome, score) {
+    var k = pickKey(sport, id);
+    var row = picks[k];
+    if (!row || row.result || !outcome) return;
+    row.result = outcome;
+    row.score = score || '';
+    row.hit = row.side === outcome;
+    row.settledAt = Date.now();
+    lsSet('picks', picks);
+  }
+
+  function pickStats() {
+    var all = Object.keys(picks).map(function (k) { return picks[k]; });
+    var done = all.filter(function (p) { return p.result; })
+      .sort(function (a, b) { return (b.settledAt || 0) - (a.settledAt || 0); });
+    var open = all.filter(function (p) { return !p.result; })
+      .sort(function (a, b) { return new Date(a.when) - new Date(b.when); });
+    var hits = done.filter(function (p) { return p.hit; }).length;
+
+    // longest run of correct calls, oldest to newest
+    var chron = done.slice().reverse();
+    var best = 0, run = 0, current = 0;
+    chron.forEach(function (p) {
+      if (p.hit) { run++; best = Math.max(best, run); } else { run = 0; }
+    });
+    for (var i = 0; i < done.length && done[i].hit; i++) current++;
+
+    return {
+      total: done.length, hits: hits,
+      rate: done.length ? Math.round(hits / done.length * 100) : 0,
+      best: best, current: current, open: open, done: done
+    };
+  }
+
+  var PICK_SIDES = {
+    three: [['home', '主胜'], ['draw', '平'], ['away', '客胜']],
+    two: [['home', '左边赢'], ['away', '右边赢']]
+  };
+  function pickBarHTML(sport, id, kind, names) {
+    var mine = pickOf(sport, id);
+    var sides = PICK_SIDES[kind] || PICK_SIDES.three;
+    if (mine && mine.result) {
+      var label = (sides.filter(function (s) { return s[0] === mine.side; })[0] || [])[1] || '';
+      return '<span class="pick-done ' + (mine.hit ? 'hit' : 'miss') + '">' +
+        (mine.hit ? '✓' : '✗') + ' 猜' + esc(label) + '</span>';
+    }
+    return '<span class="pick-bar" data-pick-for="' + esc(sport + '|' + id) + '">' +
+      sides.map(function (s) {
+        var on = mine && mine.side === s[0];
+        return '<button type="button" class="pick-btn' + (on ? ' on' : '') +
+          '" data-side="' + s[0] + '">' + esc(names && names[s[0]] ? names[s[0]] : s[1]) +
+          '</button>';
+      }).join('') + '</span>';
+  }
+
   /* ---------- fixtures ---------- */
   function loadFixtures(quiet) {
     var tk = viewSeq;
@@ -2059,14 +2183,27 @@
         // only the day's pick carries its storyline
         var story = (best && best.id === it.ev.id) ? best.story : { tags: [], line: '' };
 
+        // a finished match settles any call riding on it
+        if (state === 'post') {
+          var outcome = t.home.winner ? 'home' : (t.away.winner ? 'away' : 'draw');
+          settlePick('football', it.ev.id, outcome,
+            scoreOf(t.home) + '-' + scoreOf(t.away));
+        }
+        var mine = pickOf('football', it.ev.id);
+        var pickHTML = (state === 'pre' || (mine && mine.result))
+          ? pickBarHTML('football', it.ev.id, 'three') : '';
+
         return '<button class="match' + cls + '" type="button" data-ev="' + esc(it.ev.id) + '">' +
             '<span class="side home"><span class="nm' + hDim + '">' + esc(hName) + '</span>' + crest(t.home.team) + '</span>' +
             '<span class="mid">' + mid + label + '</span>' +
             '<span class="side away">' + crest(t.away.team) + '<span class="nm' + aDim + '">' + esc(aName) + '</span></span>' +
           '</button>' +
-          (story.tags.length || story.line
-            ? '<div class="match-note">' + tagsHTML(story.tags) +
-              (story.line ? '<span class="story">' + story.line + '</span>' : '') + '</div>'
+          (story.tags.length || story.line || pickHTML
+            ? '<div class="match-note" data-home="' + esc(hName) + '" data-away="' + esc(aName) +
+              '" data-when="' + esc(it.ev.date || '') + '">' +
+              tagsHTML(story.tags) +
+              (story.line ? '<span class="story">' + story.line + '</span>' : '') +
+              pickHTML + '</div>'
             : '');
       }).join('');
       return '<div class="day' + (isPast ? ' past' : '') + '"' +
@@ -3955,9 +4092,12 @@
     }
 
     if (!jobs.length) {
+      // following nothing is not the same as having nothing: a call made on
+      // any fixture still belongs on this page
       host.innerHTML = '<div class="empty">还没有关注任何队伍。<br><br>' +
         '到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，' +
-        '到「格斗」点「选手」或「拳手」，选完之后这一页会把他们的下一场比赛汇总在一起。</div>';
+        '到「格斗」点「选手」或「拳手」，选完之后这一页会把他们的下一场比赛汇总在一起。</div>' +
+        recordCardHTML();
       return;
     }
 
@@ -4217,6 +4357,7 @@
               '<span class="res ' + (r.mark || '') + '">' + r.score + ' ' + esc(r.word) + '</span></div>';
           }).join('') + '</div>';
       }
+      html += recordCardHTML();
       html += '<div class="ics-row"><button class="btn" type="button" id="icsBtn">导出到日历 (.ics)</button>' +
         '<span class="count">加进手机日历，开赛前 30 分钟提醒</span></div>';
 
@@ -4231,6 +4372,53 @@
         }, 30000);
       }
     });
+  }
+
+  /* The scoreboard of your own calls. Sits on Today because that is the page
+     people open, and because an open call is itself a reason to come back. */
+  function recordCardHTML() {
+    var s = pickStats();
+    if (!s.total && !s.open.length) {
+      return '<div class="group-name">我的战绩</div><div class="card">' +
+        '<div class="fix"><span>在赛程里点「主胜 / 平 / 客胜」就算押了一场，' +
+        '赛后自动对账。</span></div></div>';
+    }
+    var line = '';
+    if (s.total >= 3) {
+      if (s.current >= 3) line = '连对 ' + s.current + ' 场，别停';
+      else if (s.rate >= 60) line = s.total + ' 场对了 ' + s.hits + ' 场';
+      else if (s.rate <= 30) line = '手气不在，' + s.total + ' 场对了 ' + s.hits + ' 场';
+    }
+    var stat = function (v, label, hot) {
+      return '<div class="rec-cell"><span class="rec-num' + (hot ? ' hot' : '') + '">' +
+        esc(v) + '</span><span class="rec-lbl">' + label + '</span></div>';
+    };
+    var body = '<div class="rec-row">' +
+      stat(s.total ? s.rate + '%' : '—', '命中率', s.rate >= 60 && s.total >= 3) +
+      stat(s.hits + '/' + s.total, '猜中', false) +
+      stat(s.best || '—', '最长连对', s.best >= 3) +
+      stat(s.open.length || '—', '待开奖', false) +
+      '</div>' + (line ? '<div class="rec-line">' + esc(line) + '</div>' : '');
+
+    var pending = s.open.slice(0, 4).map(function (p) {
+      var d = new Date(p.when || '');
+      var label = p.side === 'home' ? p.home : (p.side === 'away' ? p.away : '平局');
+      return '<div class="fix"><span class="when">' +
+        esc(isNaN(d) ? '待定' : fmtDay(d)) + '</span>' +
+        '<span class="vs">' + esc(p.home) + ' <span class="vs-mid">vs</span> ' + esc(p.away) + '</span>' +
+        '<span class="res" style="color:var(--accent);font-weight:700">押 ' + esc(label) + '</span></div>';
+    }).join('');
+
+    var recent = s.done.slice(0, 4).map(function (p) {
+      return '<div class="fix"><span class="when">' + esc(p.score || '') + '</span>' +
+        '<span class="vs">' + esc(p.home) + ' <span class="vs-mid">vs</span> ' + esc(p.away) + '</span>' +
+        '<span class="res ' + (p.hit ? 'W' : 'L') + '">' + (p.hit ? '✓ 猜中' : '✗ 没中') + '</span></div>';
+    }).join('');
+
+    return '<div class="group-name">我的战绩</div>' +
+      '<div class="card rec-card">' + body + '</div>' +
+      (pending ? '<div class="sec-label">押注中</div><div class="card">' + pending + '</div>' : '') +
+      (recent ? '<div class="sec-label">已开奖</div><div class="card">' + recent + '</div>' : '');
   }
 
   function rowUpcoming(u) {
@@ -6940,6 +7128,26 @@
     var b = e.target.closest('button[data-tab]');
     if (b) setTab(b.dataset.tab);
   });
+
+  // calls are made from the row itself — one tap, no dialog, no detail panel
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('.pick-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    var bar = btn.closest('.pick-bar');
+    var note = btn.closest('.match-note');
+    var parts = String(bar.dataset.pickFor || '').split('|');
+    if (parts.length !== 2) return;
+    makePick(parts[0], parts[1], btn.dataset.side, {
+      home: (note && note.dataset.home) || '',
+      away: (note && note.dataset.away) || '',
+      when: (note && note.dataset.when) || '',
+      tag: (note && note.dataset.tag) || ''
+    });
+    [].forEach.call(bar.querySelectorAll('.pick-btn'), function (b) {
+      b.classList.toggle('on', b === btn);
+    });
+  }, true);
 
   $('panel-fixtures').addEventListener('click', function (e) {
     var g = e.target.closest('.gp');

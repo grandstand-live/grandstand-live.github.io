@@ -727,7 +727,11 @@ function fightKey(a, b) {
 async function ufcEvent(id) {
   try {
     const d = await getJSON(`${UFC_LIVE}/event/live/${id}.json`);
-    return (d && d.LiveEventDetail) || null;
+    const detail = (d && d.LiveEventDetail) || null;
+    // an id past the end of the calendar answers 200 with an empty object, not
+    // a 404 — treating that as a hit walked the index off into ids that do not
+    // exist and stopped the back-fill ever running
+    return detail && detail.EventId ? detail : null;
   } catch { return null; }
 }
 

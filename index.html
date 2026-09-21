@@ -21,79 +21,94 @@
 <title>Grandstand</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Noto Serif SC carries the headlines and every name. Google slices CJK by
+     unicode-range, so only the handful of blocks the page actually uses get
+     downloaded — but each extra weight is another full set of slices, so this
+     asks for one. Hierarchy comes from size and rules, never from bolding it. -->
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=Noto+Serif+SC:wght@600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ground: #F2F4F3;
-    --surface: #FFFFFF;
-    --surface-2: #EDF0EE;
-    --hairline: #E0E5E3;
-    --hairline-strong: #CBD3D0;
-    --ink: #101614;
-    --ink-2: #3D4744;
-    --muted: #6B7873;
-    --accent: #12564A;
-    --accent-soft: #DCEBE6;
-    --accent-ink: #0B3B33;
-    --on-accent: #FFFFFF;
-    --live: #C9421C;
-    --live-soft: #FBE7E0;
-    --win: #1B7F55;
-    --loss: #B93C4C;
-    --draw: #8B9591;
+    --ground: #F5F2EA;
+    --surface: #FFFDF7;
+    --surface-2: #EDE8DB;
+    --hairline: #E3DDCE;
+    --hairline-strong: #CFC6B1;
+    --ink: #17150F;
+    --ink-2: #4D4738;
+    --muted: #8B8271;
+    --accent: #1D5843;
+    --accent-soft: #E3EAE2;
+    --accent-ink: #103527;
+    --on-accent: #FFFDF7;
+    --live: #A8341F;
+    --live-soft: #F6E6E0;
+    --win: #1D6B4C;
+    --loss: #A83F42;
+    --draw: #8B8271;
+    --brass: #8A6A2C;
     --crest-pad: transparent;
-    --pitch: #E7EFEA;
-    --pitch-line: #C7D6CD;
-    --shadow: 0 1px 2px rgba(16, 32, 28, .05), 0 6px 18px -12px rgba(16, 32, 28, .28);
+    --pitch: #E8EDE3;
+    --pitch-line: #CBD5C4;
+    --shadow: 0 1px 2px rgba(40, 32, 18, .05), 0 6px 18px -12px rgba(40, 32, 18, .26);
     --display: 'Archivo', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
     --narrow: 'Archivo Narrow', 'Archivo', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    /* Names and headlines are set in serif; the scoreboard numbers stay narrow.
+       That contrast is the whole look, so --serif is never used for digits. */
+    /* One serif covers both scripts. Noto Serif SC carries its own Latin, so a
+       separate Latin serif would have cost another 119KB to draw letters this
+       file already has — and mixing two faces inside one fixture ("Arsenal vs
+       曼城") is exactly where a mismatch shows. */
+    --serif: 'Noto Serif SC', 'Songti SC', Georgia, serif;
+    --mast: 'Instrument Serif', 'Noto Serif SC', 'Songti SC', Georgia, serif;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --ground: #0D1211;
-      --surface: #151C1A;
-      --surface-2: #1C2523;
-      --hairline: #263230;
-      --hairline-strong: #36443F;
-      --ink: #ECF2F0;
-      --ink-2: #C3CECA;
-      --muted: #8B9994;
-      --accent: #45B795;
-      --accent-soft: #14312A;
-      --accent-ink: #9BDCC6;
-      --on-accent: #06130F;
-      --live: #FF7A53;
-      --live-soft: #3A1B12;
-      --win: #3DB07C;
-      --loss: #E06070;
-      --draw: #7A8681;
-      --crest-pad: rgba(255, 255, 255, .92);
-      --pitch: #15241E;
-      --pitch-line: #27392F;
+      --ground: #16130E;
+      --surface: #1D1912;
+      --surface-2: #251F17;
+      --hairline: #2E271D;
+      --hairline-strong: #43392A;
+      --ink: #F0EBDF;
+      --ink-2: #B5AD9B;
+      --muted: #877E6D;
+      --accent: #5FAE8D;
+      --accent-soft: #182A22;
+      --accent-ink: #A5D6BE;
+      --on-accent: #0C1710;
+      --live: #E0654A;
+      --live-soft: #382016;
+      --win: #5FA97F;
+      --loss: #D4696B;
+      --draw: #877E6D;
+      --brass: #CFA860;
+      --crest-pad: rgba(255, 253, 247, .92);
+      --pitch: #1A2419;
+      --pitch-line: #2C3828;
       --shadow: 0 1px 2px rgba(0, 0, 0, .4);
     }
   }
   :root[data-theme="dark"] {
-    --ground: #0D1211;
-    --surface: #151C1A;
-    --surface-2: #1C2523;
-    --hairline: #263230;
-    --hairline-strong: #36443F;
-    --ink: #ECF2F0;
-    --ink-2: #C3CECA;
-    --muted: #8B9994;
-    --accent: #45B795;
-    --accent-soft: #14312A;
-    --accent-ink: #9BDCC6;
-    --on-accent: #06130F;
-    --live: #FF7A53;
-    --live-soft: #3A1B12;
-    --win: #3DB07C;
-    --loss: #E06070;
-    --draw: #7A8681;
-    --crest-pad: rgba(255, 255, 255, .92);
-    --pitch: #15241E;
-    --pitch-line: #27392F;
+    --ground: #16130E;
+    --surface: #1D1912;
+    --surface-2: #251F17;
+    --hairline: #2E271D;
+    --hairline-strong: #43392A;
+    --ink: #F0EBDF;
+    --ink-2: #B5AD9B;
+    --muted: #877E6D;
+    --accent: #5FAE8D;
+    --accent-soft: #182A22;
+    --accent-ink: #A5D6BE;
+    --on-accent: #0C1710;
+    --live: #E0654A;
+    --live-soft: #382016;
+    --win: #5FA97F;
+    --loss: #D4696B;
+    --draw: #877E6D;
+    --brass: #CFA860;
+    --crest-pad: rgba(255, 253, 247, .92);
+    --pitch: #1A2419;
+    --pitch-line: #2C3828;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4);
   }
 
@@ -212,13 +227,15 @@
     text-transform: uppercase;
     color: var(--muted);
   }
+  /* The masthead is the one place Instrument Serif appears — it is a display
+     face and gets fragile below ~24px, so nothing else borrows it. */
   h1 {
-    font-family: var(--narrow);
-    font-size: 27px;
-    font-weight: 700;
-    letter-spacing: .06em;
+    font-family: var(--mast);
+    font-size: 30px;
+    font-weight: 400;
+    letter-spacing: 0;
     margin: 0;
-    line-height: 1.1;
+    line-height: 1.08;
     text-wrap: balance;
   }
   .head-row .eyebrow { margin-top: 4px; }
@@ -242,10 +259,11 @@
   .match-note .story { padding: 0; }
   .pick-bar { display: inline-flex; gap: 4px; margin-left: auto; }
   .pick-btn {
-    font: inherit; font-size: 11px; cursor: pointer;
+    font-family: var(--serif); font-size: 11.5px; font-weight: 600;
+    cursor: pointer;
     background: transparent; color: var(--muted);
-    border: 1px solid var(--hairline); border-radius: 999px;
-    padding: 3px 10px; white-space: nowrap;
+    border: 1px solid var(--hairline); border-radius: 2px;
+    padding: 3px 11px; white-space: nowrap;
     transition: transform .12s ease, background .12s ease, color .12s ease;
   }
   .pick-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -282,16 +300,14 @@
     display: inline-block; vertical-align: -1px; letter-spacing: 0;
   }
   /* the active sport gets the accent, not just a lighter chip */
-  .sportnav button[aria-pressed="true"] {
-    box-shadow: var(--shadow), inset 0 -2px 0 var(--accent);
-  }
+  .sportnav button[aria-pressed="true"] { box-shadow: none; }
+  /* The sport row used to be pills inside a tray — two nested containers before
+     any content. It is now flat on the page, and the tray it lost is one less
+     horizontal band between the masthead and the first fixture. Sport reads as
+     a filled block, sub-tabs below as an underline, so the two never blur. */
   .sportnav {
     display: flex;
-    gap: 2px;
-    background: var(--surface-2);
-    border: 1px solid var(--hairline);
-    border-radius: 10px;
-    padding: 3px;
+    gap: 3px;
     margin-top: 14px;
     overflow-x: auto;
     scrollbar-width: none;
@@ -301,19 +317,19 @@
     flex: 0 0 auto;
     border: none;
     background: none;
-    font: inherit;
-    font-size: 13px;
+    font-family: var(--serif);
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--muted);
-    padding: 6px 15px;
-    border-radius: 7px;
+    padding: 6px 13px;
+    border-radius: 2px;
     cursor: pointer;
     white-space: nowrap;
   }
   .sportnav button[aria-pressed="true"] {
-    background: var(--surface);
-    color: var(--ink);
-    box-shadow: var(--shadow);
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: none;
   }
   .sportnav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .soon {
@@ -335,7 +351,7 @@
     background: var(--surface);
     border: 1px solid var(--hairline);
     color: var(--ink-2);
-    border-radius: 999px;
+    border-radius: 2px;
     height: 34px;
     padding: 0 13px;
     font: inherit;
@@ -368,7 +384,7 @@
     font-size: 14px;
     letter-spacing: .02em;
     padding: 6px 13px;
-    border-radius: 999px;
+    border-radius: 2px;
     border: 1px solid var(--hairline);
     background: var(--surface);
     color: var(--ink-2);
@@ -480,6 +496,9 @@
 
   /* ---- day groups + matches ---- */
   .day { margin-top: 22px; }
+  /* A dateline, not a bar: the date sits on the left and a hairline carries
+     across to the margin. The count rides on that rule rather than crowding
+     the date, so the eye reads day → rule → fixtures. */
   .day-head {
     display: flex;
     align-items: baseline;
@@ -487,21 +506,34 @@
     margin-bottom: 8px;
     padding-left: 2px;
   }
-  .day-head .d {
-    font-family: var(--narrow);
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    text-transform: uppercase;
+  .day-head::before {
+    content: '';
+    order: 1;
+    flex: 1;
+    height: 1px;
+    background: var(--hairline);
+    transform: translateY(-4px);
   }
-  .day-head .n { font-size: 12px; color: var(--muted); }
+  .day-head .n { order: 2; }
+  .day-head .jump { order: 3; }
+  .day-head .d {
+    font-family: var(--serif);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  .day-head .n {
+    font-family: var(--narrow);
+    font-size: 11px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+  }
   .day.past .day-head .d { color: var(--muted); }
   .day.past .card { opacity: .88; }
   .jump {
     margin-left: auto;
     background: var(--surface);
     border: 1px solid var(--hairline);
-    border-radius: 999px;
+    border-radius: 2px;
     color: var(--ink-2);
     font: inherit;
     font-size: 11.5px;
@@ -519,13 +551,19 @@
     border-radius: 3px;
     padding: 1px 6px;
   }
+  /* Printed on the page, not floating above it. The shadow is gone in light —
+     paper does not cast one on itself — and comes back in dark, where a warm
+     panel needs some separation from the ground to read as a distinct block. */
   .card {
     background: var(--surface);
     border: 1px solid var(--hairline);
-    border-radius: 10px;
-    box-shadow: var(--shadow);
+    border-radius: 4px;
     overflow: hidden;
   }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .card { box-shadow: var(--shadow); }
+  }
+  :root[data-theme="dark"] .card { box-shadow: var(--shadow); }
   .match {
     display: grid;
     grid-template-columns: 1fr 78px 1fr;
@@ -546,14 +584,20 @@
   .side { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .side.home { justify-content: flex-end; }
   .side.home .nm { text-align: right; }
+  /* Serif names are always 600, the one CJK weight loaded. A Song face at 500
+     goes hairline-thin around 14px and reads as grey even when the colour is
+     solid ink, so the weight is doing legibility work, not emphasis — nothing
+     here ever asks for a heavier one, which would synthesise a bold on the
+     Chinese while the Latin used a real cut. */
   .nm {
-    font-size: 14px;
+    font-family: var(--serif);
+    font-size: 15px;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .nm.dim { color: var(--muted); font-weight: 500; }
+  .nm.dim { color: var(--muted); }
   .crest {
     width: 24px; height: 24px;
     flex-shrink: 0;
@@ -625,14 +669,26 @@
     font-size: 13px;
     color: var(--ink-2);
   }
+  /* A section label is a label, not a headline — it stays narrow and small, and
+     a hairline runs off its right edge to the margin. That rule, repeated, is
+     what holds the page together in place of boxes and fills. */
   .detail h4 {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     font-family: var(--narrow);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .12em;
     text-transform: uppercase;
     color: var(--muted);
-    margin: 14px 0 6px;
+    margin: 16px 0 7px;
+  }
+  .detail h4::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--hairline);
   }
   .detail h4:first-child { margin-top: 0; }
   .goals { display: grid; gap: 3px; }
@@ -709,7 +765,12 @@
   tr.fav { background: var(--accent-soft); }
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; color: var(--muted); margin-top: 10px; }
   .legend i { display: inline-block; width: 3px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+  /* Same dateline rule as .day-head and .detail h4 — every label on the page
+     hands off to a hairline, so the eye learns one divider instead of three. */
   .group-name {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     font-family: var(--narrow);
     font-size: 12px;
     font-weight: 700;
@@ -717,6 +778,12 @@
     text-transform: uppercase;
     color: var(--muted);
     margin: 18px 0 6px;
+  }
+  .group-name::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--hairline);
   }
 
   /* ---- my teams ---- */
@@ -866,7 +933,7 @@
   .fpick-bar button {
     flex: 0 0 auto; cursor: pointer; white-space: nowrap;
     border: 1px solid var(--hairline); background: transparent;
-    color: var(--muted); border-radius: 999px;
+    color: var(--muted); border-radius: 2px;
     padding: 4px 11px; font: inherit; font-size: 12px;
   }
   .fpick-bar button[aria-pressed="true"] {
@@ -992,14 +1059,28 @@
   }
   .bout-face img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
   @media (max-width: 420px) { .bout-face { width: 28px; height: 28px; } }
-  .bout .fnm { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
-  .bout .fnm.dim { color: var(--muted); font-weight: 500; }
+  /* Fighter names get the serif like every other name, but a bout row gives
+     each side barely 110px between the portrait and the weight class, and
+     "Arslanbek Makhmudov" in a wider face wrapped into the portrait. Balanced
+     wrapping keeps a two-line name from leaving one word stranded. */
+  .bout .fnm {
+    font-family: var(--serif);
+    font-size: 13px; font-weight: 600; line-height: 1.25;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+  .bout .fnm.dim { color: var(--muted); }
   .bout .frec {
     display: block; font-size: 10.5px; color: var(--muted);
     font-variant-numeric: tabular-nums; margin-top: 1px;
   }
-  .bout .fwrap { min-width: 0; }
+  .bout .fwrap { min-width: 0; flex: 1; }
   .bout .side.home .fwrap { text-align: right; }
+  /* A bout row gives each corner ~109px. Portrait, flag and two gaps took 68 of
+     them and left the name 41px to wrap inside. The portrait already says who
+     this is, so the flag stands down here; it still appears in the bout panel,
+     where there is room for it. */
+  .bout .flag-sm { display: none; }
   .flag-sm {
     width: 20px; height: 14px; object-fit: cover; border-radius: 2px; flex-shrink: 0;
     box-shadow: 0 0 0 1px var(--hairline);
@@ -1092,7 +1173,8 @@
     margin-bottom: 7px;
   }
   .hero-title {
-    font-size: 19px; font-weight: 700; line-height: 1.25;
+    font-family: var(--serif);
+    font-size: 21px; font-weight: 600; line-height: 1.32;
     color: var(--ink); text-wrap: balance;
   }
   .hero-sub { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
@@ -1109,7 +1191,7 @@
     display: inline-block; margin-top: 12px;
     font-family: var(--narrow); font-size: 13px; font-weight: 700; letter-spacing: .04em;
     background: var(--surface-2); color: var(--ink-2);
-    border-radius: 999px; padding: 4px 12px;
+    border-radius: 2px; padding: 4px 12px;
   }
   .fix .rail {
     width: 3px; height: 15px; border-radius: 2px; flex-shrink: 0;
@@ -1344,7 +1426,7 @@
   .schip {
     background: var(--surface);
     border: 1px solid var(--hairline);
-    border-radius: 999px;
+    border-radius: 2px;
     padding: 3px 10px;
     font-size: 11.5px;
     color: var(--muted);
@@ -1362,7 +1444,10 @@
   }
   .yc { background: #E3B02B; }
   .rc { background: #D6453F; }
-  .fix .vs { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fix .vs {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--serif); font-weight: 600;
+  }
   .fix-sub {
     padding: 0 14px 9px;
     font-size: 12px;
@@ -1372,15 +1457,24 @@
   }
   .fix-sub:last-child { border-bottom: none; }
   .sec-label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     font-family: var(--narrow);
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: .12em;
     text-transform: uppercase;
     color: var(--muted);
-    padding: 10px 14px 5px;
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--hairline);
+    padding: 11px 14px 6px;
+  }
+  /* The filled band this used to carry was one more stripe across the page;
+     the hairline says the same thing without stacking another surface. */
+  .sec-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--hairline);
   }
   .tag {
     font-family: var(--narrow);
@@ -1757,12 +1851,15 @@
      accent family moves — surfaces, ink and the win/loss colours stay put, or
      the same score would read differently depending on where you are. */
   var SPORT_SKIN = {
-    today:      { l: ['#12564A', '#DCEBE6', '#0B3B33'], d: ['#45B795', '#14312A', '#9BDCC6'] },
-    football:   { l: ['#12564A', '#DCEBE6', '#0B3B33'], d: ['#45B795', '#14312A', '#9BDCC6'] },
-    basketball: { l: ['#C25A1E', '#FBE7D8', '#7A3208'], d: ['#F0894A', '#3A2113', '#FFC79B'] },
-    f1:         { l: ['#C4302B', '#FBE1DF', '#7D1B18'], d: ['#F0615C', '#3A1715', '#FFB3B0'] },
-    fight:      { l: ['#8C3A22', '#F6E4DB', '#5A2213'], d: ['#E07A55', '#35180F', '#FFC0A6'] },
-    esports:    { l: ['#5B4BC4', '#E5E2FA', '#362B80'], d: ['#9B8BEE', '#241E4A', '#CFC6FF'] }
+    /* Printed ink, not screen light: every accent is knocked back so it sits on
+       the paper instead of glowing off it, and the soft tints carry the same
+       warmth as --ground so they never read as a cold grey patch. */
+    today:      { l: ['#1D5843', '#E3EAE2', '#103527'], d: ['#5FAE8D', '#182A22', '#A5D6BE'] },
+    football:   { l: ['#1D5843', '#E3EAE2', '#103527'], d: ['#5FAE8D', '#182A22', '#A5D6BE'] },
+    basketball: { l: ['#9C4715', '#F3E5D5', '#5E2A0B'], d: ['#DD8A52', '#2E2015', '#F0BE94'] },
+    f1:         { l: ['#A32722', '#F4E3DF', '#661512'], d: ['#DC655F', '#2F1B17', '#EFAFAB'] },
+    fight:      { l: ['#7A3520', '#F1E4DA', '#4A1F11'], d: ['#D6785A', '#2C1C13', '#EDB89F'] },
+    esports:    { l: ['#4A3E9C', '#E5E2EE', '#2B2363'], d: ['#9C8FD6', '#221E33', '#C7BEEB'] }
   };
   var darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   var SPORT_MARK = {
@@ -2137,7 +2234,7 @@
     if (mine && mine.result) {
       var label = (sides.filter(function (s) { return s[0] === mine.side; })[0] || [])[1] || '';
       return '<span class="pick-done ' + (mine.hit ? 'hit' : 'miss') + '">' +
-        (mine.hit ? '✓' : '✗') + ' 猜' + esc(label) + '</span>';
+        (mine.hit ? '✓' : '✗') + ' 判' + esc(label) + '</span>';
     }
     return '<span class="pick-bar" data-pick-for="' + esc(sport + '|' + id) + '">' +
       sides.map(function (s) {
@@ -3510,8 +3607,8 @@
       list.push(d);
     });
     if (!list.length) return '';
-    return '<h4>猜谁上台</h4><div class="pd-line muted" style="padding:0 0 6px">' +
-      '选一位，他进前三就算中。</div>' +
+    return '<h4>预判领奖台</h4><div class="pd-line muted" style="padding:0 0 6px">' +
+      '选一位，他站上前三就算命中。</div>' +
       '<div class="match-note" data-when="' + esc(ev.date || '') + '">' +
       '<span class="pick-bar wrap" data-pick-for="f1|' + esc(ev.id) + '">' +
       list.slice(0, 6).map(function (d) {
@@ -4564,7 +4661,10 @@
         var mine = hero.id ? pickOf(hero.sport, hero.id) : null;
         if (hero.live) reason = '正在进行';
         else if (mine) {
-          reason = '你押了' + (mine.side === 'draw' ? '平局'
+          /* A colon, not a space: the name after it may be Chinese or Latin,
+             and a bare space that is correct before "Raoni" is wrong before
+             "荷兰". The colon reads right in front of either. */
+          reason = '你的预判：' + (mine.side === 'draw' ? '踢平'
             : (mine.side === 'home' ? mine.home : mine.away) || '这场');
         } else if (hero.story && hero.story.line) reason = hero.story.line;
 
@@ -4620,7 +4720,7 @@
           var call = r.id ? pickOf(r.sport, r.id) : null;
           if (call && call.result) {
             weight = 90;
-            note = call.hit ? '这场你押对了' : '这场你押错了';
+            note = call.hit ? '这场你预判命中' : '这场你预判落空';
           }
           var nums = String(r.score || '').match(/^(\d+)-(\d+)$/);
           if (nums) {
@@ -4667,14 +4767,14 @@
     var s = pickStats();
     if (!s.total && !s.open.length) {
       return '<div class="group-name">我的战绩</div><div class="card">' +
-        '<div class="fix"><span>在赛程里点「主胜 / 平 / 客胜」就算押了一场，' +
+        '<div class="fix"><span>在赛程里点「主胜 / 平 / 客胜」就是落下一个预判，' +
         '赛后自动对账。</span></div></div>';
     }
     var line = '';
     if (s.total >= 3) {
-      if (s.current >= 3) line = '连对 ' + s.current + ' 场，别停';
-      else if (s.rate >= 60) line = s.total + ' 场对了 ' + s.hits + ' 场';
-      else if (s.rate <= 30) line = '手气不在，' + s.total + ' 场对了 ' + s.hits + ' 场';
+      if (s.current >= 3) line = '连中 ' + s.current + ' 场，手不要抖';
+      else if (s.rate >= 60) line = s.total + ' 场判中 ' + s.hits + ' 场';
+      else if (s.rate <= 30) line = '最近看走眼了，' + s.total + ' 场只中 ' + s.hits + ' 场';
     }
     var stat = function (v, label, hot) {
       return '<div class="rec-cell"><span class="rec-num' + (hot ? ' hot' : '') + '">' +
@@ -4682,9 +4782,9 @@
     };
     var body = '<div class="rec-row">' +
       stat(s.total ? s.rate + '%' : '—', '命中率', s.rate >= 60 && s.total >= 3) +
-      stat(s.hits + '/' + s.total, '猜中', false) +
-      stat(s.best || '—', '最长连对', s.best >= 3) +
-      stat(s.open.length || '—', '待开奖', false) +
+      stat(s.hits + '/' + s.total, '命中', false) +
+      stat(s.best || '—', '最长连中', s.best >= 3) +
+      stat(s.open.length || '—', '未决', false) +
       '</div>' + (line ? '<div class="rec-line">' + esc(line) + '</div>' : '');
 
     var pending = s.open.slice(0, 4).map(function (p) {
@@ -4693,19 +4793,19 @@
       return '<div class="fix"><span class="when">' +
         esc(isNaN(d) ? '待定' : fmtDay(d)) + '</span>' +
         '<span class="vs">' + esc(p.home) + ' <span class="vs-mid">vs</span> ' + esc(p.away) + '</span>' +
-        '<span class="res" style="color:var(--accent);font-weight:700">押 ' + esc(label) + '</span></div>';
+        '<span class="res" style="color:var(--accent);font-weight:700">判 ' + esc(label) + '</span></div>';
     }).join('');
 
     var recent = s.done.slice(0, 4).map(function (p) {
       return '<div class="fix"><span class="when">' + esc(p.score || '') + '</span>' +
         '<span class="vs">' + esc(p.home) + ' <span class="vs-mid">vs</span> ' + esc(p.away) + '</span>' +
-        '<span class="res ' + (p.hit ? 'W' : 'L') + '">' + (p.hit ? '✓ 猜中' : '✗ 没中') + '</span></div>';
+        '<span class="res ' + (p.hit ? 'W' : 'L') + '">' + (p.hit ? '✓ 命中' : '✗ 落空') + '</span></div>';
     }).join('');
 
     return '<div class="group-name">我的战绩</div>' +
       '<div class="card rec-card">' + body + '</div>' +
-      (pending ? '<div class="sec-label">押注中</div><div class="card">' + pending + '</div>' : '') +
-      (recent ? '<div class="sec-label">已开奖</div><div class="card">' + recent + '</div>' : '');
+      (pending ? '<div class="sec-label">未决</div><div class="card">' + pending + '</div>' : '') +
+      (recent ? '<div class="sec-label">已对账</div><div class="card">' + recent + '</div>' : '');
   }
 
   function rowUpcoming(u) {

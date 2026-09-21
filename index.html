@@ -910,6 +910,20 @@
     color: #C9A227; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; max-width: 100%;
   }
+  .tape { display: grid; gap: 1px; }
+  .tape-row {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 10px;
+    padding: 6px 0; border-bottom: 1px solid var(--hairline);
+  }
+  .tape-row:last-child { border-bottom: none; }
+  .tape .tv { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .tape .tv.r { text-align: right; }
+  .tape .tl {
+    font-family: var(--narrow); font-size: 10px; letter-spacing: .08em;
+    color: var(--muted); white-space: nowrap;
+  }
+  .pick-bar.wrap { flex-wrap: wrap; margin-left: 0; }
   .round-block { margin-top: 10px; }
   .round-no {
     font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
@@ -917,6 +931,13 @@
     border-top: 1px solid var(--hairline); padding-top: 7px; margin-bottom: 4px;
   }
   .bout .side { gap: 7px; }
+  .bout-face {
+    width: 34px; height: 34px; border-radius: 50%; overflow: hidden;
+    flex-shrink: 0; background: var(--surface-2); border: 1px solid var(--hairline);
+    display: block;
+  }
+  .bout-face img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+  @media (max-width: 420px) { .bout-face { width: 28px; height: 28px; } }
   .bout .fnm { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
   .bout .fnm.dim { color: var(--muted); font-weight: 500; }
   .bout .frec {
@@ -1997,7 +2018,8 @@
     picks[k] = {
       side: side, at: Date.now(), sport: sport,
       home: meta.home || '', away: meta.away || '',
-      when: meta.when || '', tag: meta.tag || ''
+      when: meta.when || '', tag: meta.tag || '',
+      pickName: meta.pickName || ''
     };
     prunePicks();
     lsSet('picks', picks);
@@ -3398,6 +3420,40 @@
     });
   }
 
+  function f1PickHTML(ev, mine) {
+    if (mine && mine.result) {
+      var hitName = mine.pickName || '';
+      return '<div class="kv"><span class="k">你的预测</span><span class="' +
+        (mine.hit ? 'res W' : 'res L') + '">' + (mine.hit ? '✓ ' : '✗ ') +
+        esc(hitName) + '</span></div>';
+    }
+    var field = favDrivers.map(function (f) {
+      return { id: f.num, espn: f.espnId, name: driverCN(f.name) || f.name };
+    });
+    var entries = (((f1Cache.standings || {}).children || []).filter(function (c) {
+      return /driver/i.test(c.name || '');
+    })[0] || {});
+    var top = ((entries.standings || {}).entries || []).slice(0, 5).map(function (e) {
+      var a = e.athlete || {};
+      return { espn: a.id, name: driverCN(a.displayName) || a.displayName };
+    });
+    var seen = {}, list = [];
+    top.concat(field).forEach(function (d) {
+      if (!d.espn || seen[d.espn] || !d.name) return;
+      seen[d.espn] = 1;
+      list.push(d);
+    });
+    if (!list.length) return '';
+    return '<h4>猜谁赢</h4><div class="match-note" data-when="' + esc(ev.date || '') + '">' +
+      '<span class="pick-bar wrap" data-pick-for="f1|' + esc(ev.id) + '">' +
+      list.slice(0, 6).map(function (d) {
+        var on = mine && mine.side === 'd' + d.espn;
+        return '<button type="button" class="pick-btn' + (on ? ' on' : '') +
+          '" data-side="d' + esc(d.espn) + '" data-name="' + esc(d.name) + '">' +
+          esc(d.name) + '</button>';
+      }).join('') + '</span></div>';
+  }
+
   function toggleGp(btn) {
     var next = btn.nextElementSibling;
     if (next && next.classList.contains('detail')) { next.remove(); return; }
@@ -3406,6 +3462,22 @@
       var ev = ((d && d.events) || []).filter(function (e) { return String(e.id) === String(id); })[0];
       if (!ev) return;
       var html = '';
+
+      /* A call on the race winner. The field is the drivers you follow plus
+         whoever is top of the championship, because a twenty-name list is a
+         menu nobody reads. */
+      var race0 = raceOf(ev) || {};
+      var over = ((ev.status || {}).type || {}).state === 'post';
+      if (over) {
+        var champ = ((race0.competitors || []).filter(function (c) { return c.winner; })[0] || {});
+        var wid = champ.athlete && champ.athlete.id;
+        if (wid) settlePick('f1', ev.id, 'd' + wid, '');
+      }
+      var myF1 = pickOf('f1', ev.id);
+      if (!over || (myF1 && myF1.result)) {
+        html += f1PickHTML(ev, myF1);
+      }
+
       var comps = (ev.competitions || []).slice().sort(function (a, b) {
         return new Date(a.date) - new Date(b.date);
       });
@@ -4752,9 +4824,30 @@
       if (!data) { box.innerHTML = '<div class="err">赛况没取到。</div>'; return; }
       var html = '';
 
-      // quarter by quarter
       var comp = (data.header && data.header.competitions && data.header.competitions[0]) || {};
       var cs = comp.competitors || [];
+
+      /* Same read as football's: the book's moneyline, normalised so the two
+         sides sum to 100 and the margin drops out. No draws in basketball. */
+      var pick0 = (data.pickcenter && data.pickcenter[0]) || null;
+      if (pick0) {
+        var hOdds = impliedProb(pick0.homeTeamOdds && pick0.homeTeamOdds.moneyLine);
+        var aOdds = impliedProb(pick0.awayTeamOdds && pick0.awayTeamOdds.moneyLine);
+        if (hOdds && aOdds) {
+          var sum0 = hOdds + aOdds;
+          var hPct = Math.round(hOdds / sum0 * 100);
+          var names = cs.map(function (c) { return nbaCN(c.team && c.team.displayName); });
+          html += '<h4>赛前胜负预测</h4>' +
+            '<div class="odds-bar"><i class="h" style="width:' + hPct + '%"></i>' +
+            '<i class="a" style="width:' + (100 - hPct) + '%"></i></div>' +
+            '<div class="odds-key"><span><b>' + esc(names[0] || '') + '</b> ' + hPct + '%</span>' +
+            '<span><b>' + esc(names[1] || '') + '</b> ' + (100 - hPct) + '%</span></div>' +
+            (pick0.details ? '<div class="kv"><span class="k">盘口</span><span>' +
+              esc(pick0.details) + '</span></div>' : '');
+        }
+      }
+
+      // quarter by quarter
       if (cs.length === 2 && (cs[0].linescores || []).length) {
         var periods = (cs[0].linescores || []).length;
         var head = '<tr><th class="tm">球队</th>';
@@ -5149,6 +5242,14 @@
       mid = '<div class="kick">' + esc(isNaN(d0) ? '待定' : fmtTime(d0)) + '</div>';
       label = '<div class="state">' + esc(bo) + '</div>';
     }
+    if (done && has) {
+      settlePick(game, m.id, a.score > b.score ? 'home' : 'away', a.score + '-' + b.score);
+    }
+    var myPanda = pickOf(game, m.id);
+    var pandaPick = (!done && !live) || (myPanda && myPanda.result)
+      ? pickBarHTML(game, m.id, 'two',
+        { home: a.acronym || a.name || '左', away: b.acronym || b.name || '右' }) : '';
+
     var key = game + ':' + m.id;
     var open = !!pandaOpen[key];
     var maps = (m.games || []).filter(function (g) { return g.status === 'finished'; });
@@ -5185,7 +5286,10 @@
       '<span class="side home">' + pandaTeamCell(a, false, bw, aw) + '</span>' +
       '<span class="mid">' + mid + label + '</span>' +
       '<span class="side away">' + pandaTeamCell(b, true, aw, bw) + '</span>' +
-      '</button>' + detail;
+      '</button>' +
+      (pandaPick ? '<div class="match-note" data-home="' + esc(a.acronym || a.name || '') +
+        '" data-away="' + esc(b.acronym || b.name || '') + '" data-when="' + esc(m.start || '') +
+        '">' + pandaPick + '</div>' : '') + detail;
   }
 
   function renderPandaGame(file, label, game) {
@@ -6068,11 +6172,16 @@
     var rec = ((c.records || [])[0] || {}).summary || '';
     var flag = a.flag && a.flag.href
       ? '<img class="flag-sm" src="' + esc(a.flag.href) + '" alt="" loading="lazy">' : '';
+    // ESPN keys a fighter's headshot on the same id the card already carries
+    var shot = c.id
+      ? '<span class="bout-face"><img src="' + esc(mmaFace(c.id)) + '" alt="" loading="lazy"' +
+        ' onerror="this.parentNode.style.display=\'none\'"></span>'
+      : '';
     var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '">' +
       (c.winner ? '<span class="win-pip"></span> ' : '') + esc(name) + '</span>' +
       (rec ? '<span class="frec">' + esc(rec) + '</span>' : '') + '</span>';
     return '<span class="side ' + (isLeft ? 'home' : 'away') + '">' +
-      (isLeft ? body + flag : flag + body) + '</span>';
+      (isLeft ? body + flag + shot : shot + flag + body) + '</span>';
   }
   // judges' cards only exist on a decision, and ESPN nests them per round
   function scorecardHTML(comp) {
@@ -6329,6 +6438,40 @@
       esc(nameOf(sides[1].FighterId)) + '</span></div>' + out;
   }
 
+  function ufcAthlete(id) {
+    var key = 'ath' + id;
+    if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
+    return getJSON('https://sports.core.api.espn.com/v2/sports/mma/athletes/' + id)
+      .then(function (d) {
+        if (d && d.id) ufcCache[key] = d;
+        return d || {};
+      }).catch(function () { return {}; });
+  }
+
+  /* The tale of the tape: the numbers people actually weigh a fight on before
+     it happens — reach, age, stance, and the record each man brings in. */
+  function tapeHTML(A, B, a, b) {
+    var rows = [
+      ['战绩', a.rec || '', b.rec || ''],
+      ['年龄', A.age ? A.age + ' 岁' : '', B.age ? B.age + ' 岁' : ''],
+      ['身高', A.displayHeight || '', B.displayHeight || ''],
+      ['臂展', A.displayReach || '', B.displayReach || ''],
+      ['体重', A.displayWeight || '', B.displayWeight || ''],
+      ['站架', (A.stance && (A.stance.text || A.stance.displayName)) || '',
+        (B.stance && (B.stance.text || B.stance.displayName)) || ''],
+      ['国籍', A.citizenship || '', B.citizenship || '']
+    ].filter(function (r) { return r[1] || r[2]; });
+
+    if (!rows.length) return '<div class="kv"><span>这场还没有赛前资料。</span></div>';
+    return '<h4>赛前对比</h4>' +
+      '<div class="stat-head"><span>' + esc(a.name) + '</span><span>' + esc(b.name) + '</span></div>' +
+      '<div class="tape">' + rows.map(function (r) {
+        return '<div class="tape-row"><span class="tv">' + esc(r[1] || '—') + '</span>' +
+          '<span class="tl">' + r[0] + '</span>' +
+          '<span class="tv r">' + esc(r[2] || '—') + '</span></div>';
+      }).join('') + '</div>';
+  }
+
   function boutClipsHTML(names, when) {
     if (!names[0] || !names[1]) return '';
     var d = new Date(when || '');
@@ -6355,6 +6498,16 @@
     var sideA = { id: parts[2], name: names[0] || '', flag: flags[0] || '' };
     var sideB = { id: parts[3], name: names[1] || '', flag: flags[1] || '' };
     var when = row.dataset.when || '';
+
+    // nothing has happened yet, so compare the two men instead
+    if (row.dataset.preview) {
+      Promise.all([ufcAthlete(parts[2]), ufcAthlete(parts[3])]).then(function (r) {
+        if (!box.isConnected) return;
+        box.innerHTML = tapeHTML(r[0], r[1], sideA, sideB) + boutClipsHTML(names, when);
+      });
+      return;
+    }
+
     Promise.all([
       ufcBoutStats(parts[0], parts[1], parts[2]),
       ufcBoutStats(parts[0], parts[1], parts[3])
@@ -6442,12 +6595,14 @@
         var boutPick = (!done && a.id && b.id) || (myBout && myBout.result)
           ? pickBarHTML('fight', c.id, 'two', { home: aName, away: bName }) : '';
 
-        // a fought bout has per-fighter numbers behind it, so it opens
-        var opens = done && a.id && b.id;
+        /* A fought bout opens into its numbers; one still to come opens into
+           the tale of the tape, which is the thing you want before calling it. */
+        var opens = a.id && b.id;
         return '<div class="match bout' + (opens ? ' opens' : '') + '"' +
           (i === 0 ? ' style="border-top:none"' : '') +
           (opens ? ' data-bout="' + esc(ev.id) + ':' + esc(c.id) + ':' +
-            esc(a.id) + ':' + esc(b.id) + '" data-when="' + esc(c.date || ev.date) + '"' : '') + '>' +
+            esc(a.id) + ':' + esc(b.id) + '" data-when="' + esc(c.date || ev.date) + '"' +
+            (done ? '' : ' data-preview="1"') : '') + '>' +
           fighterSide(a, true, done && b.winner) +
           '<span class="mid">' + mid +
             (done ? '<div class="wclass" style="margin-top:2px">' +
@@ -6796,6 +6951,10 @@
   function boxSide(x, isLeft, dim) {
     x = x || {};
     var flag = x.flag ? '<img class="flag-sm" src="' + esc(x.flag) + '" alt="" loading="lazy">' : '';
+    var shot = x.shot
+      ? '<span class="bout-face"><img src="' + esc(x.shot) + '" alt="" loading="lazy"' +
+        ' onerror="this.parentNode.style.display=\'none\'"></span>'
+      : '';
     // an upcoming bout has no record on file, but the market has a read on it
     var under = x.record ||
       (x.winPct !== null && x.winPct !== undefined ? '胜率 ' + x.winPct + '%' : '');
@@ -6803,7 +6962,7 @@
       (x.winner ? '<span class="win-pip"></span> ' : '') + esc(x.name || 'TBD') + '</span>' +
       (under ? '<span class="frec">' + esc(under) + '</span>' : '') + '</span>';
     return '<span class="side ' + (isLeft ? 'home' : 'away') + '">' +
-      (isLeft ? body + flag : flag + body) + '</span>';
+      (isLeft ? body + flag + shot : shot + flag + body) + '</span>';
   }
   /* Boxing bouts carry no id of their own, so a call is keyed on the two names
      and the date — stable across refreshes, which is all it has to be. */
@@ -6834,11 +6993,13 @@
     }
     var pct = oddsToPct(a.odds, c.odds);
     return '<div class="match bout opens" data-box="' + esc(b.bucket) + ':' + esc(b.idx) + '">' +
-      boxSide({ name: a.name, record: a.record, flag: a.flag, winPct: pct[0], winner: aw }, true, cw) +
+      boxSide({ name: a.name, record: a.record, flag: a.flag, shot: boxFaces[a.name],
+        winPct: pct[0], winner: aw }, true, cw) +
       '<span class="mid">' + mid +
         (b.weight ? '<div class="wclass" style="margin-top:2px">' + esc(b.weight) + '</div>' : '') +
       '</span>' +
-      boxSide({ name: c.name, record: c.record, flag: c.flag, winPct: pct[1], winner: cw }, false, aw) +
+      boxSide({ name: c.name, record: c.record, flag: c.flag, shot: boxFaces[c.name],
+        winPct: pct[1], winner: cw }, false, aw) +
       '</div>' +
       (boxPick ? '<div class="match-note" data-home="' + esc(a.name || '') + '" data-away="' +
         esc(c.name || '') + '" data-when="' + esc(b.start || '') + '">' + boxPick + '</div>' : '');
@@ -6900,11 +7061,15 @@
         '<div class="card">' + g.items.map(boxRow).join('') + '</div>';
     }).join('');
   }
+  // faces are looked up by name while rendering a row, so they load first
+  var boxFaces = {};
   function renderBoxing() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
     $('status').textContent = '拳击';
-    archiveGet('boxing.json').then(function (d) {
+    Promise.all([archiveGet('boxing.json'), archiveGet('boxers.json')]).then(function (r) {
+      var d = r[0];
+      boxFaces = (r[1] || {}).faces || {};
       if (!d || (!(d.upcoming || []).length && !(d.recent || []).length)) {
         host.innerHTML = archiveEmpty('拳击');
         return;
@@ -7365,7 +7530,9 @@
       home: (note && note.dataset.home) || '',
       away: (note && note.dataset.away) || '',
       when: (note && note.dataset.when) || '',
-      tag: (note && note.dataset.tag) || ''
+      tag: (note && note.dataset.tag) || '',
+      // a driver pick has no two sides, so remember who was named
+      pickName: btn.dataset.name || ''
     });
     [].forEach.call(bar.querySelectorAll('.pick-btn'), function (b) {
       b.classList.toggle('on', b === btn);

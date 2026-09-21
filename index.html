@@ -1021,6 +1021,15 @@
     color: var(--ink); text-wrap: balance;
   }
   .hero-sub { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+  .hero-why {
+    font-size: 13px; color: var(--tint, var(--accent)); font-weight: 600;
+    margin-top: 6px; line-height: 1.4;
+  }
+  .hero.is-live .hero-count { background: var(--live-soft); color: var(--live); }
+  .after-line {
+    font-size: 11.5px; color: var(--muted);
+    padding: 0 14px 9px 27px; margin-top: -5px;
+  }
   .hero-count {
     display: inline-block; margin-top: 12px;
     font-family: var(--narrow); font-size: 13px; font-weight: 700; letter-spacing: .04em;
@@ -4116,6 +4125,7 @@
             var sd = sideOf(e, f.id);
             var st = (sd.comp.status && sd.comp.status.type) || {};
             mine.push({
+              id: e.id,   // lets the headline notice a call riding on it
               when: new Date(e.date), sport: 'football', tag: lgName, live: st.state === 'in',
               title: esc(f.name) + ' <span class="vs-mid">vs</span> ' +
                 esc(cn(sd.opp.team && sd.opp.team.displayName, sd.opp.team && sd.opp.team.shortDisplayName)),
@@ -4130,6 +4140,7 @@
             var s2 = sideOf(done, f.id);
             var mark = s2.me.winner === true ? 'W' : (s2.opp.winner === true ? 'L' : 'D');
             recent.push({
+              id: done.id,
               when: new Date(done.date), sport: 'football', mark: mark,
               title: esc(f.name) + ' <span class="vs-mid">vs</span> ' +
                 esc(cn(s2.opp.team && s2.opp.team.displayName, s2.opp.team && s2.opp.team.shortDisplayName)),
@@ -4151,6 +4162,7 @@
             var opp = cs.filter(function (x) { return x !== me; })[0] || {};
             if (!st.completed && within(e.date, 3, AHEAD_H)) {
               mineNba.push({
+                id: e.id,
                 when: new Date(e.date), sport: 'basketball', tag: 'NBA', live: st.state === 'in',
                 title: esc(f2.name) + ' <span class="vs-mid">vs</span> ' +
                   esc(nbaCN(opp.team && opp.team.displayName)),
@@ -4232,6 +4244,7 @@
                 });
               } else if (e.state !== 'completed' && within(e.startTime, 3, AHEAD_H)) {
                 byTeam[me.code].push({
+                  id: e.match.id,
                   when: new Date(e.startTime), sport: 'esports',
                   tag: (e.league && e.league.name) || 'LOL', live: e.state === 'inProgress',
                   title: title,
@@ -4265,6 +4278,7 @@
                 });
               } else if (st.state !== 'post' && within(x.comp.date, 3, AHEAD_H)) {
                 booked.push({
+                  id: x.comp.id,
                   when: new Date(x.comp.date), sport: 'fight', tag: card,
                   live: st.state === 'in', title: title,
                   sub: weightCN(x.comp.type && x.comp.type.abbreviation)
@@ -4310,27 +4324,55 @@
 
       var live = upcoming.filter(function (u) { return u.live; });
       var future = upcoming.filter(function (u) { return !u.live; });
-      var hero = future[0];
+
+      /* The headline is the one worth opening the app for, not merely the
+         soonest. In order: something happening now, something you have a call
+         riding on, something with a storyline, then whatever is closest. */
+      var hero = null, heroScore = -1;
+      future.concat(live).forEach(function (u) {
+        var score = 0;
+        if (u.live) score += 1000;
+        if (u.id && pickOf(u.sport, u.id)) score += 500;
+        score += (u.story && u.story.weight) || 0;
+        var hours = (u.when - Date.now()) / 3600000;
+        score += Math.max(0, 120 - hours);       // sooner is better
+        if (score > heroScore) { heroScore = score; hero = u; }
+      });
       var html = '';
 
       if (hero) {
-        html += '<div class="hero" style="--tint:' + SPORT_TINT[hero.sport] + '">' +
+        var reason = '';
+        var mine = hero.id ? pickOf(hero.sport, hero.id) : null;
+        if (hero.live) reason = '正在进行';
+        else if (mine) {
+          reason = '你押了' + (mine.side === 'draw' ? '平局'
+            : (mine.side === 'home' ? mine.home : mine.away) || '这场');
+        } else if (hero.story && hero.story.line) reason = hero.story.line;
+
+        html += '<div class="hero' + (hero.live ? ' is-live' : '') +
+          '" style="--tint:' + SPORT_TINT[hero.sport] + '">' +
           '<span class="hero-badge">' + esc(SPORT_LABEL[hero.sport] || '') +
           (hero.tag && hero.tag !== SPORT_LABEL[hero.sport] ? ' · ' + esc(hero.tag) : '') + '</span>' +
           '<div class="hero-title">' + hero.title + '</div>' +
+          (reason ? '<div class="hero-why">' + esc(reason) + '</div>' : '') +
           '<div class="hero-sub">' + (hero.sub ? esc(hero.sub) + ' · ' : '') +
           esc(fmtDay(hero.when) + ' ' + fmtTime(hero.when)) + '</div>' +
-          '<div class="hero-count" id="heroCount">' + esc(countdown(hero.when)) + '</div>' +
+          '<div class="hero-count" id="heroCount">' +
+          esc(hero.live ? '正在进行' : countdown(hero.when)) + '</div>' +
           '</div>';
       }
 
-      if (live.length) {
+      // the headline is no longer always the first row, so drop it by identity
+      var notHero = function (u) { return u !== hero; };
+      var liveRest = live.filter(notHero), futureRest = future.filter(notHero);
+
+      if (liveRest.length) {
         html += '<div class="group-name"><span class="dot"></span>正在进行</div><div class="card">' +
-          live.map(rowUpcoming).join('') + '</div>';
+          liveRest.map(rowUpcoming).join('') + '</div>';
       }
-      if (future.length > (hero ? 1 : 0)) {
+      if (futureRest.length) {
         html += '<div class="group-name">接下来</div><div class="card">' +
-          future.slice(hero ? 1 : 0, 12).map(rowUpcoming).join('') + '</div>';
+          futureRest.slice(0, 12).map(rowUpcoming).join('') + '</div>';
       } else if (!live.length && !hero) {
         html += '<div class="group-name">接下来</div><div class="card">' +
           '<div class="fix"><span>关注的队伍和选手都还没有排赛</span></div></div>';
@@ -4349,12 +4391,37 @@
             : '') + '</div>';
       }
       if (recent.length) {
+        /* One line of aftermath, on the result that earned it — a call you got
+           right, or a scoreline that was not close. Same rule as the fixture
+           storylines: at most one, or it stops being worth reading. */
+        var shownRecent = recent.slice(0, 12);
+        var topResult = null, topWeight = 0;
+        shownRecent.forEach(function (r) {
+          var weight = 0, note = '';
+          var call = r.id ? pickOf(r.sport, r.id) : null;
+          if (call && call.result) {
+            weight = 90;
+            note = call.hit ? '这场你押对了' : '这场你押错了';
+          }
+          var nums = String(r.score || '').match(/^(\d+)-(\d+)$/);
+          if (nums) {
+            var diff = Math.abs(Number(nums[1]) - Number(nums[2]));
+            if (diff >= 4 && diff * 10 > weight) {
+              weight = diff * 10;
+              note = (r.mark === 'W' ? '赢了 ' : '输了 ') + diff + ' 个球';
+            }
+          }
+          if (weight > topWeight) { topWeight = weight; topResult = { row: r, note: note }; }
+        });
+
         html += '<div class="group-name">最近</div><div class="card">' +
-          recent.slice(0, 12).map(function (r) {
+          shownRecent.map(function (r) {
+            var line = (topResult && topResult.row === r) ? topResult.note : '';
             return '<div class="fix"><span class="rail" style="background:' + SPORT_TINT[r.sport] + '"></span>' +
               '<span class="when">' + (r.when ? esc(fmtDay(r.when)) : esc(SPORT_LABEL[r.sport])) + '</span>' +
               '<span class="vs">' + r.title + '</span>' +
-              '<span class="res ' + (r.mark || '') + '">' + r.score + ' ' + esc(r.word) + '</span></div>';
+              '<span class="res ' + (r.mark || '') + '">' + r.score + ' ' + esc(r.word) + '</span></div>' +
+              (line ? '<div class="after-line">' + esc(line) + '</div>' : '');
           }).join('') + '</div>';
       }
       html += recordCardHTML();
@@ -4577,11 +4644,22 @@
           var an = nbaCN(away.team && away.team.displayName);
           var hDim = st.state === 'post' && away.winner ? ' dim' : '';
           var aDim = st.state === 'post' && home.winner ? ' dim' : '';
+          if (st.state === 'post') {
+            settlePick('basketball', it.ev.id, home.winner ? 'home' : 'away',
+              esc(home.score) + '-' + esc(away.score));
+          }
+          var myNba = pickOf('basketball', it.ev.id);
+          // basketball cannot be drawn, so the call is a straight two-way
+          var nbaPick = (st.state === 'pre' || (myNba && myNba.result))
+            ? pickBarHTML('basketball', it.ev.id, 'two', { home: hn, away: an }) : '';
+
           return '<button class="match' + cls + '" type="button" data-nba="' + esc(it.ev.id) + '">' +
             '<span class="side home"><span class="nm' + hDim + '">' + esc(hn) + '</span>' + crest(home.team) + '</span>' +
             '<span class="mid">' + mid + label + '</span>' +
             '<span class="side away">' + crest(away.team) + '<span class="nm' + aDim + '">' + esc(an) + '</span></span>' +
-          '</button>';
+          '</button>' +
+          (nbaPick ? '<div class="match-note" data-home="' + esc(hn) + '" data-away="' + esc(an) +
+            '" data-when="' + esc(it.ev.date || '') + '">' + nbaPick + '</div>' : '');
         }).join('');
         return '<div class="day"><div class="day-head"><span class="d">' + esc(g.label) + '</span>' +
           (g.key === todayKey ? '<span class="today">今天</span>' : '') +
@@ -5437,13 +5515,25 @@
               mid = '<div class="kick">' + fmtTime(it.d) + '</div>';
               label = '<div class="state">' + bo + '</div>';
             }
+            if (it.e.state === 'completed') {
+              var aWon = (a.result || {}).outcome === 'win';
+              settlePick('esports', m.id, aWon ? 'home' : 'away',
+                ((a.result || {}).gameWins || 0) + '-' + ((b.result || {}).gameWins || 0));
+            }
+            var myLol = pickOf('esports', m.id);
+            var lolPick = (it.e.state === 'unstarted' || (myLol && myLol.result))
+              ? pickBarHTML('esports', m.id, 'two', { home: a.code || '左', away: b.code || '右' }) : '';
+
             return '<button class="match' + (it.e.state === 'inProgress' ? ' live' : '') +
               '" type="button" data-lolm="' + esc(m.id) + '" data-when="' + esc(it.e.startTime) +
               '" data-a="' + esc(a.code || '') + '" data-b="' + esc(b.code || '') + '">' +
               '<span class="side home">' + lolTeamCell(a, false) + '</span>' +
               '<span class="mid">' + mid + label + '</span>' +
               '<span class="side away">' + lolTeamCell(b, true) + '</span>' +
-            '</button>';
+            '</button>' +
+            (lolPick ? '<div class="match-note" data-home="' + esc(a.code || '') +
+              '" data-away="' + esc(b.code || '') + '" data-when="' + esc(it.e.startTime) + '">' +
+              lolPick + '</div>' : '');
           }).join('');
           return '<div class="day"><div class="day-head"><span class="d">' + esc(g.label) + '</span>' +
             (g.key === todayKey ? '<span class="today">今天</span>' : '') +

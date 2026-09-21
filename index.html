@@ -288,6 +288,9 @@
     align-items: center;
     gap: 6px;
   }
+  /* cleared on every tab switch, so a panel that sets no status takes no room
+     rather than showing the last panel's line */
+  .status-line:empty { display: none; }
   .dot {
     width: 7px; height: 7px; border-radius: 50%;
     background: var(--live);
@@ -1093,6 +1096,26 @@
     .match { grid-template-columns: 1fr 66px 1fr; padding: 10px 9px; gap: 5px; }
     .nm { font-size: 13px; }
     h1 { font-size: 22px; }
+
+    /* On a phone the sport row, the league chips, a second chip row and the
+       tabs could stack into half the screen before a single fixture showed.
+       The title says what the chips already say, so it goes; everything else
+       loses a few pixels, and only the nav stays once you scroll. */
+    header { padding-block: 12px 0; }
+    .head-row .eyebrow { display: none; }
+    .stickybar { padding-top: 8px; }
+    .sportnav { margin-top: 10px; }
+    .sportnav button { padding: 5px 12px; font-size: 12.5px; }
+    .chips { margin-top: 8px; }
+    .chips .chip { padding: 4px 10px; font-size: 12px; }
+    .seg { margin-top: 4px; }
+    .seg button { padding: 8px 0 9px; font-size: 13px; }
+    .status-line { margin: 9px 0 2px; font-size: 11.5px; }
+    /* scrolled: the chip rows fold away and only the sport row and tabs stay */
+    .stickybar.stuck { padding-top: 4px; }
+    .stickybar.stuck .chips { display: none; }
+    .stickybar.stuck .sportnav { margin-top: 0; }
+    .stickybar.stuck .seg button { padding: 6px 0 7px; }
   }
 </style>
 
@@ -1107,7 +1130,7 @@
       </div>
       <div class="head-actions">
         <button class="icon-btn" id="refreshBtn" type="button" title="刷新"><span class="spin">↻</span></button>
-        <button class="icon-btn" id="gearBtn" type="button">\u4e3b\u961f</button>
+        <button class="icon-btn" id="gearBtn" type="button">主队</button>
       </div>
     </div>
   </header>
@@ -1258,7 +1281,11 @@
     });
   }
   var WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  function fmtDay(d) { return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WD[d.getDay()]; }
+  // a fight from last December reads as this coming December without the year
+  function fmtDay(d) {
+    var year = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '年' : '';
+    return year + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WD[d.getDay()];
+  }
   function fmtTime(d) {
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
@@ -1343,7 +1370,7 @@
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
     $('subtitle').textContent = '实时赛事板 · ' + s.sub;
     $('gearBtn').textContent = id === 'f1' ? '车手' : (id === 'esports' ? '战队'
-      : (id === 'fight' ? '选手' : '主队'));
+      : (id === 'fight' ? (fightLeague === 'boxing' ? '拳手' : '选手') : '主队'));
 
     var ready = !!s.ready;
     var isToday = id === 'today';
@@ -1357,8 +1384,7 @@
     $('panel-today').hidden = !isToday;
     $('gearBtn').hidden = !ready || isToday ||
       (id === 'basketball' && bballLeague !== 'nba') ||
-      (id === 'esports' && esportsGame !== 'lol') ||
-      (id === 'fight' && fightLeague !== 'ufc');
+      (id === 'esports' && esportsGame !== 'lol');
     $('refreshBtn').hidden = !ready;
 
     if (isToday) {
@@ -1392,13 +1418,14 @@
     basketball: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的球队']],
     esports: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的战队']],
     fight: [['fixtures', '赛历'], ['table', '排名'], ['mine', '我的选手']],
+    boxing: [['fixtures', '赛程'], ['mine', '我的拳手']],
     esports_other: [['fixtures', '赛程']],
     single: [['fixtures', '赛程']]
   };
   function renderSegTabs() {
     var defs = (sport === 'esports' && esportsGame !== 'lol') ? TABS.esports_other
       : (sport === 'basketball' && bballLeague !== 'nba') ? TABS.single
-      : (sport === 'fight' && fightLeague !== 'ufc') ? TABS.single
+      : (sport === 'fight' && fightLeague !== 'ufc') ? TABS.boxing
       : (TABS[sport] || TABS.football);
     document.querySelector('.seg').innerHTML = defs.map(function (t) {
       return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' +
@@ -1418,6 +1445,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (b) {
       b.setAttribute('aria-selected', String(b.dataset.tab === next));
     });
+    $('status').textContent = '';
     $('panel-fixtures').hidden = next !== 'fixtures';
     $('panel-table').hidden = next !== 'table';
     $('panel-mine').hidden = next !== 'mine';
@@ -1440,8 +1468,14 @@
     if (sport === 'fight') {
       renderFightChips();
       if (fightLeague === 'boxing') {
-        renderBoxing();
-        $('panel-table').hidden = true; $('panel-mine').hidden = true; $('panel-fixtures').hidden = false;
+        $('panel-table').hidden = true;
+        if (next === 'mine') {
+          $('panel-fixtures').hidden = true; $('panel-mine').hidden = false;
+          renderMyBoxers();
+        } else {
+          $('panel-mine').hidden = true; $('panel-fixtures').hidden = false;
+          renderBoxing();
+        }
         return;
       }
       if (next === 'fixtures') renderUfcFixtures();
@@ -3290,6 +3324,19 @@
     return t >= now - hoursBack * 3600000 && t <= now + hoursAhead * 3600000;
   }
 
+  /* This page answers "what is next for the people I follow", and a one-week
+     window cannot answer that: a UFC champion fights twice a year and an
+     esports team sits out the gap between splits, so a week of lookahead left
+     the page empty for anyone who followed them. Look most of a season ahead
+     and keep only each follow's next couple of fixtures, so one club with a
+     busy calendar can't crowd everyone else out of the list. */
+  var AHEAD_H = 24 * 75;
+  var BACK_H = 24 * 10;
+  var PER_FOLLOW = 2;
+  function soonest(list, n) {
+    return list.sort(function (a, b) { return a.when - b.when; }).slice(0, n || PER_FOLLOW);
+  }
+
   var SPORT_TINT = {
     football: 'var(--accent)', basketball: '#E07A3C', f1: '#D6453F',
     esports: '#6B5BD6', fight: '#A8452F'
@@ -3332,46 +3379,56 @@
       }));
     }
     if (favLol.length) {
+      // every league, not just the one the board happens to be showing — a
+      // followed LCK team is invisible while the chip row sits on LPL
       jobs.push(lolLeagues().then(function (ls) {
-        var lg = lolCurrentLeague(ls);
-        return lolGet('getSchedule?hl=zh-CN&leagueId=' + lg.id).then(function (d) {
-          return { kind: 'lol', sched: d };
-        });
+        return Promise.all(ls.map(function (l) {
+          return lolGet('getSchedule?hl=zh-CN&leagueId=' + l.id);
+        })).then(function (all) { return { kind: 'lol', scheds: all }; });
       }));
     }
     if (favFighters.length) {
-      jobs.push(ufcCardsForFighters(favFighters.map(function (f) { return f.id; }), 14).then(function (chunks) {
+      jobs.push(ufcCardsForFighters(favFighters.map(function (f) { return f.id; })).then(function (chunks) {
         return { kind: 'fight', chunks: chunks };
+      }));
+    }
+    if (favBoxers.length) {
+      jobs.push(archiveGet('boxing.json').then(function (d) {
+        return { kind: 'boxing', data: d || {} };
       }));
     }
 
     if (!jobs.length) {
       host.innerHTML = '<div class="empty">还没有关注任何队伍。<br><br>' +
         '到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，' +
-        '到「格斗」点「选手」，选完之后这一页会把他们的下一场比赛汇总在一起。</div>';
+        '到「格斗」点「选手」或「拳手」，选完之后这一页会把他们的下一场比赛汇总在一起。</div>';
       return;
     }
 
     Promise.all(jobs).then(function (results) {
-      var upcoming = [], recent = [];
+      // a follow with nothing on the calendar is still worth saying out loud,
+      // otherwise the page reads as broken rather than quiet
+      var upcoming = [], recent = [], idle = [];
 
       results.forEach(function (res) {
         if (res.kind === 'team') {
           var f = res.fav;
           var lgName = (LEAGUES.filter(function (l) { return l.id === f.league; })[0] || {}).name || '';
+          var mine = [];
           ((res.future && res.future.events) || []).forEach(function (e) {
-            if (!within(e.date, 3, 24 * 7)) return;
+            if (!within(e.date, 3, AHEAD_H)) return;
             var sd = sideOf(e, f.id);
             var st = (sd.comp.status && sd.comp.status.type) || {};
-            upcoming.push({
+            mine.push({
               when: new Date(e.date), sport: 'football', tag: lgName, live: st.state === 'in',
               title: esc(f.name) + ' <span class="vs-mid">vs</span> ' +
                 esc(cn(sd.opp.team && sd.opp.team.displayName, sd.opp.team && sd.opp.team.shortDisplayName)),
               sub: (sd.me.homeAway === 'home' ? '主场' : '客场')
             });
           });
+          soonest(mine).forEach(function (u) { upcoming.push(u); });
           var done = ((res.past && res.past.events) || []).filter(function (e) {
-            return within(e.date, 24 * 7, 3);
+            return within(e.date, BACK_H, 3);
           }).sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
           if (done) {
             var s2 = sideOf(done, f.id);
@@ -3389,20 +3446,21 @@
         if (res.kind === 'nba') {
           var f2 = res.fav;
           var evs2 = ((res.sched && res.sched.events) || []);
+          var mineNba = [];
           evs2.forEach(function (e) {
             var c = (e.competitions || [])[0] || {};
             var st = (c.status && c.status.type) || {};
             var cs = c.competitors || [];
             var me = cs.filter(function (x) { return String(x.team && x.team.id) === String(f2.id); })[0] || cs[0] || {};
             var opp = cs.filter(function (x) { return x !== me; })[0] || {};
-            if (!st.completed && within(e.date, 3, 24 * 7)) {
-              upcoming.push({
+            if (!st.completed && within(e.date, 3, AHEAD_H)) {
+              mineNba.push({
                 when: new Date(e.date), sport: 'basketball', tag: 'NBA', live: st.state === 'in',
                 title: esc(f2.name) + ' <span class="vs-mid">vs</span> ' +
                   esc(nbaCN(opp.team && opp.team.displayName)),
                 sub: me.homeAway === 'home' ? '主场' : '客场'
               });
-            } else if (st.completed && within(e.date, 24 * 7, 3)) {
+            } else if (st.completed && within(e.date, BACK_H, 3)) {
               var mk = me.winner === true ? 'W' : 'L';
               recent.push({
                 when: new Date(e.date), sport: 'basketball', mark: mk,
@@ -3413,6 +3471,7 @@
               });
             }
           });
+          soonest(mineNba).forEach(function (u) { upcoming.push(u); });
         }
 
         if (res.kind === 'f1') {
@@ -3429,7 +3488,7 @@
             (nextEv.competitions || []).forEach(function (c) {
               var type = (c.type && (c.type.text || c.type.abbreviation)) || '';
               if (type !== 'Race' && type !== 'Qual' && type !== 'Sprint') return;
-              if (!within(c.date, 3, 24 * 10)) return;
+              if (!within(c.date, 3, AHEAD_H)) return;
               upcoming.push({
                 when: new Date(c.date), sport: 'f1', tag: 'F1',
                 title: esc(gpName(nextEv.name)), sub: SESSION_CN[type] || type
@@ -3458,39 +3517,48 @@
 
         if (res.kind === 'lol') {
           var codes = favLol.map(function (f) { return f.code; });
-          ((((res.sched && res.sched.data) || {}).schedule || {}).events || []).forEach(function (e) {
-            if (e.type !== 'match' || !e.match) return;
-            var ts = e.match.teams || [];
-            if (!ts.some(function (t) { return codes.indexOf(t.code) !== -1; })) return;
-            var me = ts.filter(function (t) { return codes.indexOf(t.code) !== -1; })[0];
-            var opp = ts.filter(function (t) { return t !== me; })[0] || {};
-            var title = esc(me.code) + ' <span class="vs-mid">vs</span> ' + esc(opp.code || '');
-            if (e.state === 'completed' && within(e.startTime, 24 * 7, 3)) {
-              var won = (me.result || {}).outcome === 'win';
-              recent.push({
-                when: new Date(e.startTime), sport: 'esports', mark: won ? 'W' : 'L', title: title,
-                score: esc((me.result || {}).gameWins) + '-' + esc((opp.result || {}).gameWins),
-                word: won ? '胜' : '负'
-              });
-            } else if (e.state !== 'completed' && within(e.startTime, 3, 24 * 7)) {
-              upcoming.push({
-                when: new Date(e.startTime), sport: 'esports',
-                tag: (e.league && e.league.name) || 'LOL', live: e.state === 'inProgress',
-                title: title,
-                sub: e.match.strategy ? 'BO' + e.match.strategy.count : ''
-              });
-            }
+          var byTeam = {};
+          codes.forEach(function (c) { byTeam[c] = []; });
+          (res.scheds || []).forEach(function (sched) {
+            ((((sched && sched.data) || {}).schedule || {}).events || []).forEach(function (e) {
+              if (e.type !== 'match' || !e.match) return;
+              var ts = e.match.teams || [];
+              var me = ts.filter(function (t) { return codes.indexOf(t.code) !== -1; })[0];
+              if (!me) return;
+              var opp = ts.filter(function (t) { return t !== me; })[0] || {};
+              var title = esc(me.code) + ' <span class="vs-mid">vs</span> ' + esc(opp.code || '');
+              if (e.state === 'completed' && within(e.startTime, BACK_H, 3)) {
+                var won = (me.result || {}).outcome === 'win';
+                recent.push({
+                  when: new Date(e.startTime), sport: 'esports', mark: won ? 'W' : 'L', title: title,
+                  score: esc((me.result || {}).gameWins) + '-' + esc((opp.result || {}).gameWins),
+                  word: won ? '胜' : '负'
+                });
+              } else if (e.state !== 'completed' && within(e.startTime, 3, AHEAD_H)) {
+                byTeam[me.code].push({
+                  when: new Date(e.startTime), sport: 'esports',
+                  tag: (e.league && e.league.name) || 'LOL', live: e.state === 'inProgress',
+                  title: title,
+                  sub: e.match.strategy ? 'BO' + e.match.strategy.count : ''
+                });
+              }
+            });
+          });
+          codes.forEach(function (c) {
+            soonest(byTeam[c]).forEach(function (u) { upcoming.push(u); });
+            if (!byTeam[c].length) idle.push({ sport: 'esports', name: c });
           });
         }
 
         if (res.kind === 'fight') {
           favFighters.forEach(function (f) {
+            var booked = [];
             boutsOfFighter(res.chunks, f.id).forEach(function (x) {
               var st = (x.comp.status || {}).type || {};
               var oppName = (x.opp.athlete && x.opp.athlete.displayName) || '';
               var title = esc(f.name) + ' <span class="vs-mid">vs</span> ' + esc(oppName);
               var card = String(x.ev.shortName || x.ev.name || '').split(':')[0];
-              if (st.state === 'post' && within(x.comp.date, 24 * 10, 3)) {
+              if (st.state === 'post' && within(x.comp.date, BACK_H, 3)) {
                 var won = x.me.winner === true, lost = x.opp.winner === true;
                 var m = methodOf(x.comp);
                 recent.push({
@@ -3499,14 +3567,44 @@
                   score: won ? '胜' : (lost ? '负' : '平'),
                   word: m || ''
                 });
-              } else if (st.state !== 'post' && within(x.comp.date, 3, 24 * 14)) {
-                upcoming.push({
+              } else if (st.state !== 'post' && within(x.comp.date, 3, AHEAD_H)) {
+                booked.push({
                   when: new Date(x.comp.date), sport: 'fight', tag: card,
                   live: st.state === 'in', title: title,
                   sub: weightCN(x.comp.type && x.comp.type.abbreviation)
                 });
               }
             });
+            soonest(booked, 1).forEach(function (u) { upcoming.push(u); });
+            if (!booked.length) idle.push({ sport: 'fight', name: f.name });
+          });
+        }
+
+        if (res.kind === 'boxing') {
+          favBoxers.forEach(function (f) {
+            var list = boutsOfBoxer(res.data, boxerKey(f.name));
+            var booked = [];
+            list.forEach(function (x) {
+              var opp = x.side === 'a' ? x.bout.b : x.bout.a;
+              var title = esc(f.name) + ' <span class="vs-mid">vs</span> ' +
+                esc((opp && opp.name) || 'TBD');
+              if (x.done && within(x.bout.start, BACK_H, 24)) {
+                var won = x.bout.winner === x.side;
+                var lost = x.bout.winner && x.bout.winner !== x.side;
+                recent.push({
+                  when: new Date(x.bout.start), sport: 'fight',
+                  mark: won ? 'W' : (lost ? 'L' : 'D'), title: title,
+                  score: won ? '胜' : (lost ? '负' : '平'), word: x.bout.method || ''
+                });
+              } else if (!x.done && within(x.bout.start, 24, AHEAD_H)) {
+                booked.push({
+                  when: new Date(x.bout.start), sport: 'fight',
+                  tag: '拳击', title: title, sub: x.bout.weight || ''
+                });
+              }
+            });
+            soonest(booked, 1).forEach(function (u) { upcoming.push(u); });
+            if (!booked.length) idle.push({ sport: 'fight', name: f.name });
           });
         }
       });
@@ -3539,7 +3637,20 @@
           future.slice(hero ? 1 : 0, 12).map(rowUpcoming).join('') + '</div>';
       } else if (!live.length && !hero) {
         html += '<div class="group-name">接下来</div><div class="card">' +
-          '<div class="fix"><span>未来一周没有安排</span></div></div>';
+          '<div class="fix"><span>关注的队伍和选手都还没有排赛</span></div></div>';
+      }
+      if (idle.length) {
+        var shown = idle.slice(0, 6);
+        html += '<div class="card" style="margin-top:10px">' + shown.map(function (x) {
+          return '<div class="fix"><span class="rail" style="background:' +
+            (SPORT_TINT[x.sport] || 'var(--muted)') + '"></span>' +
+            '<span class="vs">' + esc(x.name) + '</span>' +
+            '<span class="res" style="font-weight:500;color:var(--muted)">下一场还没公布</span></div>';
+        }).join('') +
+          (idle.length > shown.length
+            ? '<div class="fix"><span class="vs" style="color:var(--muted)">另有 ' +
+              (idle.length - shown.length) + ' 个也还没有排赛</span></div>'
+            : '') + '</div>';
       }
       if (recent.length) {
         html += '<div class="group-name">最近</div><div class="card">' +
@@ -5308,6 +5419,122 @@
     });
   }
 
+  /* ---------- 关注的拳手 ----------
+     Boxing has no governing-body id the way UFC fighters have an ESPN one, so
+     a follow is keyed on the name as the source writes it. */
+  var favBoxers = lsGet('favBoxers', []);
+  var MAX_BOXERS = 5;
+  function boxerKey(name) {
+    return plain(String(name || '')).replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+  }
+  function boxersInData(d) {
+    var seen = {}, list = [];
+    [].concat(d.upcoming || [], d.recent || []).forEach(function (b) {
+      [b.a, b.b].forEach(function (x) {
+        var k = boxerKey(x && x.name);
+        if (!k || seen[k]) return;
+        seen[k] = 1;
+        list.push({ name: x.name, record: x.record || '', flag: x.flag || '' });
+      });
+    });
+    return list.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+  function boutsOfBoxer(d, key) {
+    var out = [];
+    ['upcoming', 'recent'].forEach(function (bucket) {
+      (d[bucket] || []).forEach(function (b) {
+        var side = boxerKey(b.a && b.a.name) === key ? 'a'
+          : boxerKey(b.b && b.b.name) === key ? 'b' : '';
+        if (side) out.push({ bout: b, side: side, done: bucket === 'recent' });
+      });
+    });
+    return out;
+  }
+
+  function renderMyBoxers() {
+    var host = $('panel-mine');
+    if (!favBoxers.length) {
+      host.innerHTML = '<div class="empty">还没有关注拳手。<br>点右上角的「拳手」挑最多 ' +
+        MAX_BOXERS + ' 位，这里会显示他们的下一场和最近一战。</div>';
+      return;
+    }
+    host.innerHTML = '<div class="skeleton">正在读取…</div>';
+    archiveGet('boxing.json').then(function (d) {
+      if (!d) { host.innerHTML = archiveEmpty('拳击'); return; }
+      host.innerHTML = favBoxers.map(function (f) {
+        var key = boxerKey(f.name);
+        var list = boutsOfBoxer(d, key);
+        var next = list.filter(function (x) { return !x.done; })
+          .sort(function (a, b) { return new Date(a.bout.start) - new Date(b.bout.start); });
+        var past = list.filter(function (x) { return x.done; })
+          .sort(function (a, b) { return new Date(b.bout.start) - new Date(a.bout.start); });
+
+        var rows = '';
+        next.slice(0, 2).forEach(function (x) {
+          var opp = x.side === 'a' ? x.bout.b : x.bout.a;
+          var d0 = new Date(x.bout.start || '');
+          rows += '<div class="fix"><span class="when">' +
+            esc(isNaN(d0) ? '待定' : fmtDay(d0)) + '</span>' +
+            '<span class="vs">vs ' + esc((opp && opp.name) || 'TBD') +
+            (x.bout.weight ? ' · ' + esc(x.bout.weight) : '') + '</span>' +
+            '<span class="res" style="color:var(--muted);font-weight:600">' +
+            esc(x.bout.rounds ? x.bout.rounds + ' 回合' : '待定') + '</span></div>';
+        });
+        var last = past[0];
+        if (last) {
+          var opp2 = last.side === 'a' ? last.bout.b : last.bout.a;
+          var won = last.bout.winner === last.side;
+          var lost = last.bout.winner && last.bout.winner !== last.side;
+          var mark = won ? 'W' : (lost ? 'L' : 'D');
+          var d1 = new Date(last.bout.start || '');
+          rows += '<div class="fix"><span class="when">' +
+            esc(isNaN(d1) ? '' : fmtDay(d1)) + '</span>' +
+            '<span class="vs">vs ' + esc((opp2 && opp2.name) || '') + '</span>' +
+            '<span class="res ' + mark + '">' + (won ? '胜' : lost ? '负' : '平') +
+            (last.bout.method ? ' · ' + esc(last.bout.method) : '') +
+            (last.bout.round ? ' R' + esc(last.bout.round) : '') + '</span></div>';
+        }
+        if (!rows) rows = '<div class="fix"><span>近期没有查到比赛</span></div>';
+
+        var me = (last && (last.side === 'a' ? last.bout.a : last.bout.b)) || f;
+        return '<div class="card team-card"><div class="tc-head">' +
+          (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) +
+            '" alt="" style="width:26px;height:18px">' : '') +
+          '<span class="nm">' + esc(f.name) + '</span>' +
+          '<span class="lg">' + esc(me.record || f.record || '') + '</span></div>' + rows + '</div>';
+      }).join('') + archiveFoot(d);
+    });
+  }
+
+  function renderBoxerPicker() {
+    var host = $('picker');
+    $('pickHint').textContent = '勾选你关注的拳手，最多 ' + MAX_BOXERS +
+      ' 位。名单来自已经抓到的赛事。';
+    host.innerHTML = '<div class="skeleton">正在载入拳手…</div>';
+    archiveGet('boxing.json').then(function (d) {
+      var list = d ? boxersInData(d) : [];
+      if (!list.length) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
+      var picked = favBoxers.map(function (f) { return boxerKey(f.name); });
+      host.innerHTML = list.map(function (f) {
+        return '<label><input type="checkbox" value="' + esc(f.name) + '" data-rec="' +
+          esc(f.record) + '" data-flag="' + esc(f.flag) + '"' +
+          (picked.indexOf(boxerKey(f.name)) !== -1 ? ' checked' : '') + '>' +
+          (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="">' : '') +
+          esc(f.name) + '<span class="pk-team">' + esc(f.record) + '</span></label>';
+      }).join('');
+      $('pickCount').textContent = '已选 ' + favBoxers.length + ' / ' + MAX_BOXERS;
+    });
+  }
+  function saveFavBoxers() {
+    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, MAX_BOXERS);
+    favBoxers = checked.map(function (c) {
+      return { name: c.value, record: c.dataset.rec, flag: c.dataset.flag };
+    });
+    lsSet('favBoxers', favBoxers);
+    $('settings').hidden = true;
+    setTab('mine');
+  }
+
   /* ---------- picker ---------- */
   function renderPicker() {
     var host = $('picker');
@@ -5383,8 +5610,8 @@
     if (b.dataset.fight) {
       fightLeague = b.dataset.fight;
       lsSet('fleague', fightLeague);
-      if (fightLeague !== 'ufc') tab = 'fixtures';
-      $('gearBtn').hidden = fightLeague !== 'ufc';
+      if (fightLeague !== 'ufc' && tab === 'table') tab = 'fixtures';
+      $('gearBtn').textContent = fightLeague === 'boxing' ? '拳手' : '选手';
       renderSegTabs();
       setTab(tab);
       return;
@@ -5509,7 +5736,9 @@
       if (sport === 'f1') renderDriverPicker();
       else if (sport === 'esports') renderLolPicker();
       else if (sport === 'basketball') renderNbaPicker();
-      else if (sport === 'fight') renderFighterPicker();
+      else if (sport === 'fight') {
+        if (fightLeague === 'boxing') renderBoxerPicker(); else renderFighterPicker();
+      }
       else renderPicker();
     }
   });
@@ -5550,12 +5779,14 @@
       return;
     }
     if (sport === 'fight') {
-      if (document.querySelectorAll('#picker input:checked').length > MAX_FIGHTERS) {
+      var cap = fightLeague === 'boxing' ? MAX_BOXERS : MAX_FIGHTERS;
+      var who = fightLeague === 'boxing' ? '位拳手' : '位选手';
+      if (document.querySelectorAll('#picker input:checked').length > cap) {
         e.target.checked = false;
-        alert('最多只能选 ' + MAX_FIGHTERS + ' 位选手。');
+        alert('最多只能选 ' + cap + ' ' + who + '。');
       }
       $('pickCount').textContent = '已选 ' +
-        document.querySelectorAll('#picker input:checked').length + ' / ' + MAX_FIGHTERS;
+        document.querySelectorAll('#picker input:checked').length + ' / ' + cap;
       return;
     }
     var others = favorites.filter(function (f) { return f.league !== league; }).length;
@@ -5570,7 +5801,10 @@
     if (sport === 'f1') { saveFavDrivers(); return; }
     if (sport === 'basketball') { saveFavNba(); return; }
     if (sport === 'esports') { saveFavLol(); return; }
-    if (sport === 'fight') { saveFavFighters(); return; }
+    if (sport === 'fight') {
+      if (fightLeague === 'boxing') saveFavBoxers(); else saveFavFighters();
+      return;
+    }
     var kept = favorites.filter(function (f) { return f.league !== league; });
     var picked = currentPicked().map(function (c) {
       return { id: c.value, name: c.dataset.name, raw: c.dataset.raw, league: league };

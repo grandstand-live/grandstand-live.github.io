@@ -114,6 +114,46 @@
   /* ---- header ---- */
   header {
     padding-block: 18px 0;
+    position: relative;
+  }
+  /* Each sport signs the masthead with something from its own surface: pitch
+     stripes, a hardwood grain, a start-line chequer, canvas weave, a pixel
+     grid. Kept under 10% opacity — it should register as texture, not decor. */
+  header::before {
+    content: '';
+    position: absolute;
+    inset: -4px -16px -2px;
+    pointer-events: none;
+    z-index: -1;
+    opacity: .5;
+    -webkit-mask-image: linear-gradient(100deg, #000 0 42%, transparent 78%);
+    mask-image: linear-gradient(100deg, #000 0 42%, transparent 78%);
+  }
+  [data-sport="football"] header::before,
+  [data-sport="today"] header::before {
+    background: repeating-linear-gradient(90deg,
+      color-mix(in srgb, var(--accent) 9%, transparent) 0 22px,
+      transparent 22px 44px);
+  }
+  [data-sport="basketball"] header::before {
+    background: repeating-linear-gradient(90deg,
+      color-mix(in srgb, var(--accent) 11%, transparent) 0 1px,
+      transparent 1px 9px);
+  }
+  [data-sport="f1"] header::before {
+    background:
+      repeating-conic-gradient(color-mix(in srgb, var(--accent) 13%, transparent) 0 25%,
+        transparent 0 50%) 0 0 / 14px 14px;
+  }
+  [data-sport="fight"] header::before {
+    background: repeating-linear-gradient(45deg,
+      color-mix(in srgb, var(--accent) 8%, transparent) 0 2px,
+      transparent 2px 7px);
+  }
+  [data-sport="esports"] header::before {
+    background:
+      radial-gradient(color-mix(in srgb, var(--accent) 26%, transparent) 1.1px, transparent 1.2px)
+      0 0 / 11px 11px;
   }
   /* Only the navigation follows you down the page, and it slims down once it
      detaches from the title so it stops feeling like a wall on top of the list. */
@@ -155,6 +195,14 @@
     text-wrap: balance;
   }
   .head-row .eyebrow { margin-top: 4px; }
+  .sport-mark {
+    color: var(--accent); font-size: 13px; margin-right: 6px;
+    display: inline-block; vertical-align: -1px; letter-spacing: 0;
+  }
+  /* the active sport gets the accent, not just a lighter chip */
+  .sportnav button[aria-pressed="true"] {
+    box-shadow: var(--shadow), inset 0 -2px 0 var(--accent);
+  }
   .sportnav {
     display: flex;
     gap: 2px;
@@ -1533,9 +1581,13 @@
     esports:    { l: ['#5B4BC4', '#E5E2FA', '#362B80'], d: ['#9B8BEE', '#241E4A', '#CFC6FF'] }
   };
   var darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  var SPORT_MARK = {
+    today: '◎', football: '⬡', basketball: '◍', f1: '⚑', fight: '✦', esports: '◆'
+  };
   function applySkin(id) {
     var skin = SPORT_SKIN[id] || SPORT_SKIN.football;
     var set = skin[darkQuery && darkQuery.matches ? 'd' : 'l'];
+    document.documentElement.setAttribute('data-sport', id);
     var s = document.documentElement.style;
     s.setProperty('--accent', set[0]);
     s.setProperty('--accent-soft', set[1]);
@@ -1554,7 +1606,8 @@
     viewSeq++;   // the Today branch below never reaches setTab
     renderSportNav();
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
-    $('subtitle').textContent = '实时赛事板 · ' + s.sub;
+    $('subtitle').innerHTML = '<span class="sport-mark">' + (SPORT_MARK[id] || '◎') +
+      '</span>' + esc(s.sub);
     $('gearBtn').textContent = id === 'f1' ? '车手' : (id === 'esports' ? '战队'
       : (id === 'fight' ? (fightLeague === 'boxing' ? '拳手' : '选手') : '主队'));
 
@@ -6813,9 +6866,22 @@
     onScroll();
   })();
 
+  /* An installed app was opening on whatever it had cached, so a shipped
+     update could stay invisible on a phone. Check for a new worker on every
+     launch, and reload once when one takes over. */
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').catch(function () {});
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        reg.update().catch(function () {});
+        setInterval(function () { reg.update().catch(function () {}); }, 15 * 60000);
+      }).catch(function () {});
+
+      var reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (reloaded) return;   // controllerchange fires again after the reload
+        reloaded = true;
+        location.reload();
+      });
     });
   }
 

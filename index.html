@@ -110,6 +110,22 @@
   }
   .wrap { max-width: 660px; margin: 0 auto; padding: 0 16px; padding-block: 0 56px; }
   .seg { border-bottom: 1px solid var(--hairline); margin-bottom: -1px; }
+  /* The tabs and the division picker share a line. A dozen leagues used to be
+     a row of chips of their own, which on a phone pushed the first fixture
+     most of a screen down. */
+  .segrow {
+    display: flex; align-items: flex-end; gap: 10px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .segrow .seg { flex: 1; min-width: 0; border-bottom: none; margin-bottom: 0; }
+  .subpick {
+    flex: 0 1 auto; max-width: 48%; margin-bottom: 7px;
+    font: inherit; font-size: 12px; color: var(--ink-2);
+    background: var(--surface-2); border: 1px solid var(--hairline);
+    border-radius: 7px; padding: 4px 6px; cursor: pointer;
+    text-overflow: ellipsis;
+  }
+  .subpick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   /* ---- header ---- */
   header {
@@ -546,12 +562,17 @@
   }
   .mid { text-align: center; }
   .score {
-    font-size: 17px;
+    font-family: var(--narrow);
+    font-size: 19px;
     font-weight: 700;
-    letter-spacing: .02em;
+    letter-spacing: .01em;
     white-space: nowrap;
+    color: var(--ink);
   }
-  .kick { font-size: 15px; font-weight: 600; }
+  .kick {
+    font-family: var(--narrow); font-size: 16px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--ink-2);
+  }
   .state {
     font-family: var(--narrow);
     font-size: 10.5px;
@@ -562,7 +583,29 @@
     margin-top: 1px;
   }
   .state.is-live { color: var(--live); }
-  .match.live { background: linear-gradient(90deg, var(--live-soft), transparent 60%); }
+
+  /* Three states, three densities. Everything used to be the same row at the
+     same weight, so nothing on screen said "look here first": a match kicking
+     off in ten minutes read exactly like one from last Tuesday. */
+  .match.live {
+    background: linear-gradient(90deg, var(--live-soft), transparent 60%);
+    padding-block: 15px;
+  }
+  .match.live .score { font-size: 22px; }
+  .match.live .nm { font-size: 15px; }
+  .match.live .crest { width: 28px; height: 28px; }
+
+  .day.past .match { padding-block: 8px; }
+  .day.past .score { font-size: 15px; font-weight: 600; color: var(--ink-2); }
+  .day.past .crest { width: 19px; height: 19px; }
+  .day.past .nm { font-size: 12.5px; }
+  .day.past .state { font-size: 9.5px; }
+
+  /* the score is the thing people scan for, so it reads as a number, not text */
+  .score {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+  }
 
   .detail {
     border-top: 1px solid var(--hairline);
@@ -1406,11 +1449,13 @@
     <div class="sportnav" id="sportnav"></div>
     <div id="footballHead">
       <div class="chips" id="chips"></div>
-      <div class="chips" id="chips2" hidden></div>
-      <div class="seg" role="tablist">
-        <button type="button" role="tab" data-tab="fixtures" aria-selected="true">赛程</button>
-        <button type="button" role="tab" data-tab="table" aria-selected="false">积分榜</button>
-        <button type="button" role="tab" data-tab="mine" aria-selected="false">我的球队<span class="badge" id="favCount">0</span></button>
+      <div class="segrow">
+        <div class="seg" role="tablist">
+          <button type="button" role="tab" data-tab="fixtures" aria-selected="true">赛程</button>
+          <button type="button" role="tab" data-tab="table" aria-selected="false">积分榜</button>
+          <button type="button" role="tab" data-tab="mine" aria-selected="false">我的球队<span class="badge" id="favCount">0</span></button>
+        </div>
+        <select class="subpick" id="chips2" hidden aria-label="赛区"></select>
       </div>
     </div>
   </div>
@@ -1425,7 +1470,7 @@
     </div>
   </div>
 
-  <div class="status-line" id="status">正在获取赛程…</div>
+  <div class="status-line" id="status"></div>
 
   <section id="panel-fixtures"></section>
   <section id="panel-table" hidden></section>
@@ -5371,13 +5416,16 @@
       var leagues = Object.keys(counts).sort(function (x, y) { return counts[y] - counts[x]; });
       var current = pandaLeague[game];
       if (leagues.indexOf(current) === -1) current = '';
+      // a dozen event names was a whole row of chips on a phone; it is a
+      // picker now, which costs one line instead of one screenful
       $('chips2').hidden = false;
-      $('chips2').innerHTML = '<button class="chip" type="button" data-panda-lg="" data-game="' +
-        game + '" aria-pressed="' + (current === '') + '">全部</button>' +
+      $('chips2').dataset.kind = 'panda';
+      $('chips2').dataset.game = game;
+      $('chips2').innerHTML = '<option value=""' + (current === '' ? ' selected' : '') +
+        '>全部赛事</option>' +
         leagues.map(function (l) {
-          return '<button class="chip" type="button" data-panda-lg="' + esc(l) +
-            '" data-game="' + game + '" aria-pressed="' + (l === current) + '">' +
-            esc(l) + ' <span class="chip-n">' + counts[l] + '</span></button>';
+          return '<option value="' + esc(l) + '"' + (l === current ? ' selected' : '') + '>' +
+            esc(l) + ' (' + counts[l] + ')</option>';
         }).join('');
 
       var keep = function (m) { return !current || m.league === current; };
@@ -5948,9 +5996,10 @@
 
   function renderLolChips(leagues) {
     $('chips2').hidden = false;
+    $('chips2').dataset.kind = 'lol';
     $('chips2').innerHTML = leagues.map(function (l) {
-      return '<button class="chip" type="button" data-lol="' + esc(l.slug) + '" aria-pressed="' +
-        (l.slug === lolLeague) + '">' + esc(l.name) + '</button>';
+      return '<option value="' + esc(l.slug) + '"' +
+        (l.slug === lolLeague ? ' selected' : '') + '>' + esc(l.name) + '</option>';
     }).join('');
   }
 
@@ -7698,18 +7747,17 @@
     if (b) setSport(b.dataset.sport);
   });
 
-  $('chips2').addEventListener('click', function (e) {
-    var b = e.target.closest('.chip');
-    if (!b) return;
-    if (b.dataset.lol) {
-      lolLeague = b.dataset.lol;
+  $('chips2').addEventListener('change', function (e) {
+    var sel = e.target;
+    if (sel.dataset.kind === 'lol') {
+      lolLeague = sel.value;
       lsSet('lolLeague', lolLeague);
       setTab(tab);
       return;
     }
-    if (b.dataset.game) {
-      var g = b.dataset.game;
-      pandaLeague[g] = b.dataset.pandaLg || '';
+    if (sel.dataset.kind === 'panda') {
+      var g = sel.dataset.game;
+      pandaLeague[g] = sel.value || '';
       lsSet(g === 'cs2' ? 'cs2League' : 'valLeague', pandaLeague[g]);
       setTab(tab);
     }

@@ -5716,11 +5716,19 @@
         host.innerHTML = archiveEmpty('拳击');
         return;
       }
+      // tag each bout with where it sits in the file, so opening one can find
+      // it again without re-deriving anything
+      var tag = function (list, bucket) {
+        return (list || []).map(function (b, i) {
+          b.bucket = bucket; b.idx = i;
+          return b;
+        });
+      };
       host.innerHTML =
         ((d.upcoming || []).length ? '<div class="group-name">接下来</div>' +
-          boxGroup(d.upcoming.slice(0, 30)) : '') +
+          boxGroup(tag(d.upcoming, 'upcoming').slice(0, 40)) : '') +
         ((d.recent || []).length ? '<div class="group-name">最近结果</div>' +
-          boxGroup(d.recent.slice(0, 30)) : '') +
+          boxGroup(tag(d.recent, 'recent').slice(0, 60)) : '') +
         archiveFoot(d);
     });
   }

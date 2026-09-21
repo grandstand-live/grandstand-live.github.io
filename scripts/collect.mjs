@@ -1075,10 +1075,14 @@ async function collectBoxing() {
     };
   }
 
+  // Wikipedia only writes up the fights that were notable enough to have an
+  // article, so a single year is a couple of dozen bouts and barely covers a
+  // division. Reaching back four years is what makes the weight classes and
+  // the boxer list look like a sport rather than a handful of names.
   const year = new Date().getUTCFullYear();
   const titles = [];
   const notes = [];
-  for (const y of [year - 1, year, year + 1]) {
+  for (const y of [year - 4, year - 3, year - 2, year - 1, year, year + 1]) {
     try {
       const found = await wikiCategory(`Category:${y} boxing matches`);
       notes.push(`${y}: ${found.length}`);
@@ -1105,7 +1109,7 @@ async function collectBoxing() {
   const recent = bouts
     .filter(b => upcoming.indexOf(b) === -1)
     .sort((a, b) => new Date(b.start) - new Date(a.start))
-    .slice(0, 40);
+    .slice(0, 120);
 
   await save('boxing.json', {
     updatedAt: new Date().toISOString(), source: 'Wikipedia', upcoming, recent

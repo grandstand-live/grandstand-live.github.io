@@ -733,19 +733,29 @@ async function ufcEvent(id) {
 
 async function collectUfcFights() {
   const cache = (await load('ufc-fights.json')) ||
-    { maxEventId: 1240, fights: {} };
+    { maxEventId: 1240, minEventId: 1240, fights: {} };
   const seen = { ...cache.fights };
   const notes = [];
 
-  // Re-read the few most recent events (results land after the fight) and then
-  // walk forward until the ids run out, which is where the calendar ends.
+  /* Two jobs. Forward: pick up new cards and re-read the recent ones, since a
+     result only lands after the fight. Backward: fill in history, because an
+     index that only covers the last few events means most bouts on the board
+     have no per-round numbers behind them. The back-fill walks down a block at
+     a time until it reaches the start of the UFC's numbering. */
   const ids = [];
-  for (let i = Math.max(1, cache.maxEventId - 6); i <= cache.maxEventId + 15; i++) ids.push(i);
+  for (let i = Math.max(1, cache.maxEventId - 6); i <= cache.maxEventId + 12; i++) ids.push(i);
+
+  const floor = 900;   // earlier ids answer, but predate the per-round feed
+  let back = cache.minEventId || cache.maxEventId;
+  for (let n = 0; n < 45 && back > floor; n++) ids.push(--back);
+  const minSeen = Math.min(back, cache.minEventId || Infinity);
 
   let maxSeen = cache.maxEventId;
   let added = 0;
-  for (const id of ids) {
-    const ev = await ufcEvent(id);
+  const fetched = await mapPool(ids, 6, ufcEvent);
+  for (let n = 0; n < ids.length; n++) {
+    const id = ids[n];
+    const ev = fetched[n];
     if (!ev) continue;
     maxSeen = Math.max(maxSeen, id);
     const date = String(ev.StartTime || '').slice(0, 10);
@@ -765,9 +775,12 @@ async function collectUfcFights() {
 
   await save('ufc-fights.json', {
     updatedAt: new Date().toISOString(),
-    maxEventId: maxSeen, fights: seen
+    maxEventId: maxSeen, minEventId: minSeen, fights: seen
   });
-  return { pairs: Object.keys(seen).length, indexed: added, maxEventId: maxSeen, tried: notes };
+  return {
+    pairs: Object.keys(seen).length, indexed: added,
+    maxEventId: maxSeen, minEventId: minSeen, tried: notes
+  };
 }
 
 /* ==========================================================================

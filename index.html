@@ -1201,8 +1201,17 @@
     { id: 'ger.1', name: '德甲' },
     { id: 'fra.1', name: '法甲' },
     { id: 'uefa.champions', name: '欧冠' },
-    { id: 'chn.1', name: '中超' }
+    { id: 'chn.1', name: '中超' },
+    // national teams — the table these play for is a group, not a season table
+    { id: 'uefa.nations', name: '欧国联', national: true },
+    { id: 'fifa.worldq.uefa', name: '世预赛·欧洲', national: true },
+    { id: 'fifa.worldq.conmebol', name: '世预赛·南美', national: true },
+    { id: 'fifa.worldq.afc', name: '世预赛·亚洲', national: true },
+    { id: 'fifa.friendly', name: '友谊赛', national: true }
   ];
+  function leagueIsNational(id) {
+    return LEAGUES.some(function (l) { return l.id === id && l.national; });
+  }
   // rank zones per league: how many places qualify at the top, how many go down
   var ZONES = {
     'eng.1': { top: 4, drop: 3, topLabel: '欧冠资格区' },
@@ -1278,6 +1287,57 @@
     'meizhou hakka': '梅州客家', 'changchun yatai': '长春亚泰', 'nantong zhiyun': '南通支云',
     'cangzhou mighty lions': '沧州雄狮'
   };
+  /* National sides. Kept apart from the club list because the names collide:
+     ESPN's "Barcelona" is a club, its "Spain" is a country, and a few clubs
+     are named after countries outright. */
+  var NATION_CN = {
+    'germany': '德国', 'netherlands': '荷兰', 'spain': '西班牙', 'france': '法国',
+    'portugal': '葡萄牙', 'italy': '意大利', 'england': '英格兰', 'belgium': '比利时',
+    'croatia': '克罗地亚', 'denmark': '丹麦', 'norway': '挪威', 'sweden': '瑞典',
+    'switzerland': '瑞士', 'austria': '奥地利', 'poland': '波兰', 'serbia': '塞尔维亚',
+    'ukraine': '乌克兰', 'turkey': '土耳其', 'türkiye': '土耳其', 'greece': '希腊',
+    'czechia': '捷克', 'czech republic': '捷克', 'hungary': '匈牙利', 'romania': '罗马尼亚',
+    'scotland': '苏格兰', 'wales': '威尔士', 'republic of ireland': '爱尔兰',
+    'northern ireland': '北爱尔兰', 'iceland': '冰岛', 'finland': '芬兰',
+    'slovakia': '斯洛伐克', 'slovenia': '斯洛文尼亚', 'bulgaria': '保加利亚',
+    'albania': '阿尔巴尼亚', 'bosnia and herzegovina': '波黑', 'north macedonia': '北马其顿',
+    'montenegro': '黑山', 'kosovo': '科索沃', 'israel': '以色列', 'georgia': '格鲁吉亚',
+    'armenia': '亚美尼亚', 'azerbaijan': '阿塞拜疆', 'kazakhstan': '哈萨克斯坦',
+    'belarus': '白俄罗斯', 'moldova': '摩尔多瓦', 'latvia': '拉脱维亚',
+    'lithuania': '立陶宛', 'estonia': '爱沙尼亚', 'luxembourg': '卢森堡',
+    'cyprus': '塞浦路斯', 'malta': '马耳他', 'andorra': '安道尔',
+    'liechtenstein': '列支敦士登', 'faroe islands': '法罗群岛', 'gibraltar': '直布罗陀',
+    'san marino': '圣马力诺', 'russia': '俄罗斯',
+    'brazil': '巴西', 'argentina': '阿根廷', 'uruguay': '乌拉圭', 'colombia': '哥伦比亚',
+    'chile': '智利', 'peru': '秘鲁', 'ecuador': '厄瓜多尔', 'paraguay': '巴拉圭',
+    'bolivia': '玻利维亚', 'venezuela': '委内瑞拉',
+    'japan': '日本', 'south korea': '韩国', 'korea republic': '韩国',
+    'north korea': '朝鲜', 'china pr': '中国', 'china': '中国', 'australia': '澳大利亚',
+    'iran': '伊朗', 'saudi arabia': '沙特', 'iraq': '伊拉克', 'qatar': '卡塔尔',
+    'united arab emirates': '阿联酋', 'uzbekistan': '乌兹别克斯坦', 'jordan': '约旦',
+    'oman': '阿曼', 'bahrain': '巴林', 'kuwait': '科威特', 'syria': '叙利亚',
+    'lebanon': '黎巴嫩', 'palestine': '巴勒斯坦', 'india': '印度', 'thailand': '泰国',
+    'vietnam': '越南', 'indonesia': '印度尼西亚', 'malaysia': '马来西亚',
+    'united states': '美国', 'usa': '美国', 'mexico': '墨西哥', 'canada': '加拿大',
+    'costa rica': '哥斯达黎加', 'panama': '巴拿马', 'jamaica': '牙买加',
+    'honduras': '洪都拉斯', 'el salvador': '萨尔瓦多', 'haiti': '海地',
+    'morocco': '摩洛哥', 'senegal': '塞内加尔', 'egypt': '埃及', 'nigeria': '尼日利亚',
+    'ghana': '加纳', 'cameroon': '喀麦隆', 'algeria': '阿尔及利亚', 'tunisia': '突尼斯',
+    'ivory coast': '科特迪瓦', "cote d'ivoire": '科特迪瓦', 'south africa': '南非',
+    'mali': '马里', 'burkina faso': '布基纳法索', 'dr congo': '刚果民主共和国',
+    'new zealand': '新西兰'
+  };
+  var NATION_KEYS = Object.keys(NATION_CN).sort(function (a, b) { return b.length - a.length; });
+  function nationCN(name, short) {
+    if (!name) return short || '';
+    var low = plain(name);
+    if (NATION_CN[low]) return NATION_CN[low];
+    for (var i = 0; i < NATION_KEYS.length; i++) {
+      if (low === NATION_KEYS[i]) return NATION_CN[NATION_KEYS[i]];
+    }
+    return short || name;
+  }
+
   var CN_KEYS = Object.keys(CN).sort(function (a, b) { return b.length - a.length; });
   // Atlético / Köln / Mönchengladbach — strip the accents before matching
   function plain(s) {
@@ -1287,6 +1347,9 @@
   function cn(name, short) {
     if (!name) return short || '';
     var low = plain(name);
+    // A country name is matched whole, so "Spain" never picks up a club whose
+    // name merely contains it; clubs keep their looser substring match.
+    if (NATION_CN[low]) return NATION_CN[low];
     for (var i = 0; i < CN_KEYS.length; i++) {
       if (low.indexOf(CN_KEYS[i]) !== -1) return CN[CN_KEYS[i]];
     }
@@ -1554,10 +1617,22 @@
       $('panel-fixtures').innerHTML = '<div class="skeleton">正在获取赛程…</div>';
       $('status').textContent = '正在获取赛程…';
     }
-    var days = [];
-    for (var i = -7; i <= 7; i++) days.push(i);
-    return Promise.all(days.map(function (o) {
-      return getJSON(API + 'site/v2/sports/soccer/' + league + '/scoreboard?dates=' + ymd(o));
+    // Clubs play every week; national sides play in windows a couple of months
+    // apart, so a fortnight of lookup leaves their board empty most of the
+    // year. ESPN answers a whole month at a time (dates=YYYYMM), so those ask
+    // by month across the surrounding window instead of day by day.
+    var reqs = [];
+    if (leagueIsNational(league)) {
+      var now = new Date();
+      for (var m = -1; m <= 2; m++) {
+        var d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+        reqs.push('' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0'));
+      }
+    } else {
+      for (var i = -7; i <= 7; i++) reqs.push(ymd(i));
+    }
+    return Promise.all(reqs.map(function (range) {
+      return getJSON(API + 'site/v2/sports/soccer/' + league + '/scoreboard?dates=' + range);
     })).then(function (parts) {
       var seen = {};
       events = [];
@@ -5420,11 +5495,18 @@
       box.innerHTML = boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '');
       // the per-round split lives on the UFC's feed, so it arrives separately
       return ufcFightId(names[0], names[1], when).then(function (fid) {
-        if (!fid || !box.isConnected) return;
+        if (!box.isConnected) return;
+        if (!fid) {
+          box.innerHTML += '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
+            '<span>这场还没有收录，抓取任务每小时补一批历史赛事。</span></div>';
+          return;
+        }
         return ufcRounds(fid).then(function (rr) {
           if (!box.isConnected) return;
           var html = roundsHTML(rr);
-          if (html) box.innerHTML += html;
+          box.innerHTML += html ||
+            '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
+            '<span>官方没有这场的分回合数据。</span></div>';
         });
       });
     });
@@ -5816,11 +5898,22 @@
   }
 
   /* ---------- boxing: no public ESPN feed, so it comes from the archive ---------- */
+  /* A decimal price is really a probability wearing a disguise: 1/price, then
+     scaled so the pair sums to 100 — which strips the bookmaker's margin and
+     leaves a straight "how likely is each man to win". */
+  function oddsToPct(oddsA, oddsB) {
+    var a = Number(oddsA), b = Number(oddsB);
+    if (!(a > 0) || !(b > 0)) return [null, null];
+    var ia = 1 / a, ib = 1 / b, total = ia + ib;
+    return [Math.round(ia / total * 100), Math.round(ib / total * 100)];
+  }
+
   function boxSide(x, isLeft, dim) {
     x = x || {};
     var flag = x.flag ? '<img class="flag-sm" src="' + esc(x.flag) + '" alt="" loading="lazy">' : '';
-    // an upcoming bout has no record on file but does carry a price
-    var under = x.record || (x.odds ? Number(x.odds).toFixed(2) + ' 赔' : '');
+    // an upcoming bout has no record on file, but the market has a read on it
+    var under = x.record ||
+      (x.winPct !== null && x.winPct !== undefined ? '胜率 ' + x.winPct + '%' : '');
     var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '">' +
       (x.winner ? '<span class="win-pip"></span> ' : '') + esc(x.name || 'TBD') + '</span>' +
       (under ? '<span class="frec">' + esc(under) + '</span>' : '') + '</span>';
@@ -5842,12 +5935,13 @@
       mid = '<div class="kick">' + esc(noClock ? '待定' : fmtTime(d0)) + '</div>' +
         '<div class="method-sub">' + esc(b.rounds ? b.rounds + ' 回合' : '') + '</div>';
     }
+    var pct = oddsToPct(a.odds, c.odds);
     return '<div class="match bout opens" data-box="' + esc(b.bucket) + ':' + esc(b.idx) + '">' +
-      boxSide({ name: a.name, record: a.record, flag: a.flag, odds: a.odds, winner: aw }, true, cw) +
+      boxSide({ name: a.name, record: a.record, flag: a.flag, winPct: pct[0], winner: aw }, true, cw) +
       '<span class="mid">' + mid +
         (b.weight ? '<div class="wclass" style="margin-top:2px">' + esc(b.weight) + '</div>' : '') +
       '</span>' +
-      boxSide({ name: c.name, record: c.record, flag: c.flag, odds: c.odds, winner: cw }, false, aw) +
+      boxSide({ name: c.name, record: c.record, flag: c.flag, winPct: pct[1], winner: cw }, false, aw) +
       '</div>';
   }
 
@@ -5878,6 +5972,14 @@
         kv('结果', b.method ? (b.method + (b.round ? ' · 第 ' + b.round + ' 回合' : '')) : '') +
         kv((b.a && b.a.name) || '红方', (b.a && b.a.record) || '') +
         kv((b.b && b.b.name) || '蓝方', (b.b && b.b.record) || '');
+      var p = oddsToPct(b.a && b.a.odds, b.b && b.b.odds);
+      if (p[0] !== null) {
+        html += '<h4>赛前胜负预测</h4>' +
+          '<div class="odds-bar"><i class="h" style="width:' + p[0] + '%"></i>' +
+          '<i class="a" style="width:' + p[1] + '%"></i></div>' +
+          '<div class="odds-key"><span><b>' + esc(b.a.name) + '</b> ' + p[0] + '%</span>' +
+          '<span><b>' + esc(b.b.name) + '</b> ' + p[1] + '%</span></div>';
+      }
       var names = [(b.a && b.a.name) || '', (b.b && b.b.name) || ''].filter(Boolean).join(' vs ');
       html += clipSearchHTML(
         names + ' highlights ' + (isNaN(when) ? '' : dayEN(when)),
@@ -5916,9 +6018,16 @@
           return b;
         });
       };
+      // The books price dozens of small-hall bouts weeks out; showing all of
+      // them buries the results people came to read, so the card leads with the
+      // next handful and says how many more there are.
+      var up = tag(d.upcoming, 'upcoming');
+      var shown = up.slice(0, 12);
       host.innerHTML =
-        ((d.upcoming || []).length ? '<div class="group-name">接下来</div>' +
-          boxGroup(tag(d.upcoming, 'upcoming').slice(0, 40)) : '') +
+        (up.length ? '<div class="group-name">接下来</div>' + boxGroup(shown) +
+          (up.length > shown.length
+            ? '<div class="note">未来还有 ' + (up.length - shown.length) +
+              ' 场已开盘，暂时只列最近的。</div>' : '') : '') +
         ((d.recent || []).length ? '<div class="group-name">最近结果</div>' +
           boxGroup(tag(d.recent, 'recent').slice(0, 60)) : '') +
         archiveFoot(d);
@@ -6038,31 +6147,43 @@
       var card = r[0], faces = (r[1] || {}).faces || {};
       if (!card) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
 
-      // one entry per boxer, taking their most recent record and division
+      // One entry per boxer. A man's division is the one he has fought in most
+      // often, not whichever bout happened to be latest — that was splitting
+      // the list into weight classes holding a single name.
       var byName = {};
       ['upcoming', 'recent'].forEach(function (bucket) {
         (card[bucket] || []).forEach(function (b) {
+          var w = boxWeightLabel(b.weight);
           [b.a, b.b].forEach(function (x) {
             if (!x || !x.name) return;
             var hit = byName[x.name];
             if (!hit) {
               hit = byName[x.name] = {
                 id: x.name, name: x.name, flag: x.flag || '', rec: x.record || '',
-                shot: faces[x.name] || '', weight: boxWeightLabel(b.weight),
-                soon: bucket === 'upcoming', when: b.start
+                shot: faces[x.name] || '', weights: {},
+                soon: false, when: b.start
               };
-              return;
             }
-            if (bucket === 'upcoming') { hit.soon = true; hit.weight = boxWeightLabel(b.weight); }
-            if (new Date(b.start) > new Date(hit.when)) {
+            if (w && w !== '其他') hit.weights[w] = (hit.weights[w] || 0) + 1;
+            if (bucket === 'upcoming') hit.soon = true;
+            if (!hit.when || new Date(b.start) > new Date(hit.when)) {
               hit.when = b.start;
               if (x.record) hit.rec = x.record;
             }
+            if (!hit.flag && x.flag) hit.flag = x.flag;
           });
         });
       });
 
-      var all = Object.keys(byName).map(function (k) { return byName[k]; });
+      var all = Object.keys(byName).map(function (k) {
+        var f = byName[k];
+        var best = '', n = 0;
+        Object.keys(f.weights).forEach(function (w) {
+          if (f.weights[w] > n) { n = f.weights[w]; best = w; }
+        });
+        f.weight = best || '其他';
+        return f;
+      });
       if (!all.length) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
 
       var groups = [];
@@ -6070,15 +6191,22 @@
       if (soon.length) {
         groups.push({ key: 'soon', label: '有安排', fighters: byName_sort(soon) });
       }
-      var seen = {};
-      all.forEach(function (f) {
-        if (seen[f.weight]) return;
-        seen[f.weight] = 1;
-        groups.push({
-          key: f.weight, label: f.weight,
-          fighters: byName_sort(all.filter(function (x) { return x.weight === f.weight; }))
+      groups.push({ key: 'all', label: '全部', fighters: byName_sort(all) });
+      // a division with one lonely name is noise as a tab of its own
+      var buckets = {};
+      all.forEach(function (f) { (buckets[f.weight] = buckets[f.weight] || []).push(f); });
+      var spare = [];
+      Object.keys(buckets).sort(function (a, b) { return buckets[b].length - buckets[a].length; })
+        .forEach(function (w) {
+          if (buckets[w].length >= 3 && w !== '其他') {
+            groups.push({ key: w, label: w, fighters: byName_sort(buckets[w]) });
+          } else {
+            spare = spare.concat(buckets[w]);
+          }
         });
-      });
+      if (spare.length) {
+        groups.push({ key: 'misc', label: '其他量级', fighters: byName_sort(spare) });
+      }
 
       fightGroups = groups;
       fightGroup = Math.min(fightGroup, groups.length - 1);

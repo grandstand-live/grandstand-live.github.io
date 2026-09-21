@@ -1220,11 +1220,15 @@ async function collectBoxChampions() {
     const re = /\[\[([^\]|]+?)(?:\|[^\]]*?)?\]\]\s*<br\s*\/?>\s*([^<]*?)\s*<br\s*\/?>\s*([^<\n|}]*)/g;
     let m;
     while ((m = re.exec(part))) {
-      const name = wikiPlain(m[1]).trim();
+      const title = wikiPlain(m[1]).trim();
+      // "Oscar Collazo (boxer)" is a Wikipedia disambiguator, not part of his
+      // name — but it is still the article title the portrait lookup needs
+      const name = title.replace(/\s*\([^)]*\)\s*$/, '').trim();
       if (!name || seen.has(name)) continue;
       seen.add(name);
       champions.push({
         name,
+        wiki: title !== name ? title : undefined,
         record: boxRecord(m[2]),
         since: wikiPlain(m[3]).trim().slice(0, 40)
       });
@@ -1259,9 +1263,15 @@ async function collectBoxers() {
   // the reigning champions need faces too, and most of them have never shown
   // up in a bout we scraped
   const belts = await load('box-champions.json');
+  // look the article up by its real title, but file the face under the name
+  // the rest of the app uses
+  const alias = {};
   for (const d of (belts && belts.divisions) || []) {
     for (const c of d.champions || []) {
-      if (c.name && !names.includes(c.name)) names.push(c.name);
+      if (!c.name) continue;
+      const lookup = c.wiki || c.name;
+      if (!names.includes(lookup)) names.push(lookup);
+      if (c.wiki) alias[c.wiki] = c.name;
     }
   }
   if (!names.length) return { boxers: 0 };
@@ -1280,9 +1290,20 @@ async function collectBoxers() {
       // an article can answer under a redirected title, so match on both
       const byTitle = {};
       for (const p of pages) byTitle[p.title] = (p.thumbnail || {}).source || '';
-      for (const n of batch) cache.faces[n] = byTitle[n] || '';
+      for (const n of batch) {
+        const face = byTitle[n] || '';
+        cache.faces[n] = face;
+        if (alias[n]) cache.faces[alias[n]] = face;
+      }
     } catch {
       for (const n of batch) if (!(n in cache.faces)) cache.faces[n] = '';
+    }
+  }
+  // a title already in the cache is never re-fetched, so point its clean name
+  // at the same face here rather than only when it is looked up
+  for (const wiki of Object.keys(alias)) {
+    if (cache.faces[wiki] && !cache.faces[alias[wiki]]) {
+      cache.faces[alias[wiki]] = cache.faces[wiki];
     }
   }
   cache.updatedAt = new Date().toISOString();

@@ -1988,11 +1988,9 @@
      phone that flips at sunset is not always what you want at 2am, so once a
      choice is made it sticks. Everything that cares about light-vs-dark asks
      isDark() rather than the media query, which only knows half the answer. */
-  var THEME_ORDER = ['auto', 'light', 'dark'];
-  var THEME_FACE = { auto: '◐', light: '○', dark: '●' };
-  var THEME_NAME = { auto: '跟随系统', light: '浅色', dark: '深色' };
+  var THEME_MODES = ['auto', 'light', 'dark'];
   var themeMode = lsGet('theme', 'auto');
-  if (THEME_ORDER.indexOf(themeMode) === -1) themeMode = 'auto';
+  if (THEME_MODES.indexOf(themeMode) === -1) themeMode = 'auto';
 
   function isDark() {
     if (themeMode === 'dark') return true;
@@ -2021,14 +2019,32 @@
     if (cs) cs.setAttribute('content', themeMode === 'auto' ? 'light dark' : themeMode);
     var btn = $('themeBtn');
     if (btn) {
-      btn.textContent = THEME_FACE[themeMode];
-      btn.title = '外观：' + THEME_NAME[themeMode];
-      btn.setAttribute('aria-label', '外观：' + THEME_NAME[themeMode] + '，点击切换');
+      /* The face shows what you are looking at, not which of three modes is
+         stored — "auto" is a detail of how the choice is kept, not a thing
+         worth making someone tap past. */
+      var dark = isDark();
+      btn.textContent = dark ? '●' : '○';
+      var now = themeMode === 'auto'
+        ? '跟随系统（' + (dark ? '深色' : '浅色') + '）' : (dark ? '深色' : '浅色');
+      btn.title = '外观：' + now;
+      btn.setAttribute('aria-label',
+        '外观：' + now + '，点击切换为' + (dark ? '浅色' : '深色'));
     }
     applySkin(sport);
   }
+
+  /* One tap always flips what is on screen.
+
+     It used to walk auto → 浅 → 深, which meant that on a phone set to light
+     the first tap moved from "auto (showing light)" to "light" — visibly
+     nothing — and you had to tap twice to reach dark. So the toggle is now
+     two-state, and "auto" survives underneath: if the appearance you land on
+     is the one the system is already asking for, that is what gets stored, so
+     a phone that flips at sunset keeps steering until you ask for otherwise. */
   function cycleTheme() {
-    themeMode = THEME_ORDER[(THEME_ORDER.indexOf(themeMode) + 1) % THEME_ORDER.length];
+    var wantDark = !isDark();
+    var sysDark = !!(darkQuery && darkQuery.matches);
+    themeMode = (wantDark === sysDark) ? 'auto' : (wantDark ? 'dark' : 'light');
     lsSet('theme', themeMode);
     applyTheme();
   }

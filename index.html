@@ -3458,7 +3458,10 @@
     var next = btn.nextElementSibling;
     if (next && next.classList.contains('detail')) { next.remove(); return; }
     var id = btn.dataset.ev;
-    f1Season().then(function (d) {
+    // the call needs the championship order, which the calendar view has not
+    // fetched — ask for both so the driver list is never empty
+    Promise.all([f1Season(), f1Standings()]).then(function (all) {
+      var d = all[0];
       var ev = ((d && d.events) || []).filter(function (e) { return String(e.id) === String(id); })[0];
       if (!ev) return;
       var html = '';

@@ -761,6 +761,11 @@
   }
   .stat-sec:first-of-type .stat-sec-t { border-top: none; padding-top: 0; }
   .fp-belt { position: absolute; top: 4px; left: 6px; font-size: 11px; line-height: 1; }
+  .fp-div {
+    font-family: var(--narrow); font-size: 9.5px; letter-spacing: .04em;
+    color: #C9A227; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 100%;
+  }
   .round-block { margin-top: 10px; }
   .round-no {
     font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
@@ -5918,6 +5923,7 @@
       ' aria-pressed="' + on + '">' +
       (f.champ ? '<span class="fp-belt" title="' + esc(f.champ) + '">🏆</span>' : '') +
       (f.rank ? '<span class="fp-rank">' + esc(f.rank) + '</span>' : '') +
+      (f.champ ? '<span class="fp-div">' + esc(f.champ) + '</span>' : '') +
       (f.flag ? '<img class="fp-flag" src="' + esc(f.flag) + '" alt="" loading="lazy">' : '') +
       '<img class="fp-shot" src="' + esc(f.shot || FACE_FALLBACK) + '" alt="" loading="lazy"' +
       ' onerror="this.src=\'' + FACE_FALLBACK + '\'">' +
@@ -6253,6 +6259,19 @@
     });
   }
 
+  // Boxing's divisions have a fixed order — heaviest down to lightest. Sorting
+  // them any other way (by how many names each holds, say) reads as noise to
+  // anyone who follows the sport.
+  var BOX_ORDER = [
+    '超重量级', '重量级', '次重量级', '轻重量级', '超中量级', '中量级',
+    '超次中量级', '次中量级', '超轻量级', '轻量级', '超羽量级', '羽量级',
+    '超雏量级', '雏量级', '超蝇量级', '蝇量级', '轻蝇量级', '草量级'
+  ];
+  function boxWeightRank(w) {
+    var i = BOX_ORDER.indexOf(w);
+    return i === -1 ? BOX_ORDER.length : i;
+  }
+
   // "WBA·WBC·IBF 超中量级" is the division plus whatever belts were on the line.
   // "非冠军战" is the collector saying it found no division at all.
   function boxWeightLabel(w) {
@@ -6351,8 +6370,10 @@
       if (champs.length) {
         groups.push({
           key: 'champ', label: '现役金腰带',
+          // heaviest division first, so the belts read the way they are listed
           fighters: champs.sort(function (a, b) {
-            return (a.champ || '').localeCompare(b.champ || '') || a.name.localeCompare(b.name);
+            return boxWeightRank(a.champ) - boxWeightRank(b.champ) ||
+              a.name.localeCompare(b.name);
           })
         });
       }
@@ -6365,7 +6386,7 @@
       var buckets = {};
       active.forEach(function (f) { (buckets[f.weight] = buckets[f.weight] || []).push(f); });
       var spare = [];
-      Object.keys(buckets).sort(function (a, b) { return buckets[b].length - buckets[a].length; })
+      Object.keys(buckets).sort(function (a, b) { return boxWeightRank(a) - boxWeightRank(b); })
         .forEach(function (w) {
           if (buckets[w].length >= 3 && w !== '其他') {
             groups.push({ key: w, label: w, fighters: byName_sort(buckets[w]) });

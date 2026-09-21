@@ -1934,8 +1934,11 @@
     var tags = [], line = '', weight = 0;
     var hr = home.rank, ar = away.rank;
     var total = home.total || away.total || 0;
-    // a table nobody has played into yet is alphabetical, not a standing
-    var settled = Math.min(home.played || 0, away.played || 0) >= 3;
+    /* A table nobody has played into is alphabetical rather than a standing.
+       Two rounds is enough to mean something in a four-team group, which is
+       where most of this sits early in a season — three was keeping the
+       storylines invisible for weeks at a time. */
+    var settled = Math.min(home.played || 0, away.played || 0) >= 2;
 
     if (hr && ar && settled) {
       var top = Math.min(hr, ar), gap = Math.abs(hr - ar);
@@ -2177,16 +2180,23 @@
          a badge on the one worth clearing an evening for is a reason to open
          the app. */
       var best = null, bestWeight = 0;
+      var favSet = favorites.map(function (f) { return String(f.id); });
       g.items.forEach(function (it) {
         var t0 = teamsOf(it.ev);
         var st0 = (t0.comp.status && t0.comp.status.type) || {};
         if ((st0.state || 'pre') !== 'pre') return;
         var ranks0 = rankCache[league] || {};
-        var h0 = ranks0[String((t0.home.team || {}).id)] || {};
-        var a0 = ranks0[String((t0.away.team || {}).id)] || {};
+        var hid = String((t0.home.team || {}).id), aid = String((t0.away.team || {}).id);
+        var h0 = ranks0[hid] || {}, a0 = ranks0[aid] || {};
         var s0 = storyFor(
           { name: cn(t0.home.team && t0.home.team.displayName), rank: h0.rank, total: h0.total, played: h0.played },
           { name: cn(t0.away.team && t0.away.team.displayName), rank: a0.rank, total: a0.total, played: a0.played });
+
+        // your own team playing needs no table behind it to be worth flagging
+        if (favSet.indexOf(hid) !== -1 || favSet.indexOf(aid) !== -1) {
+          s0.tags.unshift('你的球队');
+          s0.weight = Math.max(s0.weight, 55);
+        }
         if (s0.weight > bestWeight) { bestWeight = s0.weight; best = { id: it.ev.id, story: s0 }; }
       });
       // no table-based angle today still leaves form worth checking, so the
@@ -3444,7 +3454,9 @@
       list.push(d);
     });
     if (!list.length) return '';
-    return '<h4>猜谁赢</h4><div class="match-note" data-when="' + esc(ev.date || '') + '">' +
+    return '<h4>猜谁上台</h4><div class="pd-line muted" style="padding:0 0 6px">' +
+      '选一位，他进前三就算中。</div>' +
+      '<div class="match-note" data-when="' + esc(ev.date || '') + '">' +
       '<span class="pick-bar wrap" data-pick-for="f1|' + esc(ev.id) + '">' +
       list.slice(0, 6).map(function (d) {
         var on = mine && mine.side === 'd' + d.espn;
@@ -3472,9 +3484,19 @@
       var race0 = raceOf(ev) || {};
       var over = ((ev.status || {}).type || {}).state === 'post';
       if (over) {
-        var champ = ((race0.competitors || []).filter(function (c) { return c.winner; })[0] || {});
-        var wid = champ.athlete && champ.athlete.id;
-        if (wid) settlePick('f1', ev.id, 'd' + wid, '');
+        /* A call on the podium, not the winner: naming one driver out of
+           twenty is mostly luck, while "he finishes top three" is a real read
+           on the weekend. Settles if the named driver placed 1-2-3. */
+        var top3 = (race0.competitors || []).slice()
+          .sort(function (x, y) { return (x.order || 99) - (y.order || 99); })
+          .slice(0, 3)
+          .map(function (c) { return 'd' + ((c.athlete || {}).id || ''); });
+        var myCall = pickOf('f1', ev.id);
+        if (myCall && !myCall.result && top3.length) {
+          // settlePick compares on equality, so hand it the matching side
+          settlePick('f1', ev.id,
+            top3.indexOf(myCall.side) !== -1 ? myCall.side : 'missed', '');
+        }
       }
       var myF1 = pickOf('f1', ev.id);
       if (!over || (myF1 && myF1.result)) {
@@ -5212,6 +5234,41 @@
     return right ? img + name : name + img;
   }
 
+  /* Esports has no bookmaker feed, so the estimate comes from the records we
+     already counted: each side's win rate over this event, weighted by how
+     many games it is drawn from, so a 2-0 team is not treated as certain.
+     Labelled as form rather than odds, because that is what it is. */
+  function formOdds(a, b) {
+    if (!a || !b) return null;
+    var pa = a.played, pb = b.played;
+    if (pa < 2 || pb < 2) return null;
+    // Laplace smoothing: pulls a short record toward even
+    var ra = (a.w + 1) / (pa + 2), rb = (b.w + 1) / (pb + 2);
+    var sum = ra + rb;
+    if (!sum) return null;
+    var pct = Math.round(ra / sum * 100);
+    return [pct, 100 - pct, Math.min(pa, pb)];
+  }
+
+  function pandaOddsHTML(m, game) {
+    var d = archive[game === 'cs2' ? 'cs2.json' : 'valorant.json'];
+    if (!d) return '';
+    var table = pandaTeams(d, '');
+    var byId = {};
+    table.forEach(function (t) { byId[String(t.id)] = t; });
+    var ts = m.teams || [];
+    var a = byId[String((ts[0] || {}).id)], b = byId[String((ts[1] || {}).id)];
+    var odds = formOdds(a, b);
+    if (!odds) return '';
+    return '<h4>战绩推算</h4>' +
+      '<div class="odds-bar"><i class="h" style="width:' + odds[0] + '%"></i>' +
+      '<i class="a" style="width:' + odds[1] + '%"></i></div>' +
+      '<div class="odds-key"><span><b>' + esc(a.acronym) + '</b> ' + odds[0] + '%</span>' +
+      '<span><b>' + esc(b.acronym) + '</b> ' + odds[1] + '%</span></div>' +
+      '<div class="pd-line muted">按双方在本赛事的胜负推算，不是赔率。' +
+      a.w + '胜' + a.l + '负 vs ' + b.w + '胜' + b.l + '负。</div>';
+  }
+
   function pandaClipsHTML(m, game) {
     var t = m.teams || [];
     var a = (t[0] || {}).acronym || (t[0] || {}).name || '';
@@ -5277,8 +5334,9 @@
         (m.tier ? '<span class="pd-tier">' + esc(String(m.tier).toUpperCase()) + ' 级</span>' : '') +
         (isNaN(when) ? '' : '<span>' + esc(fmtDay(when) + ' ' + fmtTime(when)) + '</span>') +
         '</div>' +
+        (!done ? pandaOddsHTML(m, game) : '') +
         (cells ? '<div class="map-list">' + cells + '</div>'
-               : '<div class="pd-line muted">这场还没有分图结果。</div>') +
+               : (done ? '<div class="pd-line muted">这场还没有分图结果。</div>' : '')) +
         (m.stream ? '<div class="pd-line"><a href="' + esc(m.stream.url) +
           '" target="_blank" rel="noopener">观看直播/回放 ↗</a></div>' : '') +
         pandaClipsHTML(m, game) +
@@ -5759,6 +5817,24 @@
       var m = ev.match || {};
       var teams = m.teams || [];
       var html = '';
+
+      // same form-based read as CS2/Valorant, off the standings records
+      if (btn.dataset.when && new Date(btn.dataset.when) > new Date()) {
+        var recs = teams.map(function (t) {
+          var r = t.record || {};
+          return { w: r.wins || 0, l: r.losses || 0, played: (r.wins || 0) + (r.losses || 0),
+            acronym: t.code || t.name || '' };
+        });
+        var lolOdds = formOdds(recs[0], recs[1]);
+        if (lolOdds) {
+          html += '<h4>战绩推算</h4>' +
+            '<div class="odds-bar"><i class="h" style="width:' + lolOdds[0] + '%"></i>' +
+            '<i class="a" style="width:' + lolOdds[1] + '%"></i></div>' +
+            '<div class="odds-key"><span><b>' + esc(recs[0].acronym) + '</b> ' + lolOdds[0] + '%</span>' +
+            '<span><b>' + esc(recs[1].acronym) + '</b> ' + lolOdds[1] + '%</span></div>' +
+            '<div class="pd-line muted">按本赛段战绩推算，不是赔率。</div>';
+        }
+      }
 
       var bits = [];
       if (ev.league && ev.league.name) bits.push(ev.league.name);
@@ -6441,14 +6517,34 @@
       esc(nameOf(sides[1].FighterId)) + '</span></div>' + out;
   }
 
+  var CORE_MMA = 'https://sports.core.api.espn.com/v2/sports/mma/athletes/';
   function ufcAthlete(id) {
     var key = 'ath' + id;
     if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
-    return getJSON('https://sports.core.api.espn.com/v2/sports/mma/athletes/' + id)
-      .then(function (d) {
-        if (d && d.id) ufcCache[key] = d;
-        return d || {};
-      }).catch(function () { return {}; });
+    return getJSON(CORE_MMA + id).then(function (d) {
+      if (d && d.id) ufcCache[key] = d;
+      return d || {};
+    }).catch(function () { return {}; });
+  }
+
+  /* Career numbers, which is what people actually argue about before a fight:
+     how his wins arrive, how often he lands, whether he can be taken down. */
+  function ufcCareer(id) {
+    var key = 'car' + id;
+    if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
+    return Promise.all([
+      getJSON(CORE_MMA + id + '/statistics/0').catch(function () { return null; }),
+      getJSON(CORE_MMA + id + '/records/0').catch(function () { return null; })
+    ]).then(function (r) {
+      var out = { stats: {}, record: {} };
+      ((((r[0] || {}).splits) || {}).categories || []).forEach(function (cat) {
+        (cat.stats || []).forEach(function (s) { out.stats[s.name] = s; });
+      });
+      ((r[1] || {}).stats || []).forEach(function (s) { out.record[s.name] = s; });
+      out.summary = (r[1] || {}).displayValue || '';
+      if (Object.keys(out.stats).length || Object.keys(out.record).length) ufcCache[key] = out;
+      return out;
+    });
   }
 
   /* The tale of the tape: the numbers people actually weigh a fight on before
@@ -6473,6 +6569,63 @@
           '<span class="tl">' + r[0] + '</span>' +
           '<span class="tv r">' + esc(r[2] || '—') + '</span></div>';
       }).join('') + '</div>';
+  }
+
+  /* How a fighter's wins arrive, and how he holds up — the argument people
+     have before a fight, rather than after it. */
+  function careerHTML(A, B, nameA, nameB) {
+    var pct = function (c, key) {
+      var s = c.stats[key];
+      return s ? Math.round(Number(s.value) || 0) + '%' : '';
+    };
+    var num = function (c, key) {
+      var s = c.record[key];
+      return s ? String(s.displayValue || '') : '';
+    };
+    var dec = function (c, key, unit) {
+      var s = c.stats[key];
+      return s ? (Math.round((Number(s.value) || 0) * 100) / 100) + (unit || '') : '';
+    };
+    var finish = function (c) {
+      var ko = Number((c.stats.koPercentage || {}).value) || 0;
+      var tko = Number((c.stats.tkoPercentage || {}).value) || 0;
+      var sub = Number((c.stats.submissionPercentage || {}).value) || 0;
+      var total = Math.round(ko + tko + sub);
+      return total ? total + '%' : '';
+    };
+
+    var rows;
+    rows = [
+      ['生涯战绩', A.summary, B.summary],
+      ['降服取胜', num(A, 'submissions'), num(B, 'submissions')],
+      ['被降服', num(A, 'submissionLosses'), num(B, 'submissionLosses')],
+      ['冠军战', num(A, 'titleWins') && (num(A, 'titleWins') + ' 胜 ' + num(A, 'titleLosses') + ' 负'),
+        num(B, 'titleWins') && (num(B, 'titleWins') + ' 胜 ' + num(B, 'titleLosses') + ' 负')],
+      ['KO 率', pct(A, 'koPercentage'), pct(B, 'koPercentage')],
+      ['TKO 率', pct(A, 'tkoPercentage'), pct(B, 'tkoPercentage')],
+      ['判定率', pct(A, 'decisionPercentage'), pct(B, 'decisionPercentage')],
+      ['终结率', finish(A), finish(B)],
+      ['击打命中率', pct(A, 'strikeAccuracy'), pct(B, 'strikeAccuracy')],
+      ['每分钟有效击打', dec(A, 'strikeLPM'), dec(B, 'strikeLPM')],
+      ['摔跤成功率', pct(A, 'takedownAccuracy'), pct(B, 'takedownAccuracy')],
+      ['场均摔跤', dec(A, 'takedownAvg'), dec(B, 'takedownAvg')],
+      ['场均降服尝试', dec(A, 'submissionAvg'), dec(B, 'submissionAvg')]
+    ];
+
+    /* ESPN carries no career splits for a debutant, and a column of 0% reads
+       as "this man never lands anything" rather than "we do not know". Drop a
+       row unless at least one side has a real number in it. */
+    var real = function (v) {
+      return v && v !== '0' && v !== '0%' && v !== '0 胜 0 负' && v !== '—';
+    };
+    rows = rows.filter(function (r) { return real(r[1]) || real(r[2]); });
+
+    if (!rows.length) return '';
+    return '<h4>生涯数据</h4><div class="tape">' + rows.map(function (r) {
+      return '<div class="tape-row"><span class="tv">' + esc(r[1] || '—') + '</span>' +
+        '<span class="tl">' + r[0] + '</span>' +
+        '<span class="tv r">' + esc(r[2] || '—') + '</span></div>';
+    }).join('') + '</div>';
   }
 
   function boutClipsHTML(names, when) {
@@ -6504,9 +6657,14 @@
 
     // nothing has happened yet, so compare the two men instead
     if (row.dataset.preview) {
-      Promise.all([ufcAthlete(parts[2]), ufcAthlete(parts[3])]).then(function (r) {
+      Promise.all([
+        ufcAthlete(parts[2]), ufcAthlete(parts[3]),
+        ufcCareer(parts[2]), ufcCareer(parts[3])
+      ]).then(function (r) {
         if (!box.isConnected) return;
-        box.innerHTML = tapeHTML(r[0], r[1], sideA, sideB) + boutClipsHTML(names, when);
+        box.innerHTML = tapeHTML(r[0], r[1], sideA, sideB) +
+          careerHTML(r[2], r[3], sideA.name, sideB.name) +
+          boutClipsHTML(names, when);
       });
       return;
     }
@@ -6534,6 +6692,12 @@
             '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
             '<span>官方没有这场的分回合数据。</span></div>';
           box.innerHTML += boutClipsHTML(names, when);
+          // career context belongs after the fight too, not only before it
+          Promise.all([ufcCareer(parts[2]), ufcCareer(parts[3])]).then(function (cr) {
+            if (!box.isConnected) return;
+            var extra = careerHTML(cr[0], cr[1], sideA.name, sideB.name);
+            if (extra) box.innerHTML += extra;
+          });
         });
       });
     });
@@ -7011,6 +7175,51 @@
   /* Boxing carries no per-round numbers anywhere public, so opening a bout
      shows what the source does have: where it was, what was on the line, the
      distance, and both men's records going in. */
+  /* A boxing record reads "25–2 (1) (20 KOs)": wins–losses–draws, no contests
+     in the first bracket, knockouts in the second. Pulling it apart gives the
+     same side-by-side the UFC bouts have. */
+  function parseBoxRecord(rec) {
+    var s = String(rec || '');
+    var m = s.match(/(\d+)[–—-](\d+)(?:[–—-](\d+))?/);
+    if (!m) return null;
+    var ko = (s.match(/\((\d+)\s*KOs?\)/i) || [])[1];
+    var w = Number(m[1]), l = Number(m[2]), d = Number(m[3] || 0);
+    return {
+      w: w, l: l, d: d, ko: ko ? Number(ko) : null,
+      total: w + l + d,
+      koRate: (ko && w) ? Math.round(Number(ko) / w * 100) : null
+    };
+  }
+
+  function boxTapeHTML(b) {
+    var A = parseBoxRecord((b.a || {}).record);
+    var B = parseBoxRecord((b.b || {}).record);
+    if (!A && !B) return '';
+    var cell = function (r, fn) { return r ? fn(r) : ''; };
+    var rows = [
+      ['战绩', cell(A, function (r) { return r.w + '胜 ' + r.l + '负' + (r.d ? ' ' + r.d + '平' : ''); }),
+        cell(B, function (r) { return r.w + '胜 ' + r.l + '负' + (r.d ? ' ' + r.d + '平' : ''); })],
+      ['KO 取胜', cell(A, function (r) { return r.ko !== null ? String(r.ko) : ''; }),
+        cell(B, function (r) { return r.ko !== null ? String(r.ko) : ''; })],
+      ['KO 率', cell(A, function (r) { return r.koRate !== null ? r.koRate + '%' : ''; }),
+        cell(B, function (r) { return r.koRate !== null ? r.koRate + '%' : ''; })],
+      ['总场次', cell(A, function (r) { return String(r.total); }),
+        cell(B, function (r) { return String(r.total); })],
+      ['胜率', cell(A, function (r) { return r.total ? Math.round(r.w / r.total * 100) + '%' : ''; }),
+        cell(B, function (r) { return r.total ? Math.round(r.w / r.total * 100) + '%' : ''; })]
+    ].filter(function (r) { return r[1] || r[2]; });
+    if (!rows.length) return '';
+
+    return '<h4>赛前对比</h4>' +
+      '<div class="stat-head"><span>' + esc((b.a || {}).name || '') + '</span><span>' +
+      esc((b.b || {}).name || '') + '</span></div>' +
+      '<div class="tape">' + rows.map(function (r) {
+        return '<div class="tape-row"><span class="tv">' + esc(r[1] || '—') + '</span>' +
+          '<span class="tl">' + r[0] + '</span>' +
+          '<span class="tv r">' + esc(r[2] || '—') + '</span></div>';
+      }).join('') + '</div>';
+  }
+
   function toggleBoxBout(row) {
     var next = row.nextElementSibling;
     if (next && next.classList.contains('bout-detail')) { next.remove(); return; }
@@ -7032,9 +7241,10 @@
         kv('场地', b.venue) +
         kv('级别', b.weight) +
         kv('赛制', b.rounds ? b.rounds + ' 回合' : '') +
-        kv('结果', b.method ? (b.method + (b.round ? ' · 第 ' + b.round + ' 回合' : '')) : '') +
-        kv((b.a && b.a.name) || '红方', (b.a && b.a.record) || '') +
-        kv((b.b && b.b.name) || '蓝方', (b.b && b.b.record) || '');
+        kv('结果', b.method ? (b.method + (b.round ? ' · 第 ' + b.round + ' 回合' : '')) : '');
+
+      // the same side-by-side UFC gets, off what a boxing record carries
+      html += boxTapeHTML(b);
       var p = oddsToPct(b.a && b.a.odds, b.b && b.b.odds);
       if (p[0] !== null) {
         html += '<h4>赛前胜负预测</h4>' +

@@ -43,15 +43,21 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
           git commit -m "Update data $(date -u '+%Y-%m-%d %H:%M UTC')"
-          # A hand-triggered run and a scheduled one can still start seconds
-          # apart, and then whichever pushes second is rejected. Rebase onto
-          # what landed and try again rather than failing the whole run.
+          # A hand-triggered run and a scheduled one can start seconds apart,
+          # and whichever pushes second is rejected. Rebasing the data files
+          # only invites conflicts — every file here is regenerated whole on
+          # each run, so there is nothing to merge. Replay this commit on top
+          # of whatever landed and let our freshly collected data win.
           for attempt in 1 2 3 4 5; do
             if git push; then
               exit 0
             fi
-            echo "push rejected; rebasing and retrying (attempt $attempt)"
-            git pull --rebase --autostash origin main || true
+            echo "push rejected; replaying on top of origin/main (attempt $attempt)"
+            git rebase --abort 2>/dev/null || true
+            git fetch origin main
+            git reset --soft origin/main
+            git add data
+            git commit -m "Update data $(date -u '+%Y-%m-%d %H:%M UTC')" || true
             sleep $((attempt * 5))
           done
           echo "could not push after 5 attempts" >&2

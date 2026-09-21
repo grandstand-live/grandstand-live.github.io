@@ -1063,6 +1063,52 @@ function boxBout(title, wikitext) {
   };
 }
 
+/* Wikipedia only writes a fight up once it has happened and mattered, so the
+   archive has no future bouts at all. The Odds API lists what the books are
+   pricing, which is exactly the upcoming card — 500 calls a month on the free
+   plan, so this runs a few times a day rather than every tick. */
+const ODDS_KEY = process.env.ODDS_API_KEY || '';
+
+async function upcomingBoxing(notes) {
+  if (!ODDS_KEY) { notes.push('no ODDS_API_KEY'); return []; }
+  const previous = await load('boxing.json');
+  const last = previous && previous.oddsAt ? Date.parse(previous.oddsAt) : 0;
+  if (!MANUAL && last && Date.now() - last < 5 * 3600e3) {
+    notes.push('odds: cached');
+    return (previous.upcoming || []).filter(b => new Date(b.start).getTime() > Date.now() - 6 * 3600e3);
+  }
+  const url = `https://api.the-odds-api.com/v4/sports/boxing_boxing/odds/` +
+    `?apiKey=${ODDS_KEY}&regions=us&markets=h2h&oddsFormat=decimal`;
+  const rows = await getJSON(url);
+  if (!Array.isArray(rows)) { notes.push('odds: unexpected answer'); return []; }
+
+  // the shortest price across books is the cleanest read on who is favoured
+  const bestPrice = (row, who) => {
+    let best = null;
+    for (const bk of row.bookmakers || []) {
+      for (const mk of bk.markets || []) {
+        for (const oc of mk.outcomes || []) {
+          if (oc.name === who && (best === null || oc.price < best)) best = oc.price;
+        }
+      }
+    }
+    return best;
+  };
+  notes.push(`odds: ${rows.length} bouts`);
+  return rows.map(row => ({
+    event: `${row.home_team} vs ${row.away_team}`,
+    start: row.commence_time,
+    timeKnown: true,
+    venue: '',
+    weight: '',
+    rounds: null,
+    a: { name: row.home_team, record: '', flag: '', odds: bestPrice(row, row.home_team) },
+    b: { name: row.away_team, record: '', flag: '', odds: bestPrice(row, row.away_team) },
+    winner: null, method: '', round: null, time: null,
+    source: 'odds'
+  })).sort((x, y) => new Date(x.start) - new Date(y.start));
+}
+
 async function collectBoxing() {
   // Wikipedia is a courtesy source: an hourly touch on the scheduled cadence.
   const previous = await load('boxing.json');
@@ -1102,21 +1148,31 @@ async function collectBoxing() {
 
   // a fight is "past" once the day it was on has ended, in the latest timezone
   const cutoff = Date.now() - 36 * 3600e3;
-  const upcoming = bouts
+  const fromWiki = bouts
     .filter(b => new Date(b.start).getTime() >= cutoff && !b.winner && !b.method)
-    .sort((a, b) => new Date(a.start) - new Date(b.start))
-    .slice(0, 40);
+    .sort((a, b) => new Date(a.start) - new Date(b.start));
   const recent = bouts
-    .filter(b => upcoming.indexOf(b) === -1)
+    .filter(b => fromWiki.indexOf(b) === -1)
     .sort((a, b) => new Date(b.start) - new Date(a.start))
     .slice(0, 120);
 
+  // the books know about fights Wikipedia has not written up yet; where both
+  // have it, keep Wikipedia's, which carries the venue and the titles
+  const priced = await upcomingBoxing(notes);
+  const known = new Set(fromWiki.map(b => fightKey(b.a.name, b.b.name)));
+  const upcoming = fromWiki
+    .concat(priced.filter(b => !known.has(fightKey(b.a.name, b.b.name))))
+    .sort((a, b) => new Date(a.start) - new Date(b.start))
+    .slice(0, 60);
+
   await save('boxing.json', {
-    updatedAt: new Date().toISOString(), source: 'Wikipedia', upcoming, recent
+    updatedAt: new Date().toISOString(),
+    oddsAt: priced.length ? new Date().toISOString() : (await load('boxing.json') || {}).oddsAt,
+    source: 'Wikipedia + The Odds API', upcoming, recent
   });
   return {
     source: 'Wikipedia', articles: titles.length, parsed: bouts.length,
-    upcoming: upcoming.length, recent: recent.length, tried: notes
+    upcoming: upcoming.length, priced: priced.length, recent: recent.length, tried: notes
   };
 }
 

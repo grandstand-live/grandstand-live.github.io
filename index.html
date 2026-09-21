@@ -188,6 +188,17 @@
     box-shadow: 0 10px 18px -18px rgba(0, 0, 0, .55);
     padding-top: 6px;
   }
+  .stickybar.tucked {
+    transform: translateY(-104%);
+    transition: transform .22s cubic-bezier(.4, 0, .2, 1);
+  }
+  .stickybar:not(.tucked) {
+    transform: none;
+    transition: transform .2s cubic-bezier(.2, .7, .3, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stickybar, .stickybar.tucked { transition: none; }
+  }
   .stickybar.stuck .chips { display: none; }
   .stickybar.stuck .sportnav { margin-top: 0; padding: 2px; }
   .stickybar.stuck .sportnav button { padding: 4px 13px; font-size: 12.5px; }
@@ -6440,6 +6451,18 @@
       ]],
       ['摔跤与控制', [
         hit('摔跤', 'takedownsLanded', 'takedownsAttempted'),
+        /* Nobody publishes takedown defence, but it is just the other man's
+           accuracy inverted — and both sides of that are already here. */
+        (function () {
+          var aTd = statNum(B, 'takedownsAttempted'), aStop = aTd - statNum(B, 'takedownsLanded');
+          var bTd = statNum(A, 'takedownsAttempted'), bStop = bTd - statNum(A, 'takedownsLanded');
+          if (!aTd && !bTd) return '';
+          var aPct = aTd ? Math.round(aStop / aTd * 100) : 100;
+          var bPct = bTd ? Math.round(bStop / bTd * 100) : 100;
+          return bar('防摔率', aPct, bPct,
+            aTd ? aPct + '% (' + aStop + '/' + aTd + ')' : '未被摔',
+            bTd ? bPct + '% (' + bStop + '/' + bTd + ')' : '未被摔');
+        })(),
         (ctrlA || ctrlB) ? bar('控制时间', ctrlA, ctrlB,
           statText(A, 'timeInControl'), statText(B, 'timeInControl')) : '',
         plain2('降服尝试', 'submissions'),
@@ -6596,6 +6619,17 @@
     });
   }
 
+  /* Takedown defence is not published anywhere, so the collector derives it
+     from every opponent's attempts. Looked up by surname, the same key it is
+     stored under. */
+  function ufcDefence(name) {
+    return archiveGet('ufc-defence.json').then(function (d) {
+      var row = ((d || {}).fighters || {})[ufcSurname(name)];
+      return (row && row.pct !== null && row.faced >= 5)
+        ? row.pct + '% (' + row.stopped + '/' + row.faced + ')' : '';
+    }).catch(function () { return ''; });
+  }
+
   /* The tale of the tape: the numbers people actually weigh a fight on before
      it happens — reach, age, stance, and the record each man brings in. */
   function tapeHTML(A, B, a, b) {
@@ -6657,6 +6691,8 @@
       ['击打命中率', pct(A, 'strikeAccuracy'), pct(B, 'strikeAccuracy')],
       ['每分钟有效击打', dec(A, 'strikeLPM'), dec(B, 'strikeLPM')],
       ['摔跤成功率', pct(A, 'takedownAccuracy'), pct(B, 'takedownAccuracy')],
+      // derived by the collector, since no feed publishes it
+      ['防摔率（生涯）', A.defence, B.defence],
       ['场均摔跤', dec(A, 'takedownAvg'), dec(B, 'takedownAvg')],
       ['场均降服尝试', dec(A, 'submissionAvg'), dec(B, 'submissionAvg')]
     ];
@@ -6708,9 +6744,12 @@
     if (row.dataset.preview) {
       Promise.all([
         ufcAthlete(parts[2]), ufcAthlete(parts[3]),
-        ufcCareer(parts[2]), ufcCareer(parts[3])
+        ufcCareer(parts[2]), ufcCareer(parts[3]),
+        ufcDefence(sideA.name), ufcDefence(sideB.name)
       ]).then(function (r) {
         if (!box.isConnected) return;
+        r[2].defence = r[4];
+        r[3].defence = r[5];
         box.innerHTML = tapeHTML(r[0], r[1], sideA, sideB) +
           careerHTML(r[2], r[3], sideA.name, sideB.name) +
           boutClipsHTML(names, when);
@@ -6718,37 +6757,32 @@
       return;
     }
 
+    /* Everything is gathered before anything is drawn, so the panel reads in
+       one order — the fight, then the rounds, then the careers behind them,
+       then where to watch it. Appending each feed as it landed put career
+       numbers after the highlight links, which is nobody's reading order. */
     Promise.all([
       ufcBoutStats(parts[0], parts[1], parts[2]),
-      ufcBoutStats(parts[0], parts[1], parts[3])
+      ufcBoutStats(parts[0], parts[1], parts[3]),
+      ufcCareer(parts[2]),
+      ufcCareer(parts[3]),
+      ufcFightId(names[0], names[1], when)
+        .then(function (fid) { return fid ? ufcRounds(fid) : null; })
+        .catch(function () { return null; }),
+      ufcDefence(sideA.name), ufcDefence(sideB.name)
     ]).then(function (r) {
       if (!box.isConnected) return;
-      box.innerHTML = boutHeroHTML(r[0], r[1], sideA, sideB) +
-        boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '');
-      // the per-round split lives on the UFC's feed, so it arrives separately
-      return ufcFightId(names[0], names[1], when).then(function (fid) {
-        if (!box.isConnected) return;
-        if (!fid) {
-          box.innerHTML += '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
-            '<span>这场还没有收录，抓取任务每小时补一批历史赛事。</span></div>' +
-            boutClipsHTML(names, when);
-          return;
-        }
-        return ufcRounds(fid).then(function (rr) {
-          if (!box.isConnected) return;
-          var html = roundsHTML(rr, names[0] || '');
-          box.innerHTML += html ||
-            '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
-            '<span>官方没有这场的分回合数据。</span></div>';
-          box.innerHTML += boutClipsHTML(names, when);
-          // career context belongs after the fight too, not only before it
-          Promise.all([ufcCareer(parts[2]), ufcCareer(parts[3])]).then(function (cr) {
-            if (!box.isConnected) return;
-            var extra = careerHTML(cr[0], cr[1], sideA.name, sideB.name);
-            if (extra) box.innerHTML += extra;
-          });
-        });
-      });
+      r[2].defence = r[5];
+      r[3].defence = r[6];
+      var rounds = r[4] ? roundsHTML(r[4], names[0] || '') : '';
+      box.innerHTML =
+        boutHeroHTML(r[0], r[1], sideA, sideB) +
+        boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '') +
+        (rounds || '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
+          '<span>' + (r[4] ? '官方没有这场的分回合数据。'
+            : '这场还没有收录，抓取任务每小时补一批历史赛事。') + '</span></div>') +
+        careerHTML(r[2], r[3], sideA.name, sideB.name) +
+        boutClipsHTML(names, when);
     });
   }
 
@@ -7978,10 +8012,24 @@
     try {
       inset = parseFloat(getComputedStyle(document.documentElement).paddingTop) || 0;
     } catch (e) {}
-    var stuck = false;
+    /* Slimming the bar was not enough: reading a list is scrolling down, and
+       two rows of navigation you are not using still sit on top of it the
+       whole way. So it leaves when you scroll down and comes back the moment
+       you scroll up — the tabs are never more than a flick away. */
+    var stuck = false, tucked = false, lastY = window.scrollY, anchor = window.scrollY;
     function onScroll() {
+      var y = Math.max(0, window.scrollY);
       var hit = bar.getBoundingClientRect().top <= inset + 1;
       if (hit !== stuck) { stuck = hit; bar.classList.toggle('stuck', hit); }
+
+      // a little slack, so a jittery finger does not flap the bar
+      if ((y > lastY) !== (anchor > lastY)) anchor = lastY;
+      var moved = y - anchor;
+      if (!tucked && moved > 64 && y > 260) { tucked = true; anchor = y; }
+      else if (tucked && moved < -48) { tucked = false; anchor = y; }
+      if (y < 160) tucked = false;
+      bar.classList.toggle('tucked', tucked);
+      lastY = y;
     }
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);

@@ -788,6 +788,80 @@ async function collectUfcFights() {
 }
 
 /* ==========================================================================
+   Career takedown defence.
+
+   Nobody publishes it: ESPN's athlete splits carry takedown accuracy but not
+   defence, and the UFC has no athlete endpoint at all. It is derivable
+   though — a fighter's defence is every opponent's takedown attempts against
+   him, minus the ones that landed. The per-fight documents already hold both
+   halves, so this walks the fight index accumulating them, a slice per run so
+   no single run spends its budget here.
+   ========================================================================== */
+async function collectUfcDefence() {
+  const index = await load('ufc-fights.json');
+  if (!index) return { skipped: 'no fight index yet' };
+
+  const store = (await load('ufc-defence.json')) || { done: [], fighters: {} };
+  const seen = new Set(store.done || []);
+
+  const all = [];
+  for (const rows of Object.values(index.fights || {})) {
+    for (const r of rows) if (r.id && !seen.has(r.id)) all.push(r.id);
+  }
+  if (!all.length) return { fighters: Object.keys(store.fighters).length, added: 0, left: 0 };
+
+  const slice = all.slice(0, MANUAL ? 120 : 70);
+  const fetched = await mapPool(slice, 6, async id => {
+    try {
+      const d = await getJSON(`${UFC_LIVE}/fight/live/${id}.json`);
+      return { id, detail: (d && d.LiveFightDetail) || null };
+    } catch { return { id, detail: null }; }
+  });
+
+  let added = 0;
+  for (const { id, detail } of fetched) {
+    seen.add(id);                      // a fight with no stats is still done
+    const stats = (detail && detail.FightStats) || [];
+    if (stats.length !== 2) continue;
+    const names = (detail.Fighters || []).reduce((m, f) => {
+      m[f.FighterId] = [((f.Name || {}).FirstName || ''), ((f.Name || {}).LastName || '')]
+        .filter(Boolean).join(' ');
+      return m;
+    }, {});
+
+    for (let side = 0; side < 2; side++) {
+      const me = stats[side], them = stats[1 - side];
+      const myId = me.FighterId;
+      if (!myId) continue;
+      // what the other man tried on me is exactly what I had to defend
+      const faced = Number(them.TakedownsAttempted) || 0;
+      const conceded = Number(them.TakedownsLanded) || 0;
+      if (!faced) continue;
+      const key = surnameKey(names[myId] || '') || String(myId);
+      const row = store.fighters[key] || { faced: 0, stopped: 0, name: names[myId] || '' };
+      row.faced += faced;
+      row.stopped += faced - conceded;
+      if (!row.name && names[myId]) row.name = names[myId];
+      store.fighters[key] = row;
+      added++;
+    }
+  }
+
+  for (const key of Object.keys(store.fighters)) {
+    const r = store.fighters[key];
+    r.pct = r.faced ? Math.round(r.stopped / r.faced * 100) : null;
+  }
+  store.done = [...seen].slice(-4000);
+  store.updatedAt = new Date().toISOString();
+  await save('ufc-defence.json', store);
+
+  return {
+    fighters: Object.keys(store.fighters).length,
+    added, scanned: slice.length, left: all.length - slice.length
+  };
+}
+
+/* ==========================================================================
    Boxing — no promoter and no broadcaster publishes a free feed, and ESPN has
    no boxing league at all. Wikipedia's per-fight articles all carry the same
    {{Infobox boxing match}}, which gives date, venue, both records and the
@@ -1350,6 +1424,7 @@ const tasks = [
   ['valorant', collectValorant],
   ['ufc', collectUfcRankings],
   ['ufcFights', collectUfcFights],
+  ['ufcDefence', collectUfcDefence],
   ['boxing', collectBoxing],
   ['boxChampions', collectBoxChampions],
   ['boxers', collectBoxers]

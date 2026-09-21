@@ -725,6 +725,42 @@
     border-bottom: 1px solid var(--hairline);
   }
   .stat-head span { max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* ---- bout panel ---- */
+  .bout-hero {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 8px; padding: 2px 0 10px;
+  }
+  .bh-side { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .bh-shot {
+    width: 62px; height: 62px; border-radius: 50%;
+    background: var(--surface-2); border: 1px solid var(--hairline);
+    overflow: hidden; display: block; flex-shrink: 0;
+  }
+  .bh-shot img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+  .bh-name {
+    font-size: 12px; font-weight: 600; color: var(--ink);
+    text-align: center; line-height: 1.25; max-width: 100%;
+  }
+  .bh-mid { display: flex; align-items: baseline; gap: 7px; }
+  .bh-num { font-size: 23px; font-weight: 700; color: var(--win); font-variant-numeric: tabular-nums; }
+  .bh-num.r { color: var(--loss); }
+  .bh-lbl {
+    font-family: var(--narrow); font-size: 9.5px; letter-spacing: .08em;
+    color: var(--muted); white-space: nowrap;
+  }
+  .bh-bar {
+    display: flex; height: 5px; border-radius: 3px; overflow: hidden;
+    background: var(--loss); margin-bottom: 12px;
+  }
+  .bh-bar i { display: block; height: 100%; background: var(--win); }
+  .stat-sec { margin-top: 11px; }
+  .stat-sec-t {
+    font-family: var(--narrow); font-size: 10px; font-weight: 700;
+    letter-spacing: .1em; color: var(--muted);
+    border-top: 1px solid var(--hairline); padding-top: 7px; margin-bottom: 5px;
+  }
+  .stat-sec:first-of-type .stat-sec-t { border-top: none; padding-top: 0; }
+  .fp-belt { position: absolute; top: 4px; left: 6px; font-size: 11px; line-height: 1; }
   .round-block { margin-top: 10px; }
   .round-no {
     font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
@@ -936,6 +972,29 @@
     background: var(--surface-2); color: var(--ink-2);
     border-radius: 4px; padding: 3px 7px; white-space: nowrap;
   }
+  .pd-meta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
+    font-size: 11.5px; color: var(--muted); padding: 2px 0 7px;
+  }
+  .pd-tier {
+    font-family: var(--narrow); font-size: 9.5px; font-weight: 700; letter-spacing: .06em;
+    background: var(--accent-soft); color: var(--accent-ink);
+    border-radius: 3px; padding: 1px 5px;
+  }
+  .map-list { display: grid; gap: 2px; padding: 2px 0 4px; }
+  .map-line {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12px; padding: 5px 8px; border-radius: 5px;
+    background: var(--surface-2);
+  }
+  .map-no {
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    color: var(--muted); min-width: 40px;
+  }
+  .map-win { font-weight: 700; color: var(--ink); }
+  .map-win.a { color: var(--win); }
+  .map-win.b { color: var(--loss); }
+  .map-len { margin-left: auto; font-size: 11px; color: var(--muted); }
   .lol-full {
     display: block; font-size: 11px; color: var(--muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -4376,15 +4435,26 @@
     var maps = (m.games || []).filter(function (g) { return g.status === 'finished'; });
     var detail = '';
     if (open) {
+      // one row per map, with the winner's side coloured — a series is really
+      // a sequence, and pills in a line lost that
       var cells = maps.map(function (g) {
-        var who = g.winner === a.id ? (a.acronym || a.name) :
-          g.winner === b.id ? (b.acronym || b.name) : '—';
-        return '<span class="map-pill">第 ' + esc(g.pos || '?') + ' 图 · ' + esc(who) +
-          (g.length ? ' · ' + Math.round(g.length / 60) + ' 分钟' : '') + '</span>';
+        var side = g.winner === a.id ? 'a' : (g.winner === b.id ? 'b' : '');
+        var who = side === 'a' ? (a.acronym || a.name)
+          : side === 'b' ? (b.acronym || b.name) : '—';
+        return '<div class="map-line">' +
+          '<span class="map-no">第 ' + esc(g.pos || '?') + ' 图</span>' +
+          '<span class="map-win ' + side + '">' + esc(who) + '</span>' +
+          '<span class="map-len">' + (g.length ? Math.round(g.length / 60) + ' 分钟' : '') +
+          '</span></div>';
       }).join('');
+      var when = new Date(m.start || '');
       detail = '<div class="panda-detail">' +
-        (m.event ? '<div class="pd-line">' + esc(m.event) + '</div>' : '') +
-        (cells ? '<div class="map-row">' + cells + '</div>'
+        '<div class="pd-meta">' +
+        (m.event ? '<span>' + esc(m.event) + '</span>' : '') +
+        (m.tier ? '<span class="pd-tier">' + esc(String(m.tier).toUpperCase()) + ' 级</span>' : '') +
+        (isNaN(when) ? '' : '<span>' + esc(fmtDay(when) + ' ' + fmtTime(when)) + '</span>') +
+        '</div>' +
+        (cells ? '<div class="map-list">' + cells + '</div>'
                : '<div class="pd-line muted">这场还没有分图结果。</div>') +
         (m.stream ? '<div class="pd-line"><a href="' + esc(m.stream.url) +
           '" target="_blank" rel="noopener">观看直播/回放 ↗</a></div>' : '') +
@@ -5329,6 +5399,30 @@
     return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0);
   }
 
+  function mmaFace(id) {
+    return id ? 'https://a.espncdn.com/i/headshots/mma/players/full/' + id + '.png' : '';
+  }
+  /* A header the numbers hang off: both men facing each other, and the one
+     line that decides most fights — who landed more of what counts. */
+  function boutHeroHTML(A, B, a, b) {
+    var sa = statNum(A, 'sigStrikesLanded'), sb = statNum(B, 'sigStrikesLanded');
+    var total = sa + sb;
+    var pa = total ? Math.round(sa / total * 100) : 50;
+    function face(side, right) {
+      return '<div class="bh-side' + (right ? ' r' : '') + '">' +
+        '<span class="bh-shot"><img src="' + esc(mmaFace(side.id)) + '" alt="" loading="lazy"' +
+        ' onerror="this.style.visibility=\'hidden\'"></span>' +
+        '<span class="bh-name">' + esc(side.name) + '</span>' +
+        (side.flag ? '<img class="flag-sm" src="' + esc(side.flag) + '" alt="">' : '') +
+        '</div>';
+    }
+    return '<div class="bout-hero">' + face(a) +
+      '<div class="bh-mid"><span class="bh-num">' + sa + '</span>' +
+      '<span class="bh-lbl">有效击打</span>' +
+      '<span class="bh-num r">' + sb + '</span></div>' + face(b, true) +
+      '</div><div class="bh-bar"><i style="width:' + pa + '%"></i></div>';
+  }
+
   function boutStatsHTML(A, B, nameA, nameB) {
     function bar(label, av, bv, aText, bText) {
       var sum = av + bv;
@@ -5357,26 +5451,45 @@
 
     var ctrlA = clockSeconds(statText(A, 'timeInControl'));
     var ctrlB = clockSeconds(statText(B, 'timeInControl'));
-    var rows = [
-      hit('有效击打', 'sigStrikesLanded', 'sigStrikesAttempted'),
-      hit('总打击', 'totalStrikesLanded', 'totalStrikesAttempted'),
-      group('头部命中', HEAD_KEYS),
-      group('身体命中', BODY_KEYS),
-      group('腿部命中', LEG_KEYS),
-      group('站立距离', DIST_KEYS),
-      group('缠斗', CLINCH_KEYS),
-      group('地面', GROUND_KEYS),
-      hit('摔跤', 'takedownsLanded', 'takedownsAttempted'),
-      (ctrlA || ctrlB) ? bar('控制时间', ctrlA, ctrlB,
-        statText(A, 'timeInControl'), statText(B, 'timeInControl')) : '',
-      plain2('击倒', 'knockDowns'),
-      plain2('降服尝试', 'submissions'),
-      plain2('地面推进', 'advances')
-    ].filter(Boolean);
+    // grouped, because a flat run of twelve bars says nothing about which
+    // numbers belong together
+    var sections = [
+      ['打击', [
+        hit('有效击打', 'sigStrikesLanded', 'sigStrikesAttempted'),
+        hit('总打击', 'totalStrikesLanded', 'totalStrikesAttempted'),
+        plain2('击倒', 'knockDowns')
+      ]],
+      ['落点', [
+        group('头部', HEAD_KEYS),
+        group('身体', BODY_KEYS),
+        group('腿部', LEG_KEYS)
+      ]],
+      ['位置', [
+        group('站立距离', DIST_KEYS),
+        group('缠斗', CLINCH_KEYS),
+        group('地面', GROUND_KEYS)
+      ]],
+      ['摔跤与控制', [
+        hit('摔跤', 'takedownsLanded', 'takedownsAttempted'),
+        (ctrlA || ctrlB) ? bar('控制时间', ctrlA, ctrlB,
+          statText(A, 'timeInControl'), statText(B, 'timeInControl')) : '',
+        plain2('降服尝试', 'submissions'),
+        plain2('地面推进', 'advances')
+      ]]
+    ];
 
-    if (!rows.length) return '<div class="kv"><span>这场没有统计数据。</span></div>';
+    var any = false;
+    var html = sections.map(function (s) {
+      var rows = s[1].filter(Boolean);
+      if (!rows.length) return '';
+      any = true;
+      return '<div class="stat-sec"><div class="stat-sec-t">' + s[0] + '</div>' +
+        rows.join('') + '</div>';
+    }).join('');
+
+    if (!any) return '<div class="kv"><span>这场没有统计数据。</span></div>';
     return '<div class="stat-head"><span>' + esc(nameA) + '</span><span>' + esc(nameB) +
-      '</span></div>' + rows.join('');
+      '</span></div>' + html;
   }
 
   /* ---------- round by round, from the UFC's own feed ----------
@@ -5439,16 +5552,26 @@
     return attempted ? v + '/' + (r[attempted] || 0) : String(v);
   }
 
-  function roundsHTML(data) {
-    var sides = data.rounds || [];
+  function roundsHTML(data, leftName) {
+    var sides = (data.rounds || []).slice();
     if (sides.length < 2) return '';
-    var a = sides[0].Rounds || [], b = sides[1].Rounds || [];
-    var count = Math.max(a.length, b.length);
-    if (!count) return '';
-    var nameOf = function (fid) {
+    var nameOfId = function (fid) {
       var f = (data.fighters || []).filter(function (x) { return x.id === fid; })[0];
       return f ? f.name : '';
     };
+    // the UFC's feed does not order the two corners the way ESPN's card does,
+    // so line them up or the columns read backwards against the panel above
+    if (leftName) {
+      var want = ufcSurname(leftName);
+      if (want && ufcSurname(nameOfId(sides[0].FighterId)) !== want &&
+          ufcSurname(nameOfId(sides[1].FighterId)) === want) {
+        sides.reverse();
+      }
+    }
+    var a = sides[0].Rounds || [], b = sides[1].Rounds || [];
+    var count = Math.max(a.length, b.length);
+    if (!count) return '';
+    var nameOf = nameOfId;
     var out = '<h4>逐回合</h4>';
     for (var i = 0; i < count; i++) {
       var ra = a[i], rb = b[i];
@@ -5487,13 +5610,17 @@
     var names = [].slice.call(row.querySelectorAll('.fnm')).map(function (e) {
       return e.textContent.trim();
     });
+    var flags = [].slice.call(row.querySelectorAll('.flag-sm')).map(function (e) { return e.src; });
+    var sideA = { id: parts[2], name: names[0] || '', flag: flags[0] || '' };
+    var sideB = { id: parts[3], name: names[1] || '', flag: flags[1] || '' };
     var when = row.dataset.when || '';
     Promise.all([
       ufcBoutStats(parts[0], parts[1], parts[2]),
       ufcBoutStats(parts[0], parts[1], parts[3])
     ]).then(function (r) {
       if (!box.isConnected) return;
-      box.innerHTML = boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '');
+      box.innerHTML = boutHeroHTML(r[0], r[1], sideA, sideB) +
+        boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '');
       // the per-round split lives on the UFC's feed, so it arrives separately
       return ufcFightId(names[0], names[1], when).then(function (fid) {
         if (!box.isConnected) return;
@@ -5504,7 +5631,7 @@
         }
         return ufcRounds(fid).then(function (rr) {
           if (!box.isConnected) return;
-          var html = roundsHTML(rr);
+          var html = roundsHTML(rr, names[0] || '');
           box.innerHTML += html ||
             '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
             '<span>官方没有这场的分回合数据。</span></div>';
@@ -5789,6 +5916,7 @@
     var on = fightPicked.some(function (p) { return String(p.id) === String(f.id); });
     return '<button class="fpick" type="button" data-fid="' + esc(f.id) + '"' +
       ' aria-pressed="' + on + '">' +
+      (f.champ ? '<span class="fp-belt" title="' + esc(f.champ) + '">🏆</span>' : '') +
       (f.rank ? '<span class="fp-rank">' + esc(f.rank) + '</span>' : '') +
       (f.flag ? '<img class="fp-flag" src="' + esc(f.flag) + '" alt="" loading="lazy">' : '') +
       '<img class="fp-shot" src="' + esc(f.shot || FACE_FALLBACK) + '" alt="" loading="lazy"' +
@@ -6144,8 +6272,10 @@
       return { id: f.name, name: f.name, flag: f.flag || '', rec: f.record || '' };
     });
 
-    Promise.all([archiveGet('boxing.json'), archiveGet('boxers.json')]).then(function (r) {
-      var card = r[0], faces = (r[1] || {}).faces || {};
+    Promise.all([
+      archiveGet('boxing.json'), archiveGet('boxers.json'), archiveGet('box-champions.json')
+    ]).then(function (r) {
+      var card = r[0], faces = (r[1] || {}).faces || {}, belts = r[2];
       if (!card) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
 
       // One entry per boxer. A man's division is the one he has fought in most
@@ -6176,26 +6306,64 @@
         });
       });
 
+      // reigning champions, by division — the working roster of the sport, and
+      // current by definition, unlike a name pulled out of a 2022 undercard
+      var champOf = {};
+      ((belts && belts.divisions) || []).forEach(function (dv) {
+        (dv.champions || []).forEach(function (c) {
+          if (!c.name) return;
+          champOf[c.name] = dv.nameCN || dv.name;
+          var hit = byName[c.name];
+          if (!hit) {
+            hit = byName[c.name] = {
+              id: c.name, name: c.name, flag: '', rec: c.record || '',
+              shot: faces[c.name] || '', weights: {}, soon: false, when: null
+            };
+          }
+          if (!hit.rec && c.record) hit.rec = c.record;
+          if (!hit.shot) hit.shot = faces[c.name] || '';
+          hit.champ = dv.nameCN || dv.name;
+        });
+      });
+
       var all = Object.keys(byName).map(function (k) {
         var f = byName[k];
         var best = '', n = 0;
         Object.keys(f.weights).forEach(function (w) {
           if (f.weights[w] > n) { n = f.weights[w]; best = w; }
         });
-        f.weight = best || '其他';
+        f.weight = f.champ || best || '其他';
         return f;
       });
       if (!all.length) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
 
+      // Someone whose last bout in the archive is years old has effectively
+      // retired; a current champion always stays regardless.
+      var stale = Date.now() - 30 * 30 * 24 * 3600e3;
+      var active = all.filter(function (f) {
+        if (f.champ || f.soon) return true;
+        return f.when && new Date(f.when).getTime() >= stale;
+      });
+      if (active.length < 12) active = all;
+
       var groups = [];
-      var soon = all.filter(function (f) { return f.soon; });
+      var champs = active.filter(function (f) { return f.champ; });
+      if (champs.length) {
+        groups.push({
+          key: 'champ', label: '现役金腰带',
+          fighters: champs.sort(function (a, b) {
+            return (a.champ || '').localeCompare(b.champ || '') || a.name.localeCompare(b.name);
+          })
+        });
+      }
+      var soon = active.filter(function (f) { return f.soon; });
       if (soon.length) {
         groups.push({ key: 'soon', label: '有安排', fighters: byName_sort(soon) });
       }
-      groups.push({ key: 'all', label: '全部', fighters: byName_sort(all) });
+      groups.push({ key: 'all', label: '全部', fighters: byName_sort(active) });
       // a division with one lonely name is noise as a tab of its own
       var buckets = {};
-      all.forEach(function (f) { (buckets[f.weight] = buckets[f.weight] || []).push(f); });
+      active.forEach(function (f) { (buckets[f.weight] = buckets[f.weight] || []).push(f); });
       var spare = [];
       Object.keys(buckets).sort(function (a, b) { return buckets[b].length - buckets[a].length; })
         .forEach(function (w) {

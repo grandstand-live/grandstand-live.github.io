@@ -1193,6 +1193,55 @@ async function collectBoxing() {
   };
 }
 
+/* The fighters we know about are only the ones who appear in a bout we have
+   scraped, which is both too few and full of names who have long since
+   retired. Wikipedia keeps a page of who currently holds each belt — that is
+   the working roster of the sport, by division, and it is maintained. */
+async function collectBoxChampions() {
+  const page = await wikiSource(['List of current world boxing champions']);
+  const text = page['List of current world boxing champions'];
+  if (!text) throw new Error('champions page not found');
+
+  const divisions = [];
+  // one === Heading === per weight class, each holding that division's belts
+  const parts = text.split(/\n===\s*/).slice(1);
+  for (const part of parts) {
+    const head = part.slice(0, part.indexOf('===')).trim();
+    if (!head) continue;
+    const label = wikiPlain(head).replace(/\(.*$/, '').trim();
+    if (!label || /champion|see also|notes|reference/i.test(label)) continue;
+    let cn = '';
+    for (const [re, name] of WEIGHT_CLASSES) if (re.test(label)) { cn = name; break; }
+    if (!cn) continue;
+
+    const champions = [];
+    const seen = new Set();
+    // [[Name]]<br>24–0 (19 KO)<br>June 27, 2026
+    const re = /\[\[([^\]|]+?)(?:\|[^\]]*?)?\]\]\s*<br\s*\/?>\s*([^<]*?)\s*<br\s*\/?>\s*([^<\n|}]*)/g;
+    let m;
+    while ((m = re.exec(part))) {
+      const name = wikiPlain(m[1]).trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      champions.push({
+        name,
+        record: boxRecord(m[2]),
+        since: wikiPlain(m[3]).trim().slice(0, 40)
+      });
+    }
+    if (champions.length) divisions.push({ name: label, nameCN: cn, champions });
+  }
+  if (!divisions.length) throw new Error('champions page did not parse');
+
+  await save('box-champions.json', {
+    updatedAt: new Date().toISOString(), source: 'Wikipedia', divisions
+  });
+  return {
+    divisions: divisions.length,
+    champions: divisions.reduce((n, d) => n + d.champions.length, 0)
+  };
+}
+
 /* Portraits for the boxer picker, so it can look like the UFC one rather than
    a list of names. A boxer's article title is their name, and pageimages hands
    back the infobox photo. Cached for a month: these faces do not change. */
@@ -1207,6 +1256,14 @@ async function collectBoxers() {
       if (n && !names.includes(n)) names.push(n);
     }
   });
+  // the reigning champions need faces too, and most of them have never shown
+  // up in a bout we scraped
+  const belts = await load('box-champions.json');
+  for (const d of (belts && belts.divisions) || []) {
+    for (const c of d.champions || []) {
+      if (c.name && !names.includes(c.name)) names.push(c.name);
+    }
+  }
   if (!names.length) return { boxers: 0 };
 
   const cache = (await load('boxers.json')) || { updatedAt: 0, faces: {} };
@@ -1258,6 +1315,7 @@ const tasks = [
   ['ufc', collectUfcRankings],
   ['ufcFights', collectUfcFights],
   ['boxing', collectBoxing],
+  ['boxChampions', collectBoxChampions],
   ['boxers', collectBoxers]
 ];
 

@@ -705,6 +705,72 @@ async function collectUfcRankings() {
 }
 
 /* ==========================================================================
+   Round-by-round UFC numbers.
+
+   ESPN only publishes a fight's totals — its statistics document has a single
+   "All Splits" entry and asking for /1 redirects back to it. The UFC's own
+   live feed does carry per-round stats (strikes by target and position,
+   control time, knockdowns), and it allows cross-origin reads, so the page can
+   fetch a fight directly. What it cannot do is work out *which* fight: the UFC
+   keys on its own ids. So this builds the index — surnames to UFC fight id —
+   and the page looks a bout up in it.
+   ========================================================================== */
+const UFC_LIVE = 'https://d29dxerjsp82wz.cloudfront.net/api/v3';
+
+const surnameKey = name => deLetter(name).toLowerCase()
+  .replace(/[^a-z ]/g, '').trim().split(/\s+/).pop() || '';
+
+function fightKey(a, b) {
+  return [surnameKey(a), surnameKey(b)].filter(Boolean).sort().join('|');
+}
+
+async function ufcEvent(id) {
+  try {
+    const d = await getJSON(`${UFC_LIVE}/event/live/${id}.json`);
+    return (d && d.LiveEventDetail) || null;
+  } catch { return null; }
+}
+
+async function collectUfcFights() {
+  const cache = (await load('ufc-fights.json')) ||
+    { maxEventId: 1240, fights: {} };
+  const seen = { ...cache.fights };
+  const notes = [];
+
+  // Re-read the few most recent events (results land after the fight) and then
+  // walk forward until the ids run out, which is where the calendar ends.
+  const ids = [];
+  for (let i = Math.max(1, cache.maxEventId - 6); i <= cache.maxEventId + 15; i++) ids.push(i);
+
+  let maxSeen = cache.maxEventId;
+  let added = 0;
+  for (const id of ids) {
+    const ev = await ufcEvent(id);
+    if (!ev) continue;
+    maxSeen = Math.max(maxSeen, id);
+    const date = String(ev.StartTime || '').slice(0, 10);
+    for (const fight of ev.FightCard || []) {
+      const names = (fight.Fighters || []).map(f => (f.Name || {}).LastName || '');
+      if (names.length !== 2 || !names[0] || !names[1]) continue;
+      const key = fightKey(names[0], names[1]);
+      if (!key) continue;
+      const row = { id: fight.FightId, date, event: ev.Name || '' };
+      const list = (seen[key] || []).filter(x => x.id !== row.id);
+      list.push(row);
+      seen[key] = list.slice(-4);   // a rematch keeps both, not a growing list
+      added++;
+    }
+  }
+  notes.push(`scanned ${ids.length} events up to ${maxSeen}`);
+
+  await save('ufc-fights.json', {
+    updatedAt: new Date().toISOString(),
+    maxEventId: maxSeen, fights: seen
+  });
+  return { pairs: Object.keys(seen).length, indexed: added, maxEventId: maxSeen, tried: notes };
+}
+
+/* ==========================================================================
    Boxing — no promoter and no broadcaster publishes a free feed, and ESPN has
    no boxing league at all. Wikipedia's per-fight articles all carry the same
    {{Infobox boxing match}}, which gives date, venue, both records and the
@@ -1113,6 +1179,7 @@ const tasks = [
   ['cs2', collectCs2],
   ['valorant', collectValorant],
   ['ufc', collectUfcRankings],
+  ['ufcFights', collectUfcFights],
   ['boxing', collectBoxing],
   ['boxers', collectBoxers]
 ];

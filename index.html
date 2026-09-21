@@ -712,9 +712,25 @@
     letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
     padding: 9px 14px 3px;
   }
-  /* a bout row is a readout, not a button — nothing opens underneath it */
+  /* a bout row only invites a click when there are numbers behind it */
   .bout { cursor: default; }
   .bout:hover { background: none; }
+  .bout.opens { cursor: pointer; }
+  .bout.opens:hover { background: var(--surface-2); }
+  .bout-detail { padding: 10px 13px 13px; }
+  .stat-head {
+    display: flex; justify-content: space-between;
+    font-size: 11px; font-weight: 700; color: var(--ink-2);
+    padding-bottom: 7px; margin-bottom: 3px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .stat-head span { max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .round-block { margin-top: 10px; }
+  .round-no {
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    letter-spacing: .08em; color: var(--muted);
+    border-top: 1px solid var(--hairline); padding-top: 7px; margin-bottom: 4px;
+  }
   .bout .side { gap: 7px; }
   .bout .fnm { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
   .bout .fnm.dim { color: var(--muted); font-weight: 500; }
@@ -1369,6 +1385,7 @@
   function setSport(id) {
     sport = id;
     lsSet('sport', id);
+    viewSeq++;   // the Today branch below never reaches setTab
     renderSportNav();
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
     $('subtitle').textContent = '实时赛事板 · ' + s.sub;
@@ -1443,8 +1460,29 @@
     if (el) el.textContent = favorites.length;
   }
 
+  /* Every panel is filled asynchronously, and nothing used to check whether the
+     view had moved on by the time the data landed. Switch sport while a feed is
+     in flight and its answer would paint over whichever panel was on screen by
+     then — the leftovers between sections. Each switch takes a new token and a
+     render drops its result if the token has moved. */
+  var viewSeq = 0;
+  function viewStale(token) { return token !== viewSeq; }
+  /* A renderer asks for its panel through this and writes to it as usual; the
+     write is dropped if the view moved on while the data was loading. */
+  function panelFor(id) {
+    var el = $(id);
+    var token = viewSeq;
+    return {
+      get innerHTML() { return el.innerHTML; },
+      set innerHTML(html) { if (!viewStale(token)) el.innerHTML = html; },
+      querySelector: function (sel) { return el.querySelector(sel); },
+      querySelectorAll: function (sel) { return el.querySelectorAll(sel); }
+    };
+  }
+
   function setTab(next) {
     tab = next;
+    viewSeq++;
     Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (b) {
       b.setAttribute('aria-selected', String(b.dataset.tab === next));
     });
@@ -1506,6 +1544,7 @@
 
   /* ---------- fixtures ---------- */
   function loadFixtures(quiet) {
+    var tk = viewSeq;
     if (!quiet) {
       $('panel-fixtures').innerHTML = '<div class="skeleton">正在获取赛程…</div>';
       $('status').textContent = '正在获取赛程…';
@@ -1527,6 +1566,7 @@
         });
       });
       events.sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+      if (viewStale(tk)) return;
       renderFixtures();
       scheduleAutoRefresh();
     });
@@ -1541,7 +1581,7 @@
   }
 
   function renderFixtures() {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     if (!events.length) {
       if (lastErr) {
         host.innerHTML = '<div class="err">连不上 ESPN 的数据接口。<br>（' + esc(lastErr) + '）</div>';
@@ -2257,7 +2297,7 @@
 
   /* ---------- standings ---------- */
   function loadStandings() {
-    var host = $('panel-table');
+    var host = panelFor('panel-table');
     if (standingsCache[league]) { host.innerHTML = standingsCache[league]; return; }
     host.innerHTML = '<div class="skeleton">正在获取积分榜…</div>';
     getJSON(API + 'v2/sports/soccer/' + league + '/standings').then(function (data) {
@@ -2339,7 +2379,7 @@
   var DAY = 86400000;
 
   function renderMine() {
-    var host = $('panel-mine');
+    var host = panelFor('panel-mine');
     if (!favorites.length) {
       host.innerHTML = '<div class="empty">还没有设主队。<br>点右上角的「主队」挑最多 5 支球队，这里会显示过去一周的战绩（含红黄牌）、接下来两周的赛程，还有俱乐部新闻和转会消息。</div>';
       return;
@@ -2591,7 +2631,7 @@
   }
 
   function renderF1Fixtures() {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
     f1Season().then(function (d) {
       var evs = (d && d.events) || [];
@@ -2709,7 +2749,7 @@
   }
 
   function renderF1Table() {
-    var host = $('panel-table');
+    var host = panelFor('panel-table');
     host.innerHTML = '<div class="skeleton">正在获取积分榜…</div>';
     f1Standings().then(function (d) {
       var groups = (d && d.children) || [];
@@ -3061,7 +3101,7 @@
   }
 
   function renderMyDrivers() {
-    var host = $('panel-mine');
+    var host = panelFor('panel-mine');
     if (!favDrivers.length) {
       host.innerHTML = '<div class="empty">还没有选车手。<br>点右上角的「车手」挑最多 ' + MAX_DRIVERS +
         ' 位，这里会显示他们的积分排名、最近一站的名次得分进站，以及下一站的时间。</div>';
@@ -3360,7 +3400,7 @@
   }
 
   function renderToday() {
-    var host = $('panel-today');
+    var host = panelFor('panel-today');
     host.innerHTML = '<div class="skeleton">正在汇总…</div>';
     if (todayTimer) { clearInterval(todayTimer); todayTimer = null; }
 
@@ -3797,7 +3837,7 @@
   }
 
   function renderNbaFixtures() {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛程…</div>';
     nbaWindow().then(function (w) {
       var evs = w.events;
@@ -3964,7 +4004,7 @@
   }
 
   function renderNbaTable() {
-    var host = $('panel-table');
+    var host = panelFor('panel-table');
     host.innerHTML = '<div class="skeleton">正在获取排名…</div>';
     Promise.all([nbaStandings(), nbaHonours()]).then(function (r) {
       var data = r[0], honours = r[1];
@@ -4001,7 +4041,7 @@
   }
 
   function renderNbaMine() {
-    var host = $('panel-mine');
+    var host = panelFor('panel-mine');
     if (!favNba.length) {
       host.innerHTML = '<div class="empty">还没有设主队。<br>点右上角的「主队」挑最多 ' + MAX_NBA +
         ' 支球队，这里会显示他们最近的结果和接下来的比赛。</div>';
@@ -4278,7 +4318,7 @@
   }
 
   function renderPandaGame(file, label, game) {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
     $('status').textContent = label;
     archiveGet(file).then(function (d) {
@@ -4367,7 +4407,7 @@
     return hit ? CBA_CN[hit] : (name || '');
   }
   function renderCba() {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
     $('status').textContent = 'CBA';
     archiveGet('cba.json').then(function (d) {
@@ -4442,7 +4482,7 @@
   }
 
   function renderLolFixtures() {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛程…</div>';
     lolLeagues().then(function (leagues) {
       renderLolChips(leagues);
@@ -4673,7 +4713,7 @@
   }
 
   function renderLolTable() {
-    var host = $('panel-table');
+    var host = panelFor('panel-table');
     host.innerHTML = '<div class="skeleton">正在获取排名…</div>';
     lolLeagues().then(function (leagues) {
       renderLolChips(leagues);
@@ -4717,7 +4757,7 @@
   }
 
   function renderLolMine() {
-    var host = $('panel-mine');
+    var host = panelFor('panel-mine');
     if (!favLol.length) {
       host.innerHTML = '<div class="empty">还没有关注战队。<br>点右上角的「战队」挑最多 ' + MAX_LOL +
         ' 支，这里会显示他们最近的战绩和接下来的比赛。</div>';
@@ -4890,7 +4930,7 @@
   }
 
   function renderUfcFixtures() {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
     ufcSeason().then(function (d) {
       var cal = (((d && d.leagues) || [])[0] || {}).calendar || [];
@@ -4981,6 +5021,225 @@
     }).join('') + '</div>';
   }
 
+  /* ---------- per-bout statistics ----------
+     ESPN keeps these on the core API, one document per fighter per fight:
+     significant strikes split by target and position, takedowns, control time.
+     Loaded only when a bout is opened — a full card would be 24 requests. */
+  function ufcBoutStats(evId, compId, athId) {
+    var key = 'bs' + compId + '-' + athId;
+    if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
+    return getJSON('https://sports.core.api.espn.com/v2/sports/mma/leagues/ufc/events/' +
+      evId + '/competitions/' + compId + '/competitors/' + athId + '/statistics/0')
+      .then(function (d) {
+        var out = {};
+        ((((d || {}).splits || {}).categories) || []).forEach(function (cat) {
+          (cat.stats || []).forEach(function (s) { out[s.name] = s; });
+        });
+        if (Object.keys(out).length) ufcCache[key] = out;
+        return out;
+      });
+  }
+  function statNum(map, name) {
+    var s = map[name];
+    return s ? (Number(s.value) || 0) : 0;
+  }
+  function statText(map, name) {
+    var s = map[name];
+    return s ? (s.displayValue || '') : '';
+  }
+  function sumOf(map, names) {
+    return names.reduce(function (n, k) { return n + statNum(map, k); }, 0);
+  }
+  var HEAD_KEYS = ['sigDistanceHeadStrikesLanded', 'sigClinchHeadStrikesLanded', 'sigGroundHeadStrikesLanded'];
+  var BODY_KEYS = ['sigDistanceBodyStrikesLanded', 'sigClinchBodyStrikesLanded', 'sigGroundBodyStrikesLanded'];
+  var LEG_KEYS = ['sigDistanceLegStrikesLanded', 'sigClinchLegStrikesLanded', 'sigGroundLegStrikesLanded'];
+  var DIST_KEYS = ['sigDistanceHeadStrikesLanded', 'sigDistanceBodyStrikesLanded', 'sigDistanceLegStrikesLanded'];
+  var CLINCH_KEYS = ['sigClinchHeadStrikesLanded', 'sigClinchBodyStrikesLanded', 'sigClinchLegStrikesLanded'];
+  var GROUND_KEYS = ['sigGroundHeadStrikesLanded', 'sigGroundBodyStrikesLanded', 'sigGroundLegStrikesLanded'];
+
+  function clockSeconds(text) {
+    var p = String(text || '').split(':');
+    if (p.length !== 2) return 0;
+    return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0);
+  }
+
+  function boutStatsHTML(A, B, nameA, nameB) {
+    function bar(label, av, bv, aText, bText) {
+      var sum = av + bv;
+      var aw = sum ? av / sum * 100 : 50;
+      return '<div class="stat"><span class="sv">' + esc(aText === undefined ? av : aText) +
+        '</span><span class="sl">' + esc(label) + '</span>' +
+        '<span class="sv r">' + esc(bText === undefined ? bv : bText) + '</span>' +
+        '<span class="sbar"><span class="lw"><i style="width:' + aw.toFixed(1) + '%"></i></span>' +
+        '<span class="rw"><i style="width:' + (100 - aw).toFixed(1) + '%"></i></span></span></div>';
+    }
+    function hit(label, landed, attempted) {
+      var a1 = statNum(A, landed), a2 = statNum(A, attempted);
+      var b1 = statNum(B, landed), b2 = statNum(B, attempted);
+      if (!a2 && !b2) return '';
+      var pct = function (l, t) { return t ? ' (' + Math.round(l / t * 100) + '%)' : ''; };
+      return bar(label, a1, b1, a1 + '/' + a2 + pct(a1, a2), b1 + '/' + b2 + pct(b1, b2));
+    }
+    function group(label, keys) {
+      var a = sumOf(A, keys), b = sumOf(B, keys);
+      return (a || b) ? bar(label, a, b) : '';
+    }
+    function plain2(label, key) {
+      var a = statNum(A, key), b = statNum(B, key);
+      return (a || b) ? bar(label, a, b) : '';
+    }
+
+    var ctrlA = clockSeconds(statText(A, 'timeInControl'));
+    var ctrlB = clockSeconds(statText(B, 'timeInControl'));
+    var rows = [
+      hit('有效击打', 'sigStrikesLanded', 'sigStrikesAttempted'),
+      hit('总打击', 'totalStrikesLanded', 'totalStrikesAttempted'),
+      group('头部命中', HEAD_KEYS),
+      group('身体命中', BODY_KEYS),
+      group('腿部命中', LEG_KEYS),
+      group('站立距离', DIST_KEYS),
+      group('缠斗', CLINCH_KEYS),
+      group('地面', GROUND_KEYS),
+      hit('摔跤', 'takedownsLanded', 'takedownsAttempted'),
+      (ctrlA || ctrlB) ? bar('控制时间', ctrlA, ctrlB,
+        statText(A, 'timeInControl'), statText(B, 'timeInControl')) : '',
+      plain2('击倒', 'knockDowns'),
+      plain2('降服尝试', 'submissions'),
+      plain2('地面推进', 'advances')
+    ].filter(Boolean);
+
+    if (!rows.length) return '<div class="kv"><span>这场没有统计数据。</span></div>';
+    return '<div class="stat-head"><span>' + esc(nameA) + '</span><span>' + esc(nameB) +
+      '</span></div>' + rows.join('');
+  }
+
+  /* ---------- round by round, from the UFC's own feed ----------
+     The collector maps a pair of surnames to the UFC's fight id; with that the
+     page can read the per-round document straight from them. */
+  function ufcSurname(name) {
+    return plain(String(name || '')).replace(/[^a-z ]/g, '').trim().split(/\s+/).pop() || '';
+  }
+  function ufcFightId(nameA, nameB, when) {
+    return archiveGet('ufc-fights.json').then(function (d) {
+      var key = [ufcSurname(nameA), ufcSurname(nameB)].filter(Boolean).sort().join('|');
+      var rows = ((d || {}).fights || {})[key] || [];
+      if (!rows.length) return null;
+      if (rows.length === 1) return rows[0].id;
+      // a rematch: take whichever sitting is closest to the card's date
+      var target = new Date(when).getTime();
+      var best = rows[0], gap = Infinity;
+      rows.forEach(function (r) {
+        var g = Math.abs(new Date(r.date).getTime() - target);
+        if (g < gap) { gap = g; best = r; }
+      });
+      return best.id;
+    });
+  }
+  function ufcRounds(fightId) {
+    var key = 'rr' + fightId;
+    if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
+    return getJSON('https://d29dxerjsp82wz.cloudfront.net/api/v3/fight/live/' + fightId + '.json')
+      .then(function (d) {
+        var detail = (d || {}).LiveFightDetail || {};
+        var out = {
+          fighters: (detail.Fighters || []).map(function (f) {
+            return {
+              id: f.FighterId,
+              name: [((f.Name || {}).FirstName || ''), ((f.Name || {}).LastName || '')]
+                .filter(Boolean).join(' ')
+            };
+          }),
+          rounds: detail.RoundStats || []
+        };
+        if (out.rounds.length) ufcCache[key] = out;
+        return out;
+      }).catch(function () { return { fighters: [], rounds: [] }; });
+  }
+
+  var ROUND_ROWS = [
+    ['有效击打', 'SigStrikesLanded', 'SigStrikesAttempted'],
+    ['头部', 'SigHeadStrikesLanded', 'SigHeadStrikesAttempted'],
+    ['身体', 'SigBodyStrikesLanded', 'SigBodyStrikesAttempted'],
+    ['腿部', 'SigLegStrikesLanded', 'SigLegStrikesAttempted'],
+    ['摔跤', 'TakedownsLanded', 'TakedownsAttempted'],
+    ['击倒', 'Knockdowns', null],
+    ['控制时间', 'ControlTime', null]
+  ];
+  function roundValue(r, landed, attempted) {
+    if (!r) return '';
+    var v = r[landed];
+    if (v === undefined || v === null) return '';
+    if (landed === 'ControlTime') return String(v);
+    return attempted ? v + '/' + (r[attempted] || 0) : String(v);
+  }
+
+  function roundsHTML(data) {
+    var sides = data.rounds || [];
+    if (sides.length < 2) return '';
+    var a = sides[0].Rounds || [], b = sides[1].Rounds || [];
+    var count = Math.max(a.length, b.length);
+    if (!count) return '';
+    var nameOf = function (fid) {
+      var f = (data.fighters || []).filter(function (x) { return x.id === fid; })[0];
+      return f ? f.name : '';
+    };
+    var out = '<h4>逐回合</h4>';
+    for (var i = 0; i < count; i++) {
+      var ra = a[i], rb = b[i];
+      var rows = ROUND_ROWS.map(function (def) {
+        var va = roundValue(ra, def[1], def[2]);
+        var vb = roundValue(rb, def[1], def[2]);
+        if (!va && !vb) return '';
+        var na = parseInt(va, 10) || 0, nb = parseInt(vb, 10) || 0;
+        if (def[1] === 'ControlTime') { na = clockSeconds(va); nb = clockSeconds(vb); }
+        var sum = na + nb, aw = sum ? na / sum * 100 : 50;
+        return '<div class="stat"><span class="sv">' + esc(va || '0') + '</span>' +
+          '<span class="sl">' + def[0] + '</span>' +
+          '<span class="sv r">' + esc(vb || '0') + '</span>' +
+          '<span class="sbar"><span class="lw"><i style="width:' + aw.toFixed(1) + '%"></i></span>' +
+          '<span class="rw"><i style="width:' + (100 - aw).toFixed(1) + '%"></i></span></span></div>';
+      }).filter(Boolean).join('');
+      if (!rows) continue;
+      out += '<div class="round-block"><div class="round-no">第 ' +
+        ((ra && ra.RoundNumber) || (rb && rb.RoundNumber) || (i + 1)) + ' 回合</div>' + rows + '</div>';
+    }
+    return out === '<h4>逐回合</h4>' ? '' :
+      '<div class="stat-head"><span>' + esc(nameOf(sides[0].FighterId)) + '</span><span>' +
+      esc(nameOf(sides[1].FighterId)) + '</span></div>' + out;
+  }
+
+  function toggleBoutStats(row) {
+    var next = row.nextElementSibling;
+    if (next && next.classList.contains('bout-detail')) { next.remove(); return; }
+    var parts = String(row.dataset.bout || '').split(':');
+    if (parts.length !== 4) return;
+    var box = document.createElement('div');
+    box.className = 'detail bout-detail';
+    box.innerHTML = '<div class="skeleton" style="padding:10px 0">正在获取这场的数据…</div>';
+    row.parentNode.insertBefore(box, row.nextSibling);
+
+    var names = [].slice.call(row.querySelectorAll('.fnm')).map(function (e) {
+      return e.textContent.trim();
+    });
+    var when = row.dataset.when || '';
+    Promise.all([
+      ufcBoutStats(parts[0], parts[1], parts[2]),
+      ufcBoutStats(parts[0], parts[1], parts[3])
+    ]).then(function (r) {
+      if (!box.isConnected) return;
+      box.innerHTML = boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '');
+      // the per-round split lives on the UFC's feed, so it arrives separately
+      return ufcFightId(names[0], names[1], when).then(function (fid) {
+        if (!fid || !box.isConnected) return;
+        return ufcRounds(fid).then(function (rr) {
+          if (!box.isConnected) return;
+          var html = roundsHTML(rr);
+          if (html) box.innerHTML += html;
+        });
+      });
+    });
+  }
+
   function toggleUfcCard(btn) {
     var next = btn.nextElementSibling;
     if (next && next.classList.contains('detail')) { next.remove(); return; }
@@ -5031,7 +5290,12 @@
           mid = '<div class="wclass">' + esc(weightCN(c.type && c.type.abbreviation)) + '</div>' +
             (rounds ? '<div class="method-sub">' + rounds + ' 回合</div>' : '');
         }
-        return '<div class="match bout"' + (i === 0 ? ' style="border-top:none"' : '') + '>' +
+        // a fought bout has per-fighter numbers behind it, so it opens
+        var opens = done && a.id && b.id;
+        return '<div class="match bout' + (opens ? ' opens' : '') + '"' +
+          (i === 0 ? ' style="border-top:none"' : '') +
+          (opens ? ' data-bout="' + esc(ev.id) + ':' + esc(c.id) + ':' +
+            esc(a.id) + ':' + esc(b.id) + '" data-when="' + esc(c.date || ev.date) + '"' : '') + '>' +
           fighterSide(a, true, done && b.winner) +
           '<span class="mid">' + mid +
             (done ? '<div class="wclass" style="margin-top:2px">' +
@@ -5051,7 +5315,7 @@
 
   /* ---------- UFC rankings (collected: ESPN only serves them as $refs) ---------- */
   function renderUfcRankings() {
-    var host = $('panel-table');
+    var host = panelFor('panel-table');
     host.innerHTML = '<div class="skeleton">正在读取排名…</div>';
     $('status').textContent = 'UFC 排名';
     archiveGet('ufc-rankings.json').then(function (d) {
@@ -5179,7 +5443,7 @@
   }
 
   function renderMyFighters() {
-    var host = $('panel-mine');
+    var host = panelFor('panel-mine');
     if (!favFighters.length) {
       host.innerHTML = '<div class="empty">还没有关注选手。<br>点右上角的「选手」挑最多 ' + MAX_FIGHTERS +
         ' 位，这里会显示他们最近一战的结果和下一场的安排。</div>';
@@ -5386,13 +5650,48 @@
       mid = '<div class="kick">' + esc(noClock ? '待定' : fmtTime(d0)) + '</div>' +
         '<div class="method-sub">' + esc(b.rounds ? b.rounds + ' 回合' : '') + '</div>';
     }
-    return '<div class="match bout">' +
+    return '<div class="match bout opens" data-box="' + esc(b.bucket) + ':' + esc(b.idx) + '">' +
       boxSide({ name: a.name, record: a.record, flag: a.flag, winner: aw }, true, cw) +
       '<span class="mid">' + mid +
         (b.weight ? '<div class="wclass" style="margin-top:2px">' + esc(b.weight) + '</div>' : '') +
       '</span>' +
       boxSide({ name: c.name, record: c.record, flag: c.flag, winner: cw }, false, aw) +
       '</div>';
+  }
+
+  /* Boxing carries no per-round numbers anywhere public, so opening a bout
+     shows what the source does have: where it was, what was on the line, the
+     distance, and both men's records going in. */
+  function toggleBoxBout(row) {
+    var next = row.nextElementSibling;
+    if (next && next.classList.contains('bout-detail')) { next.remove(); return; }
+    var parts = String(row.dataset.box || '').split(':');
+    var box = document.createElement('div');
+    box.className = 'detail bout-detail';
+    row.parentNode.insertBefore(box, row.nextSibling);
+
+    archiveGet('boxing.json').then(function (d) {
+      if (!box.isConnected) return;
+      var b = ((d || {})[parts[0]] || [])[Number(parts[1])];
+      if (!b) { box.innerHTML = '<div class="kv"><span>这场没有更多资料。</span></div>'; return; }
+      var when = new Date(b.start || '');
+      var kv = function (k, v) {
+        return v ? '<div class="kv"><span class="k">' + k + '</span><span>' + esc(v) + '</span></div>' : '';
+      };
+      var html = kv('赛事', b.event) +
+        kv('日期', isNaN(when) ? '' : fmtDay(when)) +
+        kv('场地', b.venue) +
+        kv('级别', b.weight) +
+        kv('赛制', b.rounds ? b.rounds + ' 回合' : '') +
+        kv('结果', b.method ? (b.method + (b.round ? ' · 第 ' + b.round + ' 回合' : '')) : '') +
+        kv((b.a && b.a.name) || '红方', (b.a && b.a.record) || '') +
+        kv((b.b && b.b.name) || '蓝方', (b.b && b.b.record) || '');
+      var names = [(b.a && b.a.name) || '', (b.b && b.b.name) || ''].filter(Boolean).join(' vs ');
+      html += clipSearchHTML(
+        names + ' highlights ' + (isNaN(when) ? '' : dayEN(when)),
+        names + ' 集锦 ' + (isNaN(when) ? '' : dayCN(when)), '集锦');
+      box.innerHTML = html;
+    });
   }
   function boxGroup(list) {
     var groups = [], idx = {};
@@ -5409,7 +5708,7 @@
     }).join('');
   }
   function renderBoxing() {
-    var host = $('panel-fixtures');
+    var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
     $('status').textContent = '拳击';
     archiveGet('boxing.json').then(function (d) {
@@ -5459,7 +5758,7 @@
   }
 
   function renderMyBoxers() {
-    var host = $('panel-mine');
+    var host = panelFor('panel-mine');
     if (!favBoxers.length) {
       host.innerHTML = '<div class="empty">还没有关注拳手。<br>点右上角的「拳手」挑最多 ' +
         MAX_BOXERS + ' 位，这里会显示他们的下一场和最近一战。</div>';
@@ -5741,6 +6040,10 @@
     if (nb) { nbaDetail(nb); return; }
     var lm = e.target.closest('.match[data-lolm]');
     if (lm) { lolDetail(lm); return; }
+    var bt = e.target.closest('.match[data-bout]');
+    if (bt) { toggleBoutStats(bt); return; }
+    var bx = e.target.closest('.match[data-box]');
+    if (bx) { toggleBoxBout(bx); return; }
     // a UFC or boxing bout is also a .match, but it carries no event id — without
     // this guard it fell through to the football handler and asked ESPN for
     // summary?event=undefined, which is what "赛况没取到" was
@@ -5784,11 +6087,13 @@
     }
     summaryCache = {};
     standingsCache = {};
+    var tk = viewSeq;
     loadFixtures().then(function () {
+      setTimeout(function () { el.classList.remove('spinning'); }, 500);
+      if (viewStale(tk)) return;
       if (tab === 'table') loadStandings();
       if (tab === 'mine') renderMine();
       checkKickoffs();
-      setTimeout(function () { el.classList.remove('spinning'); }, 500);
     });
   });
 

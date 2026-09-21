@@ -195,6 +195,24 @@
     text-wrap: balance;
   }
   .head-row .eyebrow { margin-top: 4px; }
+  .tags { display: inline-flex; gap: 4px; flex-wrap: wrap; vertical-align: 1px; }
+  .tag {
+    font-family: var(--narrow); font-size: 9.5px; font-weight: 700;
+    letter-spacing: .04em; white-space: nowrap;
+    background: var(--accent-soft); color: var(--accent-ink);
+    border-radius: 3px; padding: 1px 5px;
+  }
+  .tag.hot { background: color-mix(in srgb, var(--win) 18%, transparent); color: var(--win); }
+  .tag.cold { background: color-mix(in srgb, var(--loss) 15%, transparent); color: var(--loss); }
+  .story {
+    font-size: 12px; color: var(--ink-2); line-height: 1.5;
+    padding: 2px 0 0;
+  }
+  .match-note {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 0 13px 10px; margin-top: -4px;
+  }
+  .match-note .story { padding: 0; }
   .sport-mark {
     color: var(--accent); font-size: 13px; margin-right: 6px;
     display: inline-block; vertical-align: -1px; letter-spacing: 0;
@@ -345,13 +363,54 @@
     box-shadow: 0 0 0 0 var(--live);
     animation: pulse 2s infinite;
   }
+  /* ---- motion ----
+     Everything here is short and has somewhere to be. A list that slides in
+     tells you it just changed; a score that flips tells you it just moved.
+     Nothing loops except the two things that are genuinely still happening. */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(7px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes flip-in {
+    from { opacity: 0; transform: translateY(-60%) scale(.9); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow: inset 2px 0 0 var(--live), 0 0 0 0 transparent; }
+    50% { box-shadow: inset 2px 0 0 var(--live), 0 0 13px -4px var(--live); }
+  }
+  @keyframes sweep {
+    from { background-position: -140% 0; }
+    to { background-position: 240% 0; }
+  }
+
+  /* the fixtures/table/mine panels lift in when their content is replaced */
+  .panel-in > * { animation: rise .26s cubic-bezier(.2, .7, .3, 1) backwards; }
+  .panel-in > *:nth-child(1) { animation-delay: .01s; }
+  .panel-in > *:nth-child(2) { animation-delay: .05s; }
+  .panel-in > *:nth-child(3) { animation-delay: .09s; }
+  .panel-in > *:nth-child(4) { animation-delay: .13s; }
+  .panel-in > *:nth-child(n+5) { animation-delay: .16s; }
+
+  .match.live { animation: breathe 2.6s ease-in-out infinite; }
+  .score.bumped { animation: flip-in .34s cubic-bezier(.2, .8, .3, 1); }
+
+  .skeleton {
+    background: linear-gradient(100deg,
+      transparent 20%, color-mix(in srgb, var(--accent) 12%, transparent) 50%, transparent 80%)
+      0 0 / 220% 100%;
+    animation: sweep 1.25s linear infinite;
+    border-radius: 8px;
+  }
+
   @keyframes pulse {
     0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 55%, transparent); }
     70% { box-shadow: 0 0 0 7px transparent; }
     100% { box-shadow: 0 0 0 0 transparent; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .dot { animation: none; }
+    .dot, .match.live, .skeleton, .score.bumped { animation: none; }
+    .panel-in > * { animation: none; }
     .spin { transition: none; }
   }
 
@@ -1692,7 +1751,15 @@
     var token = viewSeq;
     return {
       get innerHTML() { return el.innerHTML; },
-      set innerHTML(html) { if (!viewStale(token)) el.innerHTML = html; },
+      set innerHTML(html) {
+        if (viewStale(token)) return;
+        el.innerHTML = html;
+        // loading states shouldn't animate in and then out again a moment later
+        if (html.indexOf('class="skeleton"') !== -1) { el.classList.remove('panel-in'); return; }
+        el.classList.remove('panel-in');
+        void el.offsetWidth;   // restart the animation on a re-render
+        el.classList.add('panel-in');
+      },
       querySelector: function (sel) { return el.querySelector(sel); },
       querySelectorAll: function (sel) { return el.querySelectorAll(sel); }
     };
@@ -1764,6 +1831,105 @@
     if (next === 'fixtures') { if (events.length) renderFixtures(); else loadFixtures(); }
     if (next === 'table') loadStandings();
     if (next === 'mine') renderMine();
+  }
+
+  /* ---------- storylines ----------
+     A row of scores tells you what is on; it does not tell you which one to
+     watch. These read the numbers already on the page — league position, a
+     run of results, the head-to-head — and say the one thing that makes a
+     fixture worth an evening. Specific over adjectival: "赢的人今晚睡在第一"
+     beats "榜首大战", and a number beats both. No exclamation marks, no
+     「精彩」, no 「不容错过」. If nothing true and interesting comes out, these
+     return nothing at all rather than padding the card. */
+
+  function runOf(results) {
+    // results newest-first, each 'W' | 'L' | 'D'
+    if (!results.length) return { mark: '', n: 0 };
+    var mark = results[0], n = 1;
+    while (n < results.length && results[n] === mark) n++;
+    return { mark: mark, n: n };
+  }
+
+  function streakTag(run) {
+    if (run.n < 3) return '';
+    if (run.mark === 'W') return run.n + ' 连胜';
+    if (run.mark === 'L') return run.n + ' 连败';
+    return '';
+  }
+
+  /* side: { name, rank, total, played, run } — any field may be missing.
+     Returns a weight too: a storyline is only worth showing if it beats the
+     others on the same day, otherwise every fixture gets a badge and the badge
+     stops meaning anything. */
+  function storyFor(home, away) {
+    var tags = [], line = '', weight = 0;
+    var hr = home.rank, ar = away.rank;
+    var total = home.total || away.total || 0;
+    // a table nobody has played into yet is alphabetical, not a standing
+    var settled = Math.min(home.played || 0, away.played || 0) >= 3;
+
+    if (hr && ar && settled) {
+      var top = Math.min(hr, ar), gap = Math.abs(hr - ar);
+      if (top === 1 && gap <= 1) {
+        tags.push('登顶战');
+        line = '赢的人今晚睡在第一';
+        weight = 100;
+      } else if (top <= 4 && gap <= 3 && total >= 10) {
+        tags.push('争前四');
+        line = '第 ' + hr + ' 对第 ' + ar + '，赢一场就换位置';
+        weight = 60;
+      } else if (total >= 12 && Math.min(hr, ar) > total - 4 && gap <= 3) {
+        // only a real league table has a relegation end to fight over
+        tags.push('生死线');
+        line = '两支球队，一个位置';
+        weight = 70;
+      }
+    }
+
+    var hRun = home.run || { n: 0 }, aRun = away.run || { n: 0 };
+    var hTag = streakTag(hRun), aTag = streakTag(aRun);
+    if (hTag) { tags.push(hTag); weight = Math.max(weight, 30 + hRun.n * 4); }
+    if (aTag && aTag !== hTag) { tags.push(aTag); weight = Math.max(weight, 30 + aRun.n * 4); }
+
+    if (!line) {
+      if (hRun.mark === 'W' && hRun.n >= 3 && aRun.mark === 'L' && aRun.n >= 3) {
+        line = '一个停不下来，一个赢不了';
+        weight = Math.max(weight, 80);
+      } else if (aRun.mark === 'W' && aRun.n >= 3 && hRun.mark === 'L' && hRun.n >= 3) {
+        line = '一个赢不了，一个停不下来';
+        weight = Math.max(weight, 80);
+      } else if (hRun.mark === 'W' && hRun.n >= 5) {
+        line = esc(home.name) + '已经 ' + hRun.n + ' 场没输了';
+      } else if (aRun.mark === 'W' && aRun.n >= 5) {
+        line = esc(away.name) + '已经 ' + aRun.n + ' 场没输了';
+      } else if (hRun.mark === 'L' && hRun.n >= 5) {
+        line = esc(home.name) + '上一次赢球是 ' + hRun.n + ' 场以前';
+      }
+    }
+    return { tags: tags.slice(0, 2), line: line, weight: weight };
+  }
+
+  /* after the whistle: what actually happened, in one line */
+  function afterLine(opts) {
+    // opts: { winnerName, loserName, prob, brokenRun, margin }
+    if (opts.prob !== null && opts.prob !== undefined && opts.prob <= 30) {
+      return '赔率给他 ' + Math.round(opts.prob) + '%，他赢了';
+    }
+    if (opts.brokenRun && opts.brokenRun >= 4) {
+      return '第 ' + (opts.brokenRun + 1) + ' 场，断了';
+    }
+    if (opts.margin && opts.margin >= 4) {
+      return esc(opts.winnerName || '') + '赢了 ' + opts.margin + ' 个球';
+    }
+    return '';
+  }
+
+  function tagsHTML(tags) {
+    if (!tags || !tags.length) return '';
+    return '<span class="tags">' + tags.map(function (t) {
+      var kind = /连败/.test(t) ? ' cold' : (/连胜/.test(t) ? ' hot' : '');
+      return '<span class="tag' + kind + '">' + esc(t) + '</span>';
+    }).join('') + '</span>';
   }
 
   /* ---------- fixtures ---------- */
@@ -1849,6 +2015,24 @@
         var st = (teamsOf(it.ev).comp.status || {}).type || {};
         return st.completed;
       });
+
+      /* One storyline per day at most. A badge on every fixture is wallpaper;
+         a badge on the one worth clearing an evening for is a reason to open
+         the app. */
+      var best = null, bestWeight = 0;
+      g.items.forEach(function (it) {
+        var t0 = teamsOf(it.ev);
+        var st0 = (t0.comp.status && t0.comp.status.type) || {};
+        if ((st0.state || 'pre') !== 'pre') return;
+        var ranks0 = rankCache[league] || {};
+        var h0 = ranks0[String((t0.home.team || {}).id)] || {};
+        var a0 = ranks0[String((t0.away.team || {}).id)] || {};
+        var s0 = storyFor(
+          { name: cn(t0.home.team && t0.home.team.displayName), rank: h0.rank, total: h0.total, played: h0.played },
+          { name: cn(t0.away.team && t0.away.team.displayName), rank: a0.rank, total: a0.total, played: a0.played });
+        if (s0.weight > bestWeight) { bestWeight = s0.weight; best = { id: it.ev.id, story: s0 }; }
+      });
+
       var rows = g.items.map(function (it) {
         var t = teamsOf(it.ev);
         var status = (t.comp.status && t.comp.status.type) || {};
@@ -1871,11 +2055,19 @@
         }
         var hDim = state === 'post' && t.away.winner ? ' dim' : '';
         var aDim = state === 'post' && t.home.winner ? ' dim' : '';
+
+        // only the day's pick carries its storyline
+        var story = (best && best.id === it.ev.id) ? best.story : { tags: [], line: '' };
+
         return '<button class="match' + cls + '" type="button" data-ev="' + esc(it.ev.id) + '">' +
             '<span class="side home"><span class="nm' + hDim + '">' + esc(hName) + '</span>' + crest(t.home.team) + '</span>' +
             '<span class="mid">' + mid + label + '</span>' +
             '<span class="side away">' + crest(t.away.team) + '<span class="nm' + aDim + '">' + esc(aName) + '</span></span>' +
-          '</button>';
+          '</button>' +
+          (story.tags.length || story.line
+            ? '<div class="match-note">' + tagsHTML(story.tags) +
+              (story.line ? '<span class="story">' + story.line + '</span>' : '') + '</div>'
+            : '');
       }).join('');
       return '<div class="day' + (isPast ? ' past' : '') + '"' +
           (g.key === todayKey ? ' id="todayGroup"' : '') + '>' +
@@ -1899,6 +2091,35 @@
         if (el) window.scrollTo({ top: el.offsetTop - 120, behavior: 'smooth' });
       });
     }
+    flashChangedScores();
+
+    // the table lands a beat later; redraw once so the storylines appear
+    if (rankCache[league] === undefined) {
+      var lg = league;
+      ensureRanks(lg).then(function (map) {
+        if (map && lg === league && tab === 'fixtures' && sport === 'football') renderFixtures();
+      });
+    }
+  }
+
+  /* A quiet refresh redraws the whole list, so without this a goal that just
+     went in looks exactly like one from an hour ago. Remember each live score
+     and flip the ones that actually moved. */
+  var lastScores = {};
+  function flashChangedScores() {
+    document.querySelectorAll('#panel-fixtures .match[data-ev]').forEach(function (row) {
+      var id = row.dataset.ev;
+      var el = row.querySelector('.score');
+      if (!el) return;
+      var now = el.textContent.replace(/\s+/g, '');
+      var was = lastScores[id];
+      lastScores[id] = now;
+      if (was !== undefined && was !== now) {
+        el.classList.remove('bumped');
+        void el.offsetWidth;
+        el.classList.add('bumped');
+      }
+    });
   }
 
   function scheduleAutoRefresh() {
@@ -2532,6 +2753,47 @@
   }
 
   /* ---------- standings ---------- */
+  /* The fixtures list wants league position to say anything interesting about
+     a match, but the table is a separate request the user may never open. So
+     it is fetched quietly the first time a league's fixtures are shown, and
+     the rows are redrawn once it lands. */
+  var rankCache = {};
+  function rememberRanks(lg, groups) {
+    var map = {};
+    groups.forEach(function (g) {
+      // a group stage ranks within the group, so the field size is the group's
+      var size = (g.entries || []).length;
+      (g.entries || []).forEach(function (e) {
+        var s = {};
+        (e.stats || []).forEach(function (x) { s[x.name] = x.displayValue; });
+        var id = String((e.team || {}).id || '');
+        if (id) {
+          map[id] = {
+            rank: parseInt(s.rank, 10) || 0, total: size,
+            played: parseInt(s.gamesPlayed, 10) || 0
+          };
+        }
+      });
+    });
+    rankCache[lg] = map;
+  }
+  function ensureRanks(lg) {
+    if (rankCache[lg]) return Promise.resolve(rankCache[lg]);
+    rankCache[lg] = null;   // in flight — don't ask twice
+    return getJSON(API + 'v2/sports/soccer/' + lg + '/standings').then(function (data) {
+      var groups = [];
+      if (data && data.children) {
+        data.children.forEach(function (c) {
+          if (c.standings && c.standings.entries) groups.push({ entries: c.standings.entries });
+        });
+      } else if (data && data.standings) {
+        groups.push({ entries: data.standings.entries || [] });
+      }
+      if (groups.length) rememberRanks(lg, groups);
+      return rankCache[lg];
+    }).catch(function () { return null; });
+  }
+
   function loadStandings() {
     var host = panelFor('panel-table');
     if (standingsCache[league]) { host.innerHTML = standingsCache[league]; return; }
@@ -2548,6 +2810,7 @@
       }
       if (!groups.length) { host.innerHTML = '<div class="empty">这个联赛暂时没有积分榜。</div>'; return; }
 
+      rememberRanks(league, groups);
       var favIds = favorites.map(function (f) { return String(f.id); });
       var html = groups.map(function (g) {
         var rows = g.entries.slice().map(function (e) {

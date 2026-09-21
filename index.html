@@ -1648,7 +1648,9 @@
   var standingsCache = {};
   var teamsOfLeague = [];
   var favorites = lsGet('favTeams', []);
-  var notifyOn = false;
+  // granting permission once should survive a reload
+  var notifyOn = lsGet('notifyOn', false) &&
+    typeof Notification !== 'undefined' && Notification.permission === 'granted';
   var timer = null;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -2165,6 +2167,15 @@
           { name: cn(t0.away.team && t0.away.team.displayName), rank: a0.rank, total: a0.total, played: a0.played });
         if (s0.weight > bestWeight) { bestWeight = s0.weight; best = { id: it.ev.id, story: s0 }; }
       });
+      // no table-based angle today still leaves form worth checking, so the
+      // first fixture of the day stands in as the candidate
+      if (!best) {
+        var firstPre = g.items.filter(function (it) {
+          var st1 = (teamsOf(it.ev).comp.status || {}).type || {};
+          return (st1.state || 'pre') === 'pre';
+        })[0];
+        if (firstPre) best = { id: firstPre.ev.id, story: { tags: [], line: '', weight: 0 } };
+      }
 
       var rows = g.items.map(function (it) {
         var t = teamsOf(it.ev);
@@ -2190,7 +2201,8 @@
         var aDim = state === 'post' && t.home.winner ? ' dim' : '';
 
         // only the day's pick carries its storyline
-        var story = (best && best.id === it.ev.id) ? best.story : { tags: [], line: '' };
+        var isPick = !!(best && best.id === it.ev.id);
+        var story = isPick ? best.story : { tags: [], line: '' };
 
         // a finished match settles any call riding on it
         if (state === 'post') {
@@ -2209,9 +2221,12 @@
           '</button>' +
           (story.tags.length || story.line || pickHTML
             ? '<div class="match-note" data-home="' + esc(hName) + '" data-away="' + esc(aName) +
-              '" data-when="' + esc(it.ev.date || '') + '">' +
-              tagsHTML(story.tags) +
-              (story.line ? '<span class="story">' + story.line + '</span>' : '') +
+              '" data-when="' + esc(it.ev.date || '') + '"' +
+              // the day's pick is the only row whose form is worth fetching
+              (isPick ? ' data-pair="' + esc((t.home.team || {}).id || '') + '|' +
+                esc((t.away.team || {}).id || '') + '"' : '') + '>' +
+              '<span class="note-story">' + tagsHTML(story.tags) +
+              (story.line ? '<span class="story">' + story.line + '</span>' : '') + '</span>' +
               pickHTML + '</div>'
             : '');
       }).join('');
@@ -2238,6 +2253,7 @@
       });
     }
     flashChangedScores();
+    loadFormForPicks();
 
     // the table lands a beat later; redraw once so the storylines appear
     if (rankCache[league] === undefined) {
@@ -2265,6 +2281,56 @@
         void el.offsetWidth;
         el.classList.add('bumped');
       }
+    });
+  }
+
+  /* A run of results needs a club's whole season, which is one request per
+     team — forty of them to label a page. But only the day's pick carries a
+     storyline, so only those two are ever worth fetching. */
+  var formCache = {};
+  function teamForm(lg, id) {
+    var key = lg + ':' + id;
+    if (formCache[key] !== undefined) return Promise.resolve(formCache[key]);
+    formCache[key] = null;
+    return getJSON(API + 'site/v2/sports/soccer/' + lg + '/teams/' + id + '/schedule')
+      .then(function (d) {
+        var done = ((d && d.events) || []).filter(function (e) {
+          var c = (e.competitions || [])[0] || {};
+          return ((c.status || {}).type || {}).completed;
+        }).sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+
+        var marks = done.slice(0, 8).map(function (e) {
+          var s = sideOf(e, id);
+          return s.me.winner === true ? 'W' : (s.opp.winner === true ? 'L' : 'D');
+        });
+        formCache[key] = runOf(marks);
+        return formCache[key];
+      }).catch(function () { return null; });
+  }
+
+  // fills the storyline on the day's pick once each side's run is known
+  function loadFormForPicks() {
+    var notes = document.querySelectorAll('#panel-fixtures .match-note[data-pair]');
+    if (!notes.length) return;
+    [].forEach.call(notes, function (note) {
+      var ids = String(note.dataset.pair || '').split('|');
+      if (ids.length !== 2) return;
+      var lg = league;
+      Promise.all([teamForm(lg, ids[0]), teamForm(lg, ids[1])]).then(function (r) {
+        if (!note.isConnected || lg !== league || !r[0] || !r[1]) return;
+        var ranks = rankCache[lg] || {};
+        var story = storyFor(
+          { name: note.dataset.home, rank: (ranks[ids[0]] || {}).rank,
+            total: (ranks[ids[0]] || {}).total, played: (ranks[ids[0]] || {}).played, run: r[0] },
+          { name: note.dataset.away, rank: (ranks[ids[1]] || {}).rank,
+            total: (ranks[ids[1]] || {}).total, played: (ranks[ids[1]] || {}).played, run: r[1] });
+        if (!story.tags.length && !story.line) return;
+        var slot = note.querySelector('.note-story');
+        if (slot) {
+          slot.innerHTML = tagsHTML(story.tags) +
+            (story.line ? '<span class="story">' + story.line + '</span>' : '');
+        }
+      });
     });
   }
 
@@ -4429,6 +4495,7 @@
         '<span class="count">加进手机日历，开赛前 30 分钟提醒</span></div>';
 
       host.innerHTML = html;
+      remindFrom(upcoming);
       var b = $('icsBtn');
       if (b) b.addEventListener('click', function () { exportICS(upcoming); });
       if (hero) {
@@ -6366,6 +6433,15 @@
           mid = '<div class="wclass">' + esc(weightCN(c.type && c.type.abbreviation)) + '</div>' +
             (rounds ? '<div class="method-sub">' + rounds + ' 回合</div>' : '');
         }
+        var aName = ((a.athlete || {}).displayName) || '';
+        var bName = ((b.athlete || {}).displayName) || '';
+        if (done && a.id && b.id) {
+          settlePick('fight', c.id, a.winner ? 'home' : (b.winner ? 'away' : ''), '');
+        }
+        var myBout = pickOf('fight', c.id);
+        var boutPick = (!done && a.id && b.id) || (myBout && myBout.result)
+          ? pickBarHTML('fight', c.id, 'two', { home: aName, away: bName }) : '';
+
         // a fought bout has per-fighter numbers behind it, so it opens
         var opens = done && a.id && b.id;
         return '<div class="match bout' + (opens ? ' opens' : '') + '"' +
@@ -6377,7 +6453,10 @@
             (done ? '<div class="wclass" style="margin-top:2px">' +
               esc(weightCN(c.type && c.type.abbreviation)) + '</div>' : '') + '</span>' +
           fighterSide(b, false, done && a.winner) +
-          '</div>' + (done ? scorecardHTML(c) : '');
+          '</div>' +
+          (boutPick ? '<div class="match-note" data-home="' + esc(aName) + '" data-away="' +
+            esc(bName) + '" data-when="' + esc(c.date || ev.date || '') + '">' + boutPick + '</div>' : '') +
+          (done ? scorecardHTML(c) : '');
       }).join('') + '</div>';
 
       var evDate = new Date(ev.date);
@@ -6726,9 +6805,21 @@
     return '<span class="side ' + (isLeft ? 'home' : 'away') + '">' +
       (isLeft ? body + flag : flag + body) + '</span>';
   }
+  /* Boxing bouts carry no id of their own, so a call is keyed on the two names
+     and the date — stable across refreshes, which is all it has to be. */
+  function boxBoutKey(b) {
+    return [boxerKey((b.a || {}).name), boxerKey((b.b || {}).name),
+      String(b.start || '').slice(0, 10)].join('~');
+  }
+
   function boxRow(b) {
     var a = b.a || {}, c = b.b || {};
     var aw = b.winner === 'a', cw = b.winner === 'b';
+    var bKey = boxBoutKey(b);
+    if (b.winner) settlePick('boxing', bKey, b.winner === 'a' ? 'home' : 'away', '');
+    var myBox = pickOf('boxing', bKey);
+    var boxPick = (!b.winner && !b.method) || (myBox && myBox.result)
+      ? pickBarHTML('boxing', bKey, 'two', { home: a.name || '红方', away: c.name || '蓝方' }) : '';
     var mid;
     if (b.winner || b.method) {
       mid = '<div class="method">' + esc(b.method || '完场') + '</div>' +
@@ -6748,7 +6839,9 @@
         (b.weight ? '<div class="wclass" style="margin-top:2px">' + esc(b.weight) + '</div>' : '') +
       '</span>' +
       boxSide({ name: c.name, record: c.record, flag: c.flag, winPct: pct[1], winner: cw }, false, aw) +
-      '</div>';
+      '</div>' +
+      (boxPick ? '<div class="match-note" data-home="' + esc(a.name || '') + '" data-away="' +
+        esc(c.name || '') + '" data-when="' + esc(b.start || '') + '">' + boxPick + '</div>' : '');
   }
 
   /* Boxing carries no per-round numbers anywhere public, so opening a bout
@@ -7115,10 +7208,50 @@
   function enableNotifications() {
     if (!('Notification' in window)) { alert('这个浏览器不支持网页通知。'); return; }
     Notification.requestPermission().then(function (p) {
-      if (p === 'granted') { notifyOn = true; $('notifyBtn').textContent = '🔔 提醒已开'; }
+      if (p === 'granted') {
+        notifyOn = true;
+        lsSet('notifyOn', true);
+        $('notifyBtn').textContent = '🔔 提醒已开';
+        // a page cannot wake itself, so be straight about what this covers
+        alert('开赛前 30 分钟提醒，只在这个页面开着的时候有效。\n' +
+          '要在关掉之后也收到，用下面的「导出到日历」。');
+      }
       else alert('浏览器没给通知权限，可以在浏览器设置里重新打开。');
     });
   }
+  /* Reminders for anything on the Today page — every sport, and anything with
+     a call riding on it — rather than football alone. A web page cannot wake
+     itself, so these only fire while it is open; the .ics export is the one
+     that reaches you with the app closed, which the button says out loud. */
+  var notified = lsGet('notified', {});
+  function notifyStore(key) {
+    notified[key] = Date.now();
+    // forget anything older than a day so the record cannot grow forever
+    Object.keys(notified).forEach(function (k) {
+      if (Date.now() - notified[k] > 24 * 3600e3) delete notified[k];
+    });
+    lsSet('notified', notified);
+  }
+
+  function remindFrom(list) {
+    if (!notifyOn || !list || !list.length) return;
+    list.forEach(function (u) {
+      if (!u.when || isNaN(u.when)) return;
+      var mins = (u.when - Date.now()) / 60000;
+      if (mins <= 0 || mins > 30) return;
+      var key = 'k' + (u.id || '') + (+u.when);
+      if (notified[key]) return;
+      var plain = String(u.title || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      try {
+        new Notification(plain, {
+          body: Math.round(mins) + ' 分钟后开始' + (u.tag ? ' · ' + u.tag : ''),
+          tag: key
+        });
+      } catch (e) { return; }
+      notifyStore(key);
+    });
+  }
+
   function checkKickoffs() {
     if (!notifyOn || !favorites.length) return;
     var favIds = favorites.map(function (f) { return String(f.id); });
@@ -7308,7 +7441,7 @@
   $('gearBtn').addEventListener('click', function () {
     var p = $('settings');
     p.hidden = !p.hidden;
-    $('notifyBtn').hidden = sport !== 'football';
+    $('notifyBtn').hidden = false;   // reminders cover every sport now
     if (!p.hidden) {
       // only the fighter picker uses the photo grid
       if (sport !== 'fight') $('picker').classList.remove('faces');

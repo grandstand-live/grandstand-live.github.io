@@ -916,6 +916,16 @@
     background: var(--surface-2); border: 1px solid var(--hairline);
   }
   .clip-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* the search fallback wears the same tile as a real clip */
+  .clip-thumb.search { display: flex; align-items: center; justify-content: center; }
+  .clip-thumb.search.yt { background: linear-gradient(140deg, #7A1B16, #2A0D0B); border-color: #7A1B16; }
+  .clip-thumb.search.bili { background: linear-gradient(140deg, #0A5E7D, #07222E); border-color: #0A5E7D; }
+  .clip-thumb.search .clip-play { position: static; background: none; font-size: 24px; }
+  .clip-site {
+    position: absolute; right: 6px; bottom: 5px;
+    font-family: var(--narrow); font-size: 10px; font-weight: 700;
+    letter-spacing: .04em; color: rgba(255, 255, 255, .92);
+  }
   .clip-play {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: #fff; font-size: 20px; text-shadow: 0 1px 6px rgba(0, 0, 0, .6);
@@ -1510,9 +1520,37 @@
     }).join('');
   }
 
+  /* Each sport carries its own accent, so the board feels like it belongs to
+     what you are watching rather than one green app with five tabs. Only the
+     accent family moves — surfaces, ink and the win/loss colours stay put, or
+     the same score would read differently depending on where you are. */
+  var SPORT_SKIN = {
+    today:      { l: ['#12564A', '#DCEBE6', '#0B3B33'], d: ['#45B795', '#14312A', '#9BDCC6'] },
+    football:   { l: ['#12564A', '#DCEBE6', '#0B3B33'], d: ['#45B795', '#14312A', '#9BDCC6'] },
+    basketball: { l: ['#C25A1E', '#FBE7D8', '#7A3208'], d: ['#F0894A', '#3A2113', '#FFC79B'] },
+    f1:         { l: ['#C4302B', '#FBE1DF', '#7D1B18'], d: ['#F0615C', '#3A1715', '#FFB3B0'] },
+    fight:      { l: ['#8C3A22', '#F6E4DB', '#5A2213'], d: ['#E07A55', '#35180F', '#FFC0A6'] },
+    esports:    { l: ['#5B4BC4', '#E5E2FA', '#362B80'], d: ['#9B8BEE', '#241E4A', '#CFC6FF'] }
+  };
+  var darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function applySkin(id) {
+    var skin = SPORT_SKIN[id] || SPORT_SKIN.football;
+    var set = skin[darkQuery && darkQuery.matches ? 'd' : 'l'];
+    var s = document.documentElement.style;
+    s.setProperty('--accent', set[0]);
+    s.setProperty('--accent-soft', set[1]);
+    s.setProperty('--accent-ink', set[2]);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', set[0]);
+  }
+  if (darkQuery && darkQuery.addEventListener) {
+    darkQuery.addEventListener('change', function () { applySkin(sport); });
+  }
+
   function setSport(id) {
     sport = id;
     lsSet('sport', id);
+    applySkin(id);
     viewSeq++;   // the Today branch below never reaches setTab
     renderSportNav();
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
@@ -3472,20 +3510,32 @@
   // No highlight feed covers everything, so offer a search on both sides of the
   // firewall. The query carries the score and the date because the same fixture
   // comes round every season and a bare "A vs B" lands on a years-old video.
+  /* Where a feed hands us real clips we show those; everywhere else this is
+     the fallback, and it is drawn as the same tile grid so highlights look the
+     same in every section rather than a link in some and thumbnails in others. */
   function clipSearchHTML(en, zh, label) {
-    var chips = [];
+    var tiles = [];
     if (en) {
       // sp=EgIIAw%3D%3D restricts YouTube results to the past year
-      chips.push('<a class="schip src-yt" href="https://www.youtube.com/results?search_query=' +
-        encodeURIComponent(en) + '&sp=EgIIAw%253D%253D" target="_blank" rel="noopener">▶ YouTube 搜集锦</a>');
+      tiles.push(searchTile(
+        'https://www.youtube.com/results?search_query=' +
+          encodeURIComponent(en) + '&sp=EgIIAw%253D%253D',
+        'yt', 'YouTube', en));
     }
     if (zh) {
       // order=pubdate puts the newest uploads first on Bilibili
-      chips.push('<a class="schip src-bili" href="https://search.bilibili.com/all?keyword=' +
-        encodeURIComponent(zh) + '&order=pubdate" target="_blank" rel="noopener">▶ 哔哩哔哩搜集锦</a>');
+      tiles.push(searchTile(
+        'https://search.bilibili.com/all?keyword=' + encodeURIComponent(zh) + '&order=pubdate',
+        'bili', '哔哩哔哩', zh));
     }
-    if (!chips.length) return '';
-    return '<h4>' + (label || '赛后集锦') + '</h4><div class="schips">' + chips.join('') + '</div>';
+    if (!tiles.length) return '';
+    return '<h4>' + (label || '赛后集锦') + '</h4><div class="clips">' + tiles.join('') + '</div>';
+  }
+  function searchTile(href, kind, site, query) {
+    return '<a class="clip" href="' + esc(href) + '" target="_blank" rel="noopener">' +
+      '<span class="clip-thumb search ' + kind + '"><span class="clip-play">▶</span>' +
+      '<span class="clip-site">' + esc(site) + '</span></span>' +
+      '<span class="clip-title">搜索「' + esc(query) + '」</span></a>';
   }
   function dayCN(d) {
     return isNaN(d) ? '' : (d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日');
@@ -3525,9 +3575,11 @@
     return list.sort(function (a, b) { return a.when - b.when; }).slice(0, n || PER_FOLLOW);
   }
 
+  // Today shows every sport at once, so these are fixed mid-tones that hold up
+  // in both themes rather than the live accent — but the same family as it.
   var SPORT_TINT = {
-    football: 'var(--accent)', basketball: '#E07A3C', f1: '#D6453F',
-    esports: '#6B5BD6', fight: '#A8452F'
+    football: '#2E8B74', basketball: '#E07A3C', f1: '#D6453F',
+    esports: '#7C6BDD', fight: '#C25A38'
   };
   var SPORT_LABEL = {
     football: '足球', basketball: '篮球', f1: 'F1', esports: '电竞', fight: '格斗'
@@ -4415,6 +4467,19 @@
     return right ? img + name : name + img;
   }
 
+  function pandaClipsHTML(m, game) {
+    var t = m.teams || [];
+    var a = (t[0] || {}).acronym || (t[0] || {}).name || '';
+    var b = (t[1] || {}).acronym || (t[1] || {}).name || '';
+    if (!a || !b) return '';
+    var title = game === 'cs2' ? 'CS2' : 'Valorant';
+    var d = new Date(m.start || '');
+    var pair = a + ' vs ' + b;
+    return clipSearchHTML(
+      title + ' ' + pair + ' ' + (m.event || '') + ' highlights ' + (isNaN(d) ? '' : dayEN(d)),
+      title + ' ' + pair + ' 集锦 ' + (isNaN(d) ? '' : dayCN(d)), '集锦 / 回放');
+  }
+
   function pandaRow(m, game) {
     var t = m.teams || [];
     var a = t[0] || {}, b = t[1] || {};
@@ -4463,6 +4528,7 @@
                : '<div class="pd-line muted">这场还没有分图结果。</div>') +
         (m.stream ? '<div class="pd-line"><a href="' + esc(m.stream.url) +
           '" target="_blank" rel="noopener">观看直播/回放 ↗</a></div>' : '') +
+        pandaClipsHTML(m, game) +
         '</div>';
     }
     return '<button class="match' + (live ? ' live' : '') + '" type="button"' +
@@ -5602,6 +5668,15 @@
       esc(nameOf(sides[1].FighterId)) + '</span></div>' + out;
   }
 
+  function boutClipsHTML(names, when) {
+    if (!names[0] || !names[1]) return '';
+    var d = new Date(when || '');
+    var pair = names[0] + ' vs ' + names[1];
+    return clipSearchHTML(
+      'UFC ' + pair + ' highlights ' + (isNaN(d) ? '' : dayEN(d)),
+      'UFC ' + pair + ' 集锦 ' + (isNaN(d) ? '' : dayCN(d)), '这场的集锦');
+  }
+
   function toggleBoutStats(row) {
     var next = row.nextElementSibling;
     if (next && next.classList.contains('bout-detail')) { next.remove(); return; }
@@ -5631,7 +5706,8 @@
         if (!box.isConnected) return;
         if (!fid) {
           box.innerHTML += '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
-            '<span>这场还没有收录，抓取任务每小时补一批历史赛事。</span></div>';
+            '<span>这场还没有收录，抓取任务每小时补一批历史赛事。</span></div>' +
+            boutClipsHTML(names, when);
           return;
         }
         return ufcRounds(fid).then(function (rr) {
@@ -5640,6 +5716,7 @@
           box.innerHTML += html ||
             '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
             '<span>官方没有这场的分回合数据。</span></div>';
+          box.innerHTML += boutClipsHTML(names, when);
         });
       });
     });

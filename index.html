@@ -712,6 +712,9 @@
     letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
     padding: 9px 14px 3px;
   }
+  /* a bout row is a readout, not a button — nothing opens underneath it */
+  .bout { cursor: default; }
+  .bout:hover { background: none; }
   .bout .side { gap: 7px; }
   .bout .fnm { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
   .bout .fnm.dim { color: var(--muted); font-weight: 500; }
@@ -5234,6 +5237,9 @@
   var fightGroups = [];   // [{ key, label, fighters: [...] }]
   var fightGroup = 0;     // which division is on screen
   var fightPicked = [];   // the working selection, saved on 保存
+  // UFC and boxing share these tiles; only the cap and where it saves differ
+  var fightPickMode = 'ufc';
+  function fightCap() { return fightPickMode === 'boxing' ? MAX_BOXERS : MAX_FIGHTERS; }
 
   // a portrait is not always there; fall back to a neutral silhouette
   var FACE_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -5268,12 +5274,13 @@
       (here.length
         ? '<div class="fpick-grid">' + here.map(fighterTile).join('') + '</div>'
         : '<div class="fpick-none">这个量级还没有名单。</div>');
-    $('pickCount').textContent = '已选 ' + fightPicked.length + ' / ' + MAX_FIGHTERS;
+    $('pickCount').textContent = '已选 ' + fightPicked.length + ' / ' + fightCap();
   }
 
   function renderFighterPicker() {
     var host = $('picker');
     host.classList.add('faces');
+    fightPickMode = 'ufc';
     $('pickHint').textContent = '按量级挑人，最多 ' + MAX_FIGHTERS +
       ' 位。切换量级不会丢掉已选的，选完点保存。';
     host.innerHTML = '<div class="skeleton">正在载入选手…</div>';
@@ -5334,8 +5341,8 @@
     var at = -1;
     fightPicked.forEach(function (p, i) { if (String(p.id) === String(id)) at = i; });
     if (at !== -1) { fightPicked.splice(at, 1); paintFighterPicker(); return; }
-    if (fightPicked.length >= MAX_FIGHTERS) {
-      alert('最多只能选 ' + MAX_FIGHTERS + ' 位选手。');
+    if (fightPicked.length >= fightCap()) {
+      alert('最多只能选 ' + fightCap() + (fightPickMode === 'boxing' ? ' 位拳手。' : ' 位选手。'));
       return;
     }
     var found = null;
@@ -5459,7 +5466,8 @@
       return;
     }
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
-    archiveGet('boxing.json').then(function (d) {
+    Promise.all([archiveGet('boxing.json'), archiveGet('boxers.json')]).then(function (r) {
+      var d = r[0], faces = (r[1] || {}).faces || {};
       if (!d) { host.innerHTML = archiveEmpty('拳击'); return; }
       host.innerHTML = favBoxers.map(function (f) {
         var key = boxerKey(f.name);
@@ -5498,37 +5506,92 @@
 
         var me = (last && (last.side === 'a' ? last.bout.a : last.bout.b)) || f;
         return '<div class="card team-card"><div class="tc-head">' +
-          (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) +
-            '" alt="" style="width:26px;height:18px">' : '') +
+          '<span class="dportrait" style="width:34px;height:34px;background:var(--surface-2)">' +
+          '<img src="' + esc(faces[f.name] || FACE_FALLBACK) + '" alt="" loading="lazy"' +
+          ' onerror="this.src=\'' + FACE_FALLBACK + '\'"></span>' +
+          (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="">' : '') +
           '<span class="nm">' + esc(f.name) + '</span>' +
           '<span class="lg">' + esc(me.record || f.record || '') + '</span></div>' + rows + '</div>';
       }).join('') + archiveFoot(d);
     });
   }
 
+  // "WBA·WBC·IBF 超中量级" is the division plus whatever belts were on the line.
+  // "非冠军战" is the collector saying it found no division at all.
+  function boxWeightLabel(w) {
+    var m = String(w || '').match(/[一-龥]+$/);
+    var label = m ? m[0] : '';
+    return (!label || label === '非冠军战') ? '其他' : label;
+  }
+
   function renderBoxerPicker() {
     var host = $('picker');
-    $('pickHint').textContent = '勾选你关注的拳手，最多 ' + MAX_BOXERS +
-      ' 位。名单来自已经抓到的赛事。';
+    host.classList.add('faces');
+    fightPickMode = 'boxing';
+    $('pickHint').textContent = '按量级挑人，最多 ' + MAX_BOXERS +
+      ' 位。切换量级不会丢掉已选的，选完点保存。';
     host.innerHTML = '<div class="skeleton">正在载入拳手…</div>';
-    archiveGet('boxing.json').then(function (d) {
-      var list = d ? boxersInData(d) : [];
-      if (!list.length) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
-      var picked = favBoxers.map(function (f) { return boxerKey(f.name); });
-      host.innerHTML = list.map(function (f) {
-        return '<label><input type="checkbox" value="' + esc(f.name) + '" data-rec="' +
-          esc(f.record) + '" data-flag="' + esc(f.flag) + '"' +
-          (picked.indexOf(boxerKey(f.name)) !== -1 ? ' checked' : '') + '>' +
-          (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="">' : '') +
-          esc(f.name) + '<span class="pk-team">' + esc(f.record) + '</span></label>';
-      }).join('');
-      $('pickCount').textContent = '已选 ' + favBoxers.length + ' / ' + MAX_BOXERS;
+    fightPicked = favBoxers.map(function (f) {
+      return { id: f.name, name: f.name, flag: f.flag || '', rec: f.record || '' };
+    });
+
+    Promise.all([archiveGet('boxing.json'), archiveGet('boxers.json')]).then(function (r) {
+      var card = r[0], faces = (r[1] || {}).faces || {};
+      if (!card) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
+
+      // one entry per boxer, taking their most recent record and division
+      var byName = {};
+      ['upcoming', 'recent'].forEach(function (bucket) {
+        (card[bucket] || []).forEach(function (b) {
+          [b.a, b.b].forEach(function (x) {
+            if (!x || !x.name) return;
+            var hit = byName[x.name];
+            if (!hit) {
+              hit = byName[x.name] = {
+                id: x.name, name: x.name, flag: x.flag || '', rec: x.record || '',
+                shot: faces[x.name] || '', weight: boxWeightLabel(b.weight),
+                soon: bucket === 'upcoming', when: b.start
+              };
+              return;
+            }
+            if (bucket === 'upcoming') { hit.soon = true; hit.weight = boxWeightLabel(b.weight); }
+            if (new Date(b.start) > new Date(hit.when)) {
+              hit.when = b.start;
+              if (x.record) hit.rec = x.record;
+            }
+          });
+        });
+      });
+
+      var all = Object.keys(byName).map(function (k) { return byName[k]; });
+      if (!all.length) { host.innerHTML = '<div class="skeleton">拳手名单没取到</div>'; return; }
+
+      var groups = [];
+      var soon = all.filter(function (f) { return f.soon; });
+      if (soon.length) {
+        groups.push({ key: 'soon', label: '有安排', fighters: byName_sort(soon) });
+      }
+      var seen = {};
+      all.forEach(function (f) {
+        if (seen[f.weight]) return;
+        seen[f.weight] = 1;
+        groups.push({
+          key: f.weight, label: f.weight,
+          fighters: byName_sort(all.filter(function (x) { return x.weight === f.weight; }))
+        });
+      });
+
+      fightGroups = groups;
+      fightGroup = Math.min(fightGroup, groups.length - 1);
+      paintFighterPicker();
     });
   }
+  function byName_sort(list) {
+    return list.slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
   function saveFavBoxers() {
-    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, MAX_BOXERS);
-    favBoxers = checked.map(function (c) {
-      return { name: c.value, record: c.dataset.rec, flag: c.dataset.flag };
+    favBoxers = fightPicked.slice(0, MAX_BOXERS).map(function (p) {
+      return { name: p.name, record: p.rec, flag: p.flag };
     });
     lsSet('favBoxers', favBoxers);
     $('settings').hidden = true;
@@ -5678,7 +5741,10 @@
     if (nb) { nbaDetail(nb); return; }
     var lm = e.target.closest('.match[data-lolm]');
     if (lm) { lolDetail(lm); return; }
-    var b = e.target.closest('.match');
+    // a UFC or boxing bout is also a .match, but it carries no event id — without
+    // this guard it fell through to the football handler and asked ESPN for
+    // summary?event=undefined, which is what "赛况没取到" was
+    var b = e.target.closest('.match[data-ev]');
     if (b) toggleDetail(b);
   });
 

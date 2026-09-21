@@ -202,13 +202,21 @@ async function collectPanda(game, file) {
   if (!PANDA) throw new Error('missing PANDASCORE_TOKEN secret');
   const headers = { authorization: `Bearer ${PANDA}` };
   const base = `https://api.pandascore.co/${game}/matches`;
-  // 50 a side rather than 30: the board now splits by event, and a dozen
-  // events share those rows, so 30 left most of them with one or two matches
-  const [upcoming, past, running] = await Promise.all([
-    getJSON(`${base}/upcoming?per_page=50&sort=scheduled_at`, headers),
-    getJSON(`${base}/past?per_page=50&sort=-scheduled_at`, headers),
-    getJSON(`${base}/running?per_page=20`, headers).catch(() => [])
+  // The board splits these rows across a dozen events, so a single page left
+  // most events showing one or two matches. 100 is PandaScore's per-page cap,
+  // and two pages a side is enough that picking any event has a real schedule
+  // behind it.
+  const page = (kind, extra, n) =>
+    getJSON(`${base}/${kind}?per_page=100&page=${n}&${extra}`, headers).catch(() => []);
+  const [up1, up2, past1, past2, running] = await Promise.all([
+    page('upcoming', 'sort=scheduled_at', 1),
+    page('upcoming', 'sort=scheduled_at', 2),
+    page('past', 'sort=-scheduled_at', 1),
+    page('past', 'sort=-scheduled_at', 2),
+    getJSON(`${base}/running?per_page=50`, headers).catch(() => [])
   ]);
+  const upcoming = (up1 || []).concat(up2 || []);
+  const past = (past1 || []).concat(past2 || []);
   const live = (running || []).map(pandaMatch);
   const liveIds = new Set(live.map(m => m.id));
   const value = {
@@ -1042,6 +1050,47 @@ async function collectBoxing() {
   };
 }
 
+/* Portraits for the boxer picker, so it can look like the UFC one rather than
+   a list of names. A boxer's article title is their name, and pageimages hands
+   back the infobox photo. Cached for a month: these faces do not change. */
+async function collectBoxers() {
+  const card = await load('boxing.json');
+  if (!card) return { skipped: 'no boxing.json yet' };
+
+  const names = [];
+  [].concat(card.upcoming || [], card.recent || []).forEach(b => {
+    for (const side of [b.a, b.b]) {
+      const n = side && side.name;
+      if (n && !names.includes(n)) names.push(n);
+    }
+  });
+  if (!names.length) return { boxers: 0 };
+
+  const cache = (await load('boxers.json')) || { updatedAt: 0, faces: {} };
+  const stale = Date.now() - new Date(cache.updatedAt || 0).getTime() > 30 * 24 * 3600e3;
+  const missing = names.filter(n => stale || !(n in cache.faces));
+
+  for (let i = 0; i < missing.length; i += 40) {
+    const batch = missing.slice(i, i + 40);
+    const url = `${WIKI_API}?action=query&format=json&formatversion=2&prop=pageimages` +
+      `&piprop=thumbnail&pithumbsize=320&titles=${encodeURIComponent(batch.join('|'))}`;
+    try {
+      const data = await getJSON(url);
+      const pages = (data && data.query && data.query.pages) || [];
+      // an article can answer under a redirected title, so match on both
+      const byTitle = {};
+      for (const p of pages) byTitle[p.title] = (p.thumbnail || {}).source || '';
+      for (const n of batch) cache.faces[n] = byTitle[n] || '';
+    } catch {
+      for (const n of batch) if (!(n in cache.faces)) cache.faces[n] = '';
+    }
+  }
+  cache.updatedAt = new Date().toISOString();
+  await save('boxers.json', cache);
+  const withFace = names.filter(n => cache.faces[n]).length;
+  return { boxers: names.length, withFace, lookedUp: missing.length };
+}
+
 /* Keep the repo from growing without bound. */
 async function prune(dir, keep = 400) {
   try {
@@ -1064,7 +1113,8 @@ const tasks = [
   ['cs2', collectCs2],
   ['valorant', collectValorant],
   ['ufc', collectUfcRankings],
-  ['boxing', collectBoxing]
+  ['boxing', collectBoxing],
+  ['boxers', collectBoxers]
 ];
 
 for (const [name, run] of tasks) {

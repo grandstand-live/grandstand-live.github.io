@@ -1277,21 +1277,24 @@ async function collectBoxers() {
   if (!names.length) return { boxers: 0 };
 
   // bumped when the lookup rules change, to re-check faces already on file
-  const FACE_RULES = 2;
+  const FACE_RULES = 3;
   const cache = (await load('boxers.json')) || { updatedAt: 0, faces: {} };
   const stale = cache.rules !== FACE_RULES ||
     Date.now() - new Date(cache.updatedAt || 0).getTime() > 30 * 24 * 3600e3;
   cache.rules = FACE_RULES;
   const missing = names.filter(n => stale || !(n in cache.faces));
 
-  for (let i = 0; i < missing.length; i += 40) {
-    const batch = missing.slice(i, i + 40);
-    /* Ask for the article's categories alongside its picture. Plenty of these
-       names belong to someone else entirely — "Lewis Morris" returns an oil
-       painting of an 18th-century politician — so a portrait is only kept when
-       the article is filed under boxing. */
+  for (let i = 0; i < missing.length; i += 20) {
+    const batch = missing.slice(i, i + 20);
+    /* Ask for the opening of the article alongside its picture. Plenty of
+       these names belong to someone else entirely — "Lewis Morris" returns an
+       oil painting of an 18th-century politician — and the first sentence is
+       the cheapest reliable test: it reads "is a British professional boxer".
+       Categories look like the obvious check but come back alphabetically, so
+       the boxing ones sit behind a wall of maintenance categories. */
     const url = `${WIKI_API}?action=query&format=json&formatversion=2` +
-      `&prop=pageimages|categories&piprop=thumbnail&pithumbsize=320&cllimit=60` +
+      `&prop=pageimages|extracts&piprop=thumbnail&pithumbsize=320` +
+      `&exintro=1&explaintext=1&exchars=300&exlimit=20` +
       `&titles=${encodeURIComponent(batch.join('|'))}`;
     try {
       const data = await getJSON(url);
@@ -1299,8 +1302,7 @@ async function collectBoxers() {
       // an article can answer under a redirected title, so match on both
       const byTitle = {};
       for (const p of pages) {
-        const cats = (p.categories || []).map(c => c.title || '').join(' ');
-        const isBoxer = /box(er|ing)/i.test(cats);
+        const isBoxer = /box(er|ing)/i.test(p.extract || '');
         byTitle[p.title] = isBoxer ? ((p.thumbnail || {}).source || '') : '';
       }
       for (const n of batch) {

@@ -18,6 +18,21 @@
   img { max-width: 100%; }
   [hidden] { display: none !important; }
 </style>
+<script>
+  /* Runs before the first paint, and deliberately ahead of the stylesheet: a
+     pinned theme has to be on <html> by the time anything renders, or someone
+     who chose dark gets a full-page flash of paper white on every launch. */
+  (function () {
+    try {
+      var t = JSON.parse(localStorage.getItem('theme') || '"auto"');
+      if (t === 'light' || t === 'dark') {
+        document.documentElement.setAttribute('data-theme', t);
+        var m = document.querySelector('meta[name="color-scheme"]');
+        if (m) m.setAttribute('content', t);
+      }
+    } catch (e) {}
+  })();
+</script>
 <title>Grandstand</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -203,17 +218,44 @@
     box-shadow: 0 10px 18px -18px rgba(0, 0, 0, .55);
     padding-top: 6px;
   }
-  .stickybar.tucked {
-    transform: translateY(-104%);
-    transition: transform .22s cubic-bezier(.4, 0, .2, 1);
+  /* --tuck runs 0 → 1 and is driven straight from the scroll delta, so the bar
+     slides and fades under the finger instead of snapping away at a threshold.
+     No transition while it tracks — that would lag behind the gesture. The
+     .settling class is added only for the snap after scrolling stops. */
+  .stickybar {
+    transform: translateY(calc(var(--tuck, 0) * -104%));
+    opacity: calc(1 - var(--tuck, 0) * .88);
   }
-  .stickybar:not(.tucked) {
-    transform: none;
-    transition: transform .2s cubic-bezier(.2, .7, .3, 1);
+  .stickybar.gone { pointer-events: none; }
+  .stickybar.settling {
+    transition: transform .2s cubic-bezier(.4, 0, .2, 1), opacity .2s ease,
+                box-shadow .18s ease, border-color .18s ease, padding .18s ease;
   }
   @media (prefers-reduced-motion: reduce) {
-    .stickybar, .stickybar.tucked { transition: none; }
+    .stickybar, .stickybar.settling { transition: none; }
   }
+
+  /* Once the bar is gone, this is the way back up without a long swipe. */
+  .totop {
+    position: fixed;
+    right: 14px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 30;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 2px;
+    color: var(--ink-2);
+    font-size: 15px;
+    box-shadow: 0 2px 10px -4px rgba(40, 32, 18, .35);
+    cursor: pointer;
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  .totop.on { opacity: 1; transform: none; pointer-events: auto; }
+  .totop:active { transform: scale(.92); }
+  @media (prefers-reduced-motion: reduce) { .totop { transition: none; } }
   .stickybar.stuck .chips { display: none; }
   .stickybar.stuck .sportnav { margin-top: 0; padding: 2px; }
   .stickybar.stuck .sportnav button { padding: 4px 13px; font-size: 12.5px; }
@@ -238,6 +280,14 @@
     line-height: 1.08;
     text-wrap: balance;
   }
+  /* The masthead doubles as the way home, the way a paper's nameplate does. */
+  #mast {
+    background: none; border: none; padding: 0; margin: 0;
+    font: inherit; color: inherit; cursor: pointer;
+    display: block; text-align: left;
+  }
+  #mast:active { opacity: .6; }
+  #mast:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .head-row .eyebrow { margin-top: 4px; }
   .tags { display: inline-flex; gap: 4px; flex-wrap: wrap; vertical-align: 1px; }
   .tag {
@@ -541,16 +591,24 @@
     cursor: pointer;
   }
   .jump:hover { border-color: var(--hairline-strong); }
-  .day-head .today {
+  /* Not scoped to .day-head: the same badge marks the next grand prix and the
+     next fight card, and there it was inheriting nothing — so it rendered as
+     bare text welded to the end of the name ("阿塞拜疆大奖赛下一站"). */
+  .today {
+    display: inline-block;
+    margin-left: 6px;
     font-family: var(--narrow);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     letter-spacing: .08em;
     color: var(--accent-ink);
     background: var(--accent-soft);
-    border-radius: 3px;
+    border-radius: 2px;
     padding: 1px 6px;
+    vertical-align: 1px;
+    white-space: nowrap;
   }
+  .day-head .today { margin-left: 0; }
   /* Printed on the page, not floating above it. The shadow is gone in light —
      paper does not cast one on itself — and comes back in dark, where a warm
      panel needs some separation from the ground to read as a distinct block. */
@@ -762,6 +820,64 @@
   tr.z-mid td.rk::before { background: var(--hairline-strong); }
   tr.z-drop td.rk::before { background: var(--loss); }
   td.pts { font-weight: 700; color: var(--ink); }
+  .box-team {
+    font-family: var(--serif); font-size: 13.5px; font-weight: 600;
+    color: var(--ink); margin: 12px 0 2px;
+  }
+  .box-team:first-of-type { margin-top: 2px; }
+  .starter {
+    font-family: var(--narrow); font-size: 9px; font-weight: 700;
+    letter-spacing: .06em; background: var(--accent-soft); color: var(--accent-ink);
+    border-radius: 2px; padding: 1px 4px; flex-shrink: 0;
+  }
+  .bpos { font-family: var(--narrow); font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
+
+  /* ---- F1 podium call ---- */
+  .pod-slots { display: flex; gap: 6px; }
+  .pod-slot {
+    flex: 1; min-width: 0; cursor: pointer;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    background: none; border: 1px solid var(--hairline); border-radius: 2px;
+    padding: 7px 9px; font: inherit; text-align: left;
+  }
+  .pod-slot b {
+    font-family: var(--narrow); font-size: 9.5px; font-weight: 700;
+    letter-spacing: .1em; color: var(--muted);
+  }
+  .pod-slot span {
+    font-family: var(--serif); font-size: 13px; font-weight: 600; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  .pod-slot.on { border-color: var(--accent); background: var(--accent-soft); }
+  .pod-slot.on b { color: var(--accent-ink); }
+  .pod-slot.on span { color: var(--accent-ink); }
+  .pod-field { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+  .pod-driver {
+    cursor: pointer; font-family: var(--serif); font-size: 11.5px; font-weight: 600;
+    background: none; color: var(--ink-2);
+    border: 1px solid var(--hairline); border-radius: 2px; padding: 4px 10px;
+  }
+  .pod-driver:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .pod-driver.used { opacity: .35; cursor: default; }
+  .pod-hint {
+    font-family: var(--narrow); font-size: 10.5px; letter-spacing: .06em;
+    color: var(--muted); margin-top: 8px;
+  }
+  .pod-row {
+    display: flex; align-items: baseline; gap: 9px;
+    padding: 8px 0; border-bottom: 1px solid var(--hairline);
+  }
+  .pod-row:last-child { border-bottom: none; }
+  .pod-place {
+    font-family: var(--narrow); font-size: 10px; font-weight: 700;
+    letter-spacing: .1em; color: var(--muted); width: 30px; flex-shrink: 0;
+  }
+  .pod-name { font-family: var(--serif); font-size: 13.5px; font-weight: 600; }
+  .pod-row.exact .pod-name { color: var(--win); }
+  .pod-row.off .pod-name { color: var(--muted); }
+  .pod-real {
+    margin-left: auto; font-size: 11.5px; color: var(--muted); white-space: nowrap;
+  }
   tr.fav { background: var(--accent-soft); }
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; color: var(--muted); margin-top: 10px; }
   .legend i { display: inline-block; width: 3px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
@@ -1540,10 +1656,11 @@
   <header>
     <div class="head-row">
       <div>
-        <h1>GRANDSTAND</h1>
+        <h1><button type="button" id="mast" title="回到今天">GRANDSTAND</button></h1>
         <div class="eyebrow" id="subtitle">实时赛事板 · 足球</div>
       </div>
       <div class="head-actions">
+        <button class="icon-btn" id="themeBtn" type="button" title="外观">◐</button>
         <button class="icon-btn" id="refreshBtn" type="button" title="刷新"><span class="spin">↻</span></button>
         <button class="icon-btn" id="gearBtn" type="button">主队</button>
       </div>
@@ -1574,6 +1691,8 @@
       <button class="icon-btn" type="button" id="notifyBtn">🔔 开赛提醒</button>
     </div>
   </div>
+
+  <button class="totop" id="toTop" type="button" aria-label="回到顶部" title="回到顶部">↑</button>
 
   <div class="status-line" id="status"></div>
 
@@ -1865,9 +1984,25 @@
   var SPORT_MARK = {
     today: '◎', football: '⬡', basketball: '◍', f1: '⚑', fight: '✦', esports: '◆'
   };
+  /* auto → 浅 → 深 → auto. The system preference is still the default, but a
+     phone that flips at sunset is not always what you want at 2am, so once a
+     choice is made it sticks. Everything that cares about light-vs-dark asks
+     isDark() rather than the media query, which only knows half the answer. */
+  var THEME_ORDER = ['auto', 'light', 'dark'];
+  var THEME_FACE = { auto: '◐', light: '○', dark: '●' };
+  var THEME_NAME = { auto: '跟随系统', light: '浅色', dark: '深色' };
+  var themeMode = lsGet('theme', 'auto');
+  if (THEME_ORDER.indexOf(themeMode) === -1) themeMode = 'auto';
+
+  function isDark() {
+    if (themeMode === 'dark') return true;
+    if (themeMode === 'light') return false;
+    return !!(darkQuery && darkQuery.matches);
+  }
+
   function applySkin(id) {
     var skin = SPORT_SKIN[id] || SPORT_SKIN.football;
-    var set = skin[darkQuery && darkQuery.matches ? 'd' : 'l'];
+    var set = skin[isDark() ? 'd' : 'l'];
     document.documentElement.setAttribute('data-sport', id);
     var s = document.documentElement.style;
     s.setProperty('--accent', set[0]);
@@ -1876,8 +2011,31 @@
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', set[0]);
   }
+  function applyTheme() {
+    var root = document.documentElement;
+    if (themeMode === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', themeMode);
+    /* Tells the browser which way to paint scrollbars, form controls and the
+       spaces the page does not cover itself. */
+    var cs = document.querySelector('meta[name="color-scheme"]');
+    if (cs) cs.setAttribute('content', themeMode === 'auto' ? 'light dark' : themeMode);
+    var btn = $('themeBtn');
+    if (btn) {
+      btn.textContent = THEME_FACE[themeMode];
+      btn.title = '外观：' + THEME_NAME[themeMode];
+      btn.setAttribute('aria-label', '外观：' + THEME_NAME[themeMode] + '，点击切换');
+    }
+    applySkin(sport);
+  }
+  function cycleTheme() {
+    themeMode = THEME_ORDER[(THEME_ORDER.indexOf(themeMode) + 1) % THEME_ORDER.length];
+    lsSet('theme', themeMode);
+    applyTheme();
+  }
+  /* Only matters while the mode is auto, but re-running the whole apply keeps
+     the accent set and the theme-color in step with the new system value. */
   if (darkQuery && darkQuery.addEventListener) {
-    darkQuery.addEventListener('change', function () { applySkin(sport); });
+    darkQuery.addEventListener('change', function () { applyTheme(); });
   }
 
   function setSport(id) {
@@ -2190,15 +2348,59 @@
 
   /* Called wherever a finished score passes through: works out whether the
      call was right and freezes it. */
-  function settlePick(sport, id, outcome, score) {
+  function settlePick(sport, id, outcome, score, grade) {
     var k = pickKey(sport, id);
     var row = picks[k];
     if (!row || row.result || !outcome) return;
     row.result = outcome;
     row.score = score || '';
-    row.hit = row.side === outcome;
+    /* Most calls are right or wrong on a straight comparison. A podium is not:
+       it is three names against three places, so the caller hands in its own
+       verdict along with the detail worth showing back. */
+    if (grade) {
+      row.hit = !!grade.hit;
+      if (grade.note) row.note = grade.note;
+    } else {
+      row.hit = row.side === outcome;
+    }
     row.settledAt = Date.now();
     lsSet('picks', picks);
+  }
+
+  /* ---------- F1 podium calls ----------
+     A podium call is three driver ids in finishing order, kept in one `side`
+     string so it rides the same storage, stats and pruning as every other
+     call. Empty slots stay in place so a half-filled podium survives a
+     re-render. */
+  var PODIUM_N = 3;
+  function podiumParse(side) {
+    if (!side || String(side).slice(0, 2) !== 'p:') return ['', '', ''];
+    /* Tilde, not comma: the slots hold driver names, and f1DriverKey strips a
+       tilde out of a name so one can never split a call in half. */
+    var out = String(side).slice(2).split('~');
+    while (out.length < PODIUM_N) out.push('');
+    return out.slice(0, PODIUM_N);
+  }
+  function podiumSide(ids) { return 'p:' + ids.join('~'); }
+  function podiumFull(ids) {
+    return ids.filter(Boolean).length === PODIUM_N;
+  }
+  /* Naming all three of the right drivers is the bar for a hit — calling the
+     exact order is a lottery, and scoring it that way would leave the record
+     page reading 0% forever. The exact count is reported alongside, because
+     getting the order right is the part worth bragging about. */
+  function podiumGrade(mineIds, actualIds) {
+    var exact = 0, onBox = 0;
+    mineIds.forEach(function (idv, i) {
+      if (!idv) return;
+      if (idv === actualIds[i]) exact++;
+      if (actualIds.indexOf(idv) !== -1) onBox++;
+    });
+    var hit = onBox === PODIUM_N;
+    var note = hit
+      ? (exact === PODIUM_N ? '三人全中，顺序也全对' : '三人全中，' + exact + ' 个位置对')
+      : (onBox ? onBox + ' 人上台，' + exact + ' 个位置对' : '一个都没中');
+    return { hit: hit, exact: exact, onBox: onBox, note: note };
   }
 
   function pickStats() {
@@ -3583,40 +3785,96 @@
     });
   }
 
-  function f1PickHTML(ev, mine) {
-    if (mine && mine.result) {
-      var hitName = mine.pickName || '';
-      return '<div class="kv"><span class="k">你的预测</span><span class="' +
-        (mine.hit ? 'res W' : 'res L') + '">' + (mine.hit ? '✓ ' : '✗ ') +
-        esc(hitName) + '</span></div>';
-    }
-    var field = favDrivers.map(function (f) {
-      return { id: f.num, espn: f.espnId, name: driverCN(f.name) || f.name };
-    });
+  /* The field offered: the drivers you follow, plus the top of the
+     championship, because a twenty-name list is a menu nobody reads. */
+  /* Keyed on the driver's name, not ESPN's athlete id. The standings carry an
+     id but the race results do not — `athlete` there is name and flag only —
+     so an id-keyed call could never be matched against a finished race, and
+     the old single-driver version silently settled every call as a miss.
+     driverCN runs on both sides, so the two always agree. */
+  function f1DriverKey(name) {
+    return String(driverCN(name) || name || '').replace(/~/g, '').trim();
+  }
+  function f1Field() {
+    var field = favDrivers.map(function (f) { return f1DriverKey(f.name); });
     var entries = (((f1Cache.standings || {}).children || []).filter(function (c) {
       return /driver/i.test(c.name || '');
     })[0] || {});
-    var top = ((entries.standings || {}).entries || []).slice(0, 5).map(function (e) {
-      var a = e.athlete || {};
-      return { espn: a.id, name: driverCN(a.displayName) || a.displayName };
+    var top = ((entries.standings || {}).entries || []).slice(0, 8).map(function (e) {
+      return f1DriverKey((e.athlete || {}).displayName);
     });
     var seen = {}, list = [];
-    top.concat(field).forEach(function (d) {
-      if (!d.espn || seen[d.espn] || !d.name) return;
-      seen[d.espn] = 1;
-      list.push(d);
+    top.concat(field).forEach(function (name) {
+      if (!name || seen[name]) return;
+      seen[name] = 1;
+      list.push(name);
     });
+    return list;
+  }
+
+  var PODIUM_PLACE = ['冠军', '亚军', '季军'];
+
+  function f1PickHTML(ev, mine) {
+    var list = f1Field();
+    var nameOf = function (key) { return key; };
+
+    if (mine && mine.result) {
+      var mineIds = podiumParse(mine.side);
+      var actual = podiumParse(mine.result);
+      return '<h4>你的领奖台</h4>' +
+        '<div class="podium settled">' + mineIds.map(function (idv, i) {
+          var right = idv && idv === actual[i];
+          var onBox = idv && actual.indexOf(idv) !== -1;
+          return '<div class="pod-row ' + (right ? 'exact' : (onBox ? 'near' : 'off')) + '">' +
+            '<span class="pod-place">' + PODIUM_PLACE[i] + '</span>' +
+            '<span class="pod-name">' + esc(idv ? nameOf(idv) : '—') + '</span>' +
+            '<span class="pod-real">实际 ' + esc(actual[i] ? nameOf(actual[i]) : '—') + '</span>' +
+            '</div>';
+        }).join('') + '</div>' +
+        (mine.note ? '<div class="pd-line ' + (mine.hit ? '' : 'muted') + '">' +
+          (mine.hit ? '✓ ' : '✗ ') + esc(mine.note) + '</div>' : '');
+    }
+
     if (!list.length) return '';
-    return '<h4>预判领奖台</h4><div class="pd-line muted" style="padding:0 0 6px">' +
-      '选一位，他站上前三就算命中。</div>' +
-      '<div class="match-note" data-when="' + esc(ev.date || '') + '">' +
-      '<span class="pick-bar wrap" data-pick-for="f1|' + esc(ev.id) + '">' +
-      list.slice(0, 6).map(function (d) {
-        var on = mine && mine.side === 'd' + d.espn;
-        return '<button type="button" class="pick-btn' + (on ? ' on' : '') +
-          '" data-side="d' + esc(d.espn) + '" data-name="' + esc(d.name) + '">' +
-          esc(d.name) + '</button>';
-      }).join('') + '</span></div>';
+    var chosen = podiumParse(mine && mine.side);
+    var filled = chosen.filter(Boolean).length;
+
+    return '<h4>预判领奖台</h4>' +
+      '<div class="pd-line muted" style="padding:0 0 8px">' +
+      '按顺序点出前三名。三个人都站上台就算命中，位置对了几个另外记。</div>' +
+      '<div class="podium" data-podium-for="f1|' + esc(ev.id) + '"' +
+      ' data-when="' + esc(ev.date || '') + '"' +
+      ' data-tag="' + esc(ev.shortName || ev.name || '') + '">' +
+      '<div class="pod-slots">' + chosen.map(function (idv, i) {
+        return '<button type="button" class="pod-slot' + (idv ? ' on' : '') +
+          '" data-slot="' + i + '">' +
+          '<b>' + PODIUM_PLACE[i] + '</b>' +
+          '<span>' + esc(idv ? nameOf(idv) : '—') + '</span></button>';
+      }).join('') + '</div>' +
+      '<div class="pod-field">' + list.slice(0, 10).map(function (name) {
+        var used = chosen.indexOf(name) !== -1;
+        return '<button type="button" class="pod-driver' + (used ? ' used' : '') +
+          '" data-key="' + esc(name) + '"' + (used ? ' disabled' : '') + '>' +
+          esc(name) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="pod-hint">' + (filled === PODIUM_N ? '已记下，开赛前都能改'
+        : '再选 ' + (PODIUM_N - filled) + ' 位') + '</div></div>';
+  }
+
+  /* Rebuilds the picker in place after a tap, so the slots, the greyed-out
+     drivers and the hint all move together without re-fetching the race. */
+  function f1PodiumRefresh(box, evId, when, tag) {
+    var mine = pickOf('f1', evId);
+    var fake = { id: evId, date: when, shortName: tag };
+    var html = f1PickHTML(fake, mine);
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    var fresh = wrap.querySelector('.podium');
+    if (fresh && box.parentNode) {
+      box.parentNode.replaceChild(fresh, box);
+      return fresh;
+    }
+    return box;
   }
 
   function toggleGp(btn) {
@@ -3637,18 +3895,16 @@
       var race0 = raceOf(ev) || {};
       var over = ((ev.status || {}).type || {}).state === 'post';
       if (over) {
-        /* A call on the podium, not the winner: naming one driver out of
-           twenty is mostly luck, while "he finishes top three" is a real read
-           on the weekend. Settles if the named driver placed 1-2-3. */
         var top3 = (race0.competitors || []).slice()
           .sort(function (x, y) { return (x.order || 99) - (y.order || 99); })
-          .slice(0, 3)
-          .map(function (c) { return 'd' + ((c.athlete || {}).id || ''); });
+          .slice(0, PODIUM_N)
+          .map(function (c) { return f1DriverKey((c.athlete || {}).displayName); })
+          .filter(Boolean);
         var myCall = pickOf('f1', ev.id);
-        if (myCall && !myCall.result && top3.length) {
-          // settlePick compares on equality, so hand it the matching side
-          settlePick('f1', ev.id,
-            top3.indexOf(myCall.side) !== -1 ? myCall.side : 'missed', '');
+        if (myCall && !myCall.result && top3.length === PODIUM_N) {
+          var mineIds = podiumParse(myCall.side);
+          var grade = podiumGrade(mineIds, top3);
+          settlePick('f1', ev.id, podiumSide(top3), '', grade);
         }
       }
       var myF1 = pickOf('f1', ev.id);
@@ -4225,39 +4481,6 @@
         })
       };
     });
-  }
-
-  // NBA's summary has no recent-form block, so derive it from each club's schedule
-  function nbaForm(teamIds) {
-    return Promise.all(teamIds.map(function (id) {
-      if (!id) return Promise.resolve(null);
-      var key = 'form' + id;
-      if (nbaCache[key]) return Promise.resolve(nbaCache[key]);
-      return getJSON(API + NBA + 'teams/' + id + '/schedule').then(function (d) {
-        if (!d) return null;
-        var done = ((d.events || [])).filter(function (e) {
-          var c = (e.competitions || [])[0] || {};
-          return c.status && c.status.type && c.status.type.completed;
-        }).sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).slice(0, 5);
-        var out = {
-          team: nbaCN(d.team && d.team.displayName),
-          games: done.map(function (e) {
-            var c = (e.competitions || [])[0] || {};
-            var cs = c.competitors || [];
-            var me = cs.filter(function (x) { return String(x.team && x.team.id) === String(id); })[0] || {};
-            var opp = cs.filter(function (x) { return x !== me; })[0] || {};
-            return {
-              result: me.winner === true ? 'W' : 'L',
-              score: scoreOf(me) + '-' + scoreOf(opp),
-              opp: nbaCN(opp.team && opp.team.displayName),
-              home: me.homeAway === 'home'
-            };
-          })
-        };
-        nbaCache[key] = out;
-        return out;
-      });
-    })).then(function (list) { return list.filter(Boolean); });
   }
 
   /* ---------- post-match highlights ---------- */
@@ -4991,6 +5214,162 @@
     });
   }
 
+  /* Win probability from win-loss records when there is no market to read.
+
+     Uses each side's split — the home team's home record against the visitor's
+     road record — and combines them with the odds ratio (log5): a .600 host
+     against a .400 visitor comes out near 69%, not the 60% a naive comparison
+     would give. Falls back to overall records early in a season, when the
+     splits are still 0-0, and gives up entirely under five games each, where
+     a record says nothing yet. */
+  function nbaRecordOdds(cs, table, stale) {
+    if (!cs || cs.length !== 2) return null;
+    var home = cs.filter(function (c) { return c.homeAway === 'home'; })[0] || cs[0];
+    var away = cs.filter(function (c) { return c !== home; })[0];
+    if (!away) return null;
+
+    function rec(c, type) {
+      var hit = ((c && c.record) || []).filter(function (r) { return r.type === type; })[0];
+      var parts = String((hit && (hit.summary || hit.displayValue)) || '').split('-');
+      var w = Number(parts[0]), l = Number(parts[1]);
+      if (!isFinite(w) || !isFinite(l) || w + l < 5) return null;
+      return { w: w, l: l, pct: w / (w + l) };
+    }
+    function fromTable(c) {
+      var hit = table && table[String((c && c.team && c.team.id) || '')];
+      return hit && (hit.w + hit.l) >= 5 ? hit : null;
+    }
+
+    /* Three tiers, best first. The splits already contain home advantage, so
+       only the other two get the court nudge added. */
+    var h = rec(home, 'home'), a = rec(away, 'road'), basis = '主客场战绩', edge = 1;
+    if (!h || !a) {
+      h = rec(home, 'total'); a = rec(away, 'total'); basis = '赛季战绩'; edge = 1.4;
+    }
+    if (!h || !a) {
+      /* Nobody has played yet — every record in a new season reads 0-0, which
+         is exactly the stretch when someone is looking at fixtures. The
+         standings feed has already fallen back to last season's final table
+         in that case, and says so. */
+      h = fromTable(home); a = fromTable(away);
+      basis = (stale ? '上赛季战绩' : '赛季战绩'); edge = 1.4;
+    }
+    if (!h || !a) return null;
+
+    // keep a perfect or winless record from making the ratio infinite
+    var clamp = function (p) { return Math.min(.95, Math.max(.05, p)); };
+    var hp = clamp(h.pct), ap = clamp(a.pct);
+    var ratio = (hp / (1 - hp)) / (ap / (1 - ap)) * edge;
+    var pct = Math.round(ratio / (1 + ratio) * 100);
+    return {
+      pct: Math.min(93, Math.max(7, pct)),
+      basis: basis + ' ' + h.w + '-' + h.l + ' / ' + a.w + '-' + a.l
+    };
+  }
+
+  /* team id → win-loss, read off whichever standings table nbaStandings()
+     decided was the meaningful one. */
+  function nbaPctTable(standings) {
+    var map = {};
+    (((standings || {}).children) || []).forEach(function (g) {
+      ((((g.standings || {}).entries) || [])).forEach(function (e) {
+        var st = {};
+        (e.stats || []).forEach(function (x) { st[x.name] = x.displayValue; });
+        var w = parseInt(st.wins, 10), l = parseInt(st.losses, 10);
+        if (e.team && e.team.id && isFinite(w) && isFinite(l) && w + l > 0) {
+          map[String(e.team.id)] = { w: w, l: l, pct: w / (w + l) };
+        }
+      });
+    });
+    return map;
+  }
+
+  /* The per-player box score — the thing a basketball page is actually for, and
+     the one block this detail never had. Starters first and marked, then the
+     bench; anyone who did not play is dropped rather than shown as a row of
+     dashes. */
+  function nbaBoxHTML(data) {
+    var groups = (data.boxscore && data.boxscore.players) || [];
+    if (!groups.length) return '';
+    var SHOW = ['minutes', 'points', 'rebounds', 'assists',
+      'fieldGoalsMade-fieldGoalsAttempted', 'threePointFieldGoalsMade-threePointFieldGoalsAttempted'];
+    var HEAD = ['分钟', '得分', '篮板', '助攻', '投篮', '三分'];
+
+    var blocks = groups.map(function (g) {
+      var st = (g.statistics || [])[0] || {};
+      var keys = st.keys || [];
+      var cols = SHOW.map(function (k) { return keys.indexOf(k); });
+      if (cols.every(function (i) { return i < 0; })) return '';
+
+      var played = (st.athletes || []).filter(function (a) {
+        return a.stats && a.stats.length && !a.didNotPlay;
+      });
+      if (!played.length) return '';
+      played.sort(function (a, b) { return (b.starter ? 1 : 0) - (a.starter ? 1 : 0); });
+
+      var rows = played.map(function (a) {
+        var ath = a.athlete || {};
+        var pos = (ath.position && ath.position.abbreviation) || '';
+        var tds = cols.map(function (i, n) {
+          var v = i >= 0 ? (a.stats[i] || '—') : '—';
+          return '<td' + (HEAD[n] === '得分' ? ' class="pts"' : '') + '>' + esc(v) + '</td>';
+        }).join('');
+        return '<tr><td class="tm"><span class="nm">' + esc(ath.shortName || ath.displayName || '') +
+          '</span>' + (a.starter ? '<span class="starter">首发</span>' : '') +
+          (pos ? '<span class="bpos">' + esc(pos) + '</span>' : '') + '</td>' + tds + '</tr>';
+      }).join('');
+
+      return '<div class="box-team">' + esc(nbaCN(g.team && g.team.displayName)) + '</div>' +
+        '<div class="table-scroll"><table><thead><tr><th class="tm">球员</th>' +
+        HEAD.map(function (h) { return '<th>' + h + '</th>'; }).join('') +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }).filter(Boolean);
+
+    return blocks.length ? '<h4>球员数据</h4>' + blocks.join('') : '';
+  }
+
+  /* ESPN ships the last five for both sides inside the summary, so the board no
+     longer fetches two team schedules to work the same thing out. */
+  function nbaLastFiveHTML(data, teamIds) {
+    var list = data.lastFiveGames || [];
+    if (!list.length) return '';
+    var cols = list.map(function (t) {
+      var games = (t.events || []).slice(0, 5);
+      if (!games.length) return '';
+      var rows = games.map(function (e) {
+        var mine = String(t.team && t.team.id);
+        var us = String(e.homeTeamId) === mine ? e.homeTeamScore : e.awayTeamScore;
+        var them = String(e.homeTeamId) === mine ? e.awayTeamScore : e.homeTeamScore;
+        var won = String(e.gameResult || '').toUpperCase() === 'W';
+        var d = new Date(e.gameDate || '');
+        return '<div class="bench-row on"><span class="bnm">' +
+          (e.atVs === 'vs' ? '' : '@') + esc(nbaCN(e.opponent && e.opponent.displayName,
+            e.opponent && e.opponent.abbreviation)) + '</span>' +
+          '<span class="bin"><b style="color:var(--' + (won ? 'win' : 'loss') + ')">' +
+          (won ? '胜' : '负') + '</b> ' + esc(us + '-' + them) +
+          (isNaN(d) ? '' : ' · ' + esc(fmtDay(d))) + '</span></div>';
+      }).join('');
+      return '<div class="bench-col"><div class="bench-team">' +
+        esc(nbaCN(t.team && t.team.displayName, t.team && t.team.abbreviation)) +
+        '</div>' + rows + '</div>';
+    }).filter(Boolean).join('');
+    return cols ? '<h4>近五场</h4><div class="bench">' + cols + '</div>' : '';
+  }
+
+  function nbaInjuryHTML(data) {
+    var inj = (data.injuries || []).map(function (g) {
+      var list = (g.injuries || []).map(function (i) {
+        var n = i.athlete && (i.athlete.displayName || i.athlete.shortName);
+        var st = i.status || (i.details && i.details.type) || '';
+        return n ? n + (st ? '（' + st + '）' : '') : '';
+      }).filter(Boolean);
+      if (!list.length) return '';
+      return '<div class="lineup"><b>' + esc(nbaCN(g.team && g.team.displayName)) +
+        '</b><br>' + esc(list.join(' · ')) + '</div>';
+    }).filter(Boolean);
+    return inj.length ? '<h4>伤停名单</h4>' + inj.join('<div style="height:8px"></div>') : '';
+  }
+
   function nbaDetail(btn) {
     var id = btn.dataset.nba;
     var next = btn.nextElementSibling;
@@ -5000,7 +5379,14 @@
     box.innerHTML = '<div class="skeleton" style="padding:12px 0">正在获取赛况…</div>';
     btn.parentNode.insertBefore(box, btn.nextSibling);
 
-    getJSON(API + NBA + 'summary?event=' + id).then(function (data) {
+    /* The standings ride along because they are the last resort for the
+       pre-game read, and nbaStandings() caches, so this costs one request per
+       session rather than one per game opened. */
+    Promise.all([
+      getJSON(API + NBA + 'summary?event=' + id),
+      nbaStandings().catch(function () { return null; })
+    ]).then(function (got) {
+      var data = got[0], table = nbaPctTable(got[1]), tableStale = !!nbaCache.stale;
       if (!box.isConnected) return;
       if (!data) { box.innerHTML = '<div class="err">赛况没取到。</div>'; return; }
       var html = '';
@@ -5011,21 +5397,36 @@
       /* Same read as football's: the book's moneyline, normalised so the two
          sides sum to 100 and the margin drops out. No draws in basketball. */
       var pick0 = (data.pickcenter && data.pickcenter[0]) || null;
+      var nbaNames = cs.map(function (c) { return nbaCN(c.team && c.team.displayName); });
+      var hPct = null, basis = '';
       if (pick0) {
         var hOdds = impliedProb(pick0.homeTeamOdds && pick0.homeTeamOdds.moneyLine);
         var aOdds = impliedProb(pick0.awayTeamOdds && pick0.awayTeamOdds.moneyLine);
         if (hOdds && aOdds) {
-          var sum0 = hOdds + aOdds;
-          var hPct = Math.round(hOdds / sum0 * 100);
-          var names = cs.map(function (c) { return nbaCN(c.team && c.team.displayName); });
-          html += '<h4>赛前胜负预测</h4>' +
-            '<div class="odds-bar"><i class="h" style="width:' + hPct + '%"></i>' +
-            '<i class="a" style="width:' + (100 - hPct) + '%"></i></div>' +
-            '<div class="odds-key"><span><b>' + esc(names[0] || '') + '</b> ' + hPct + '%</span>' +
-            '<span><b>' + esc(names[1] || '') + '</b> ' + (100 - hPct) + '%</span></div>' +
-            (pick0.details ? '<div class="kv"><span class="k">盘口</span><span>' +
-              esc(pick0.details) + '</span></div>' : '');
+          hPct = Math.round(hOdds / (hOdds + aOdds) * 100);
+          basis = pick0.provider && pick0.provider.name ? '盘口 · ' + pick0.provider.name : '盘口';
         }
+      }
+      /* Books do not price preseason, and they do not post a line for a regular
+         season game until a few days out — which left this whole block missing
+         for exactly the games someone is looking ahead at. Records fill the gap:
+         home record against road record, combined the usual odds-ratio way, so
+         home advantage comes from the split itself rather than a fudge factor. */
+      if (hPct === null) {
+        var fromRecords = nbaRecordOdds(cs, table, tableStale);
+        if (fromRecords) { hPct = fromRecords.pct; basis = fromRecords.basis; }
+      }
+      if (hPct !== null) {
+        html += '<h4>赛前胜负预测</h4>' +
+          '<div class="odds-bar"><i class="h" style="width:' + hPct + '%"></i>' +
+          '<i class="a" style="width:' + (100 - hPct) + '%"></i></div>' +
+          '<div class="odds-key"><span><b>' + esc(nbaNames[0] || '') + '</b> ' + hPct + '%</span>' +
+          '<span><b>' + esc(nbaNames[1] || '') + '</b> ' + (100 - hPct) + '%</span></div>' +
+          (basis ? '<div class="kv"><span class="k">依据</span><span>' + esc(basis) + '</span></div>' : '') +
+          (pick0 && pick0.details ? '<div class="kv"><span class="k">让分</span><span>' +
+            esc(pick0.details) + '</span></div>' : '') +
+          (pick0 && pick0.overUnder ? '<div class="kv"><span class="k">总分线</span><span>' +
+            esc(pick0.overUnder) + '</span></div>' : '');
       }
 
       // quarter by quarter
@@ -5071,6 +5472,10 @@
         if (bars) html += '<h4>全场数据</h4>' + bars;
       }
 
+      html += nbaBoxHTML(data);
+      html += nbaInjuryHTML(data);
+      html += nbaLastFiveHTML(data);
+
       // who did the damage
       var leaders = (data.leaders || []);
       if (leaders.length) {
@@ -5091,8 +5496,6 @@
       html += seriesHTML(data.seasonseries, function (full, abbr) {
         return nbaCN(full, abbr) || abbr || '';
       });
-      html += '<div id="nform-' + esc(id) + '"></div>';
-
       var nbaClips = videosHTML(data.videos);
       if (nbaClips) html += nbaClips;
       else {
@@ -5113,13 +5516,6 @@
       }
 
       box.innerHTML = html || '<div class="kv"><span>这场比赛暂时没有更多资料。</span></div>';
-
-      var hd2 = (data.header && data.header.competitions && data.header.competitions[0]) || {};
-      var ids = (hd2.competitors || []).map(function (c) { return c.team && c.team.id; });
-      nbaForm(ids).then(function (sides) {
-        var slot = document.getElementById('nform-' + id);
-        if (slot && slot.isConnected) slot.innerHTML = formHTML(sides);
-      });
     });
   }
 
@@ -5786,36 +6182,121 @@
     var hit = keys.filter(function (k) { return low.indexOf(k) !== -1; })[0];
     return hit ? CBA_CN[hit] : (name || '');
   }
+  /* The league publishes its own season in one call, no key and no date
+     parameters, and it allows cross-origin reads — so the board asks it
+     directly and is never older than the page. The collected file stays as the
+     fallback for the day that stops being true. */
+  var CBA_LIVE = 'https://portal-server.cbaleague.com/home/home_schedules';
+
+  /* Official club names carry the sponsor — 新疆广汇能源, 广东东阳光 — which is
+     how the league writes them and not how anyone says them. Two clubs share
+     each of 北京 and 浙江, so those keep enough to stay apart. */
+  var CBA_SHORT = {
+    '上海久事': '上海', '北京控股': '北控', '北京首钢': '北京', '南京同曦宙光': '同曦',
+    '四川锦城': '四川', '天津先行者': '天津', '宁波町渥': '宁波', '山东高速': '山东',
+    '山西汾酒': '山西', '广东东阳光': '广东', '广州智都': '广州', '新疆广汇能源': '新疆',
+    '江苏肯帝亚': '江苏', '浙江浙商证券': '浙江', '浙江稠州金租': '稠州',
+    '深圳马可波罗': '深圳', '福建晋江文旅': '福建', '辽宁本钢': '辽宁',
+    '长白山恩都里': '长白山', '青岛崂山啤酒': '青岛'
+  };
+  /* A name not in the table is left whole rather than guessed at — sponsors
+     change every few seasons and a wrong trim is worse than a long one. */
+  function cbaShort(name) { return CBA_SHORT[name] || cbaCN(name); }
+
+  function cbaLive() {
+    return getJSON(CBA_LIVE).then(function (j) {
+      var rows = j && j.data;
+      if (!Array.isArray(rows) || !rows.length) return null;
+      var num = function (v) {
+        return (v === null || v === undefined || v === '') ? null : Number(v);
+      };
+      var out = rows.map(function (r) {
+        /* dates and time are Beijing wall-clock with no zone on them. Stamping
+           +08:00 is what stops a 19:35 tip-off being read as UTC and shown a
+           day early. */
+        var hhmm = String(r.time || '').slice(0, 5);
+        var start = r.dates && /^\d{2}:\d{2}$/.test(hhmm)
+          ? r.dates + 'T' + hhmm + ':00+08:00' : null;
+        var hs = num(r.HomeTeamScore), as = num(r.VisitingTeamScore);
+        var played = hs !== null && as !== null;
+        var status = Number(r.Status) === 1 ? ''
+          : (r.Quarter ? 'Q' + r.Quarter : (played ? 'FT' : ''));
+        return {
+          start: start, status: status,
+          round: r.Round, group: r.GroupName,
+          pre: Number(r.ScheduleTypeID) === 3,
+          home: { name: r.HomeTeamName, score: hs },
+          away: { name: r.VisitingTeamName, score: as }
+        };
+      }).filter(function (m) { return m.start && m.home.name && m.away.name; });
+      out.sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
+      return out.length ? out : null;
+    });
+  }
+
+  function cbaRowHTML(g) {
+    var live = /Q1|Q2|Q3|Q4|HT|OT/i.test(g.status || '');
+    var score = (g.home && g.home.score !== null && g.home.score !== undefined)
+      ? g.home.score + '-' + g.away.score : '';
+    var title = esc(cbaShort(g.home && g.home.name)) +
+      '<span class="vs-mid">vs</span>' + esc(cbaShort(g.away && g.away.name));
+    return archiveRow(archiveWhen(g.start), title, { score: score, note: '' }, live);
+  }
+
   function renderCba() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
     $('status').textContent = 'CBA';
+
+    cbaLive().then(function (games) {
+      if (games) return renderCbaLive(host, games);
+      return renderCbaArchive(host);
+    });
+  }
+
+  function renderCbaLive(host, games) {
+    var cut = Date.now() - 3 * 3600e3;
+    var ahead = [], done = [];
+    games.forEach(function (g) {
+      (new Date(g.start).getTime() >= cut ? ahead : done).push(g);
+    });
+    done.reverse();
+
+    /* The season opens with a fortnight of preseason at neutral venues, which
+       is worth saying — otherwise the first fixtures look like a league round
+       played in towns nobody recognises. */
+    var preRun = ahead.length && ahead[0].pre;
+    var note = preRun ? '<div class="note">接下来是季前赛，' +
+      esc(ahead[0].group || '') + '等分站举行。常规赛之后开打。</div>' : '';
+
+    host.innerHTML = note +
+      (ahead.length ? '<div class="group-name">接下来</div><div class="card">' +
+        ahead.slice(0, 20).map(cbaRowHTML).join('') + '</div>' : '') +
+      (done.length ? '<div class="group-name">最近结果</div><div class="card">' +
+        done.slice(0, 20).map(cbaRowHTML).join('') + '</div>' : '') +
+      '<footer style="border:none;padding-top:10px">本赛季共 ' + games.length +
+      ' 场 · 来源 CBA 官方</footer>';
+  }
+
+  function renderCbaArchive(host) {
     archiveGet('cba.json').then(function (d) {
       if (!d || (!(d.upcoming || []).length && !(d.recent || []).length)) {
         host.innerHTML = archiveEmpty('CBA');
         return;
       }
-      function row(g) {
-        var live = /Q1|Q2|Q3|Q4|HT|OT/i.test(g.status || '');
-        var score = (g.home && g.home.score !== null && g.home.score !== undefined)
-          ? g.home.score + '-' + g.away.score : '';
-        var title = esc(cbaCN(g.home && g.home.name)) +
-          '<span class="vs-mid">vs</span>' + esc(cbaCN(g.away && g.away.name));
-        return archiveRow(archiveWhen(g.start), title, { score: score, note: '' }, live);
-      }
       var era = [new Date().getFullYear(), new Date().getFullYear() - 1].map(String);
       var current = !d.season || d.season === '当季' ||
         era.some(function (y) { return String(d.season).indexOf(y) !== -1; });
       var banner = current ? '' :
-        '<div class="note">这是 ' + esc(d.season) + ' 赛季的比赛，不是当季。' +
-        '数据源的免费套餐只开放到 2024 赛季，当季需要付费才能读取。</div>';
+        '<div class="note">联赛官方数据暂时读不到，这里是存档的 ' + esc(d.season) +
+        ' 赛季，不是当季。</div>';
 
       host.innerHTML = banner +
         ((d.upcoming || []).length ? '<div class="group-name">接下来</div><div class="card">' +
-          d.upcoming.slice(0, 20).map(row).join('') + '</div>' : '') +
+          d.upcoming.slice(0, 20).map(cbaRowHTML).join('') + '</div>' : '') +
         ((d.recent || []).length ? '<div class="group-name">' +
           (current ? '最近结果' : esc(d.season) + ' 赛季赛果') + '</div><div class="card">' +
-          d.recent.slice(0, 20).map(row).join('') + '</div>' : '') +
+          d.recent.slice(0, 20).map(cbaRowHTML).join('') + '</div>' : '') +
         archiveFoot(d);
     });
   }
@@ -7912,6 +8393,46 @@
     if (b) setTab(b.dataset.tab);
   });
 
+  /* The podium is the one call that takes more than a tap: a driver goes into
+     the next empty place, a place taps clear. Its own handler, because the
+     one-tap path below replaces the whole selection each time. */
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    var box = e.target.closest('.podium');
+    if (!box || box.classList.contains('settled')) return;
+    var driver = e.target.closest('.pod-driver');
+    var slot = e.target.closest('.pod-slot');
+    if (!driver && !slot) return;
+    e.stopPropagation();
+
+    var parts = String(box.dataset.podiumFor || '').split('|');
+    if (parts.length !== 2) return;
+    var evId = parts[1];
+    var mine = pickOf('f1', evId);
+    if (mine && mine.result) return;
+    var ids = podiumParse(mine && mine.side);
+
+    if (driver) {
+      var key = driver.dataset.key;
+      if (ids.indexOf(key) !== -1) return;          // already on the podium
+      var free = ids.indexOf('');
+      if (free === -1) return;                      // full — clear a place first
+      ids[free] = key;
+    } else {
+      ids[Number(slot.dataset.slot) || 0] = '';
+    }
+
+    var label = ids.map(function (k) { return k || '—'; }).join(' / ');
+
+    makePick('f1', evId, podiumSide(ids), {
+      when: box.dataset.when || '',
+      tag: box.dataset.tag || '',
+      home: '', away: '',
+      pickName: label
+    });
+    f1PodiumRefresh(box, evId, box.dataset.when || '', box.dataset.tag || '');
+  }, true);
+
   // calls are made from the row itself — one tap, no dialog, no detail panel
   document.addEventListener('click', function (e) {
     var btn = e.target.closest && e.target.closest('.pick-btn');
@@ -7953,6 +8474,8 @@
     var b = e.target.closest('.match[data-ev]');
     if (b) toggleDetail(b);
   });
+
+  $('themeBtn').addEventListener('click', cycleTheme);
 
   $('refreshBtn').addEventListener('click', function () {
     var el = $('refreshBtn');
@@ -8101,6 +8624,9 @@
   $('notifyBtn').addEventListener('click', enableNotifications);
 
   /* ---------- boot ---------- */
+  /* The inline script in <head> already put data-theme on <html>; this is what
+     brings the button's face and the accent set into line with it. */
+  applyTheme();
   renderChips();
   renderSportNav();
   setSport(sport);
@@ -8114,27 +8640,86 @@
     } catch (e) {}
     /* Slimming the bar was not enough: reading a list is scrolling down, and
        two rows of navigation you are not using still sit on top of it the
-       whole way. So it leaves when you scroll down and comes back the moment
-       you scroll up — the tabs are never more than a flick away. */
-    var stuck = false, tucked = false, lastY = window.scrollY, anchor = window.scrollY;
+       whole way. So it gets out of the way as you scroll down and comes back
+       the moment you scroll up.
+
+       It used to flip at a threshold, which read as the bar snapping away
+       underneath you. Now the hidden amount tracks the scroll delta one to
+       one — scroll down 20px and 20px of it is gone — so it dissolves with
+       the gesture instead of reacting to it. Once scrolling stops it settles
+       to whichever end it is nearer, so it never rests half-drawn. */
+    var HIDE = 1;                 // px of scrolling that hides the whole bar
+    var hidden = 0;               // px of the bar currently tucked away
+    var stuck = false, lastY = window.scrollY, settle = null, ticking = false;
+    var top = $('toTop'), topOn = false;
+
+    function measure() {
+      HIDE = Math.max(40, bar.offsetHeight || 80);
+    }
+    function paint() {
+      var p = HIDE ? hidden / HIDE : 0;
+      bar.style.setProperty('--tuck', p.toFixed(4));
+      bar.classList.toggle('gone', p > .98);
+    }
     function onScroll() {
       var y = Math.max(0, window.scrollY);
+      var dy = y - lastY;
+      lastY = y;
+
       var hit = bar.getBoundingClientRect().top <= inset + 1;
       if (hit !== stuck) { stuck = hit; bar.classList.toggle('stuck', hit); }
 
-      // a little slack, so a jittery finger does not flap the bar
-      if ((y > lastY) !== (anchor > lastY)) anchor = lastY;
-      var moved = y - anchor;
-      if (!tucked && moved > 64 && y > 260) { tucked = true; anchor = y; }
-      else if (tucked && moved < -48) { tucked = false; anchor = y; }
-      if (y < 160) tucked = false;
-      bar.classList.toggle('tucked', tucked);
-      lastY = y;
+      /* Near the top the bar is always whole — nothing below it has scrolled
+         far enough to be worth hiding it for. */
+      if (y < 140) hidden = 0;
+      else hidden = Math.min(HIDE, Math.max(0, hidden + dy));
+
+      bar.classList.remove('settling');
+      paint();
+
+      if (top) {
+        var want = y > 700;
+        if (want !== topOn) { topOn = want; top.classList.toggle('on', want); }
+      }
+
+      clearTimeout(settle);
+      settle = setTimeout(function () {
+        if (hidden <= 0 || hidden >= HIDE) return;
+        bar.classList.add('settling');
+        hidden = hidden > HIDE / 2 ? HIDE : 0;
+        paint();
+      }, 150);
     }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+    function onScrollRaf() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () { ticking = false; onScroll(); });
+    }
+
+    measure();
+    window.addEventListener('scroll', onScrollRaf, { passive: true });
+    window.addEventListener('resize', function () { measure(); onScroll(); });
     onScroll();
+
+    if (top) {
+      top.addEventListener('click', function () {
+        /* Bring the bar back on the way up, so arriving at the top does not
+           need a second flick to reveal the tabs. */
+        bar.classList.add('settling');
+        hidden = 0;
+        paint();
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        catch (e) { window.scrollTo(0, 0); }
+      });
+    }
   })();
+
+  /* A paper's nameplate takes you to the front page. */
+  $('mast').addEventListener('click', function () {
+    if (sport !== 'today') setSport('today');
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    catch (e) { window.scrollTo(0, 0); }
+  });
 
   /* An installed app was opening on whatever it had cached, so a shipped
      update could stay invisible on a phone. Check for a new worker on every

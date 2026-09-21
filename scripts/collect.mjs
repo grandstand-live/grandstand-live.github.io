@@ -305,6 +305,72 @@ function sniffKeys(node, out = [], depth = 0) {
   return out;
 }
 
+/* The league's own portal — the feed that cbaleague.com itself reads. It hands
+   back the entire season in one call (490 games for 2026-27, October to April)
+   with official Chinese club names, no key, no headers and no date parameters.
+
+   It is tried before the news-site endpoints below because every one of those
+   has gone quiet: Tencent answers 200 with `data:{}` even for weeks in which
+   the CBA definitely played, Sina returns a RouteConfig error, and Baidu sends
+   `data:null`. They are kept as a fallback in case they come back, but they are
+   the reason the CBA tab had nothing ahead of it. */
+async function collectCbaOfficial(notes) {
+  const url = 'https://portal-server.cbaleague.com/home/home_schedules';
+  let parsed;
+  try {
+    const { status, body } = await getText(url);
+    if (status !== 200 || !body) { notes.push(`cba-official -> HTTP ${status}`); return null; }
+    parsed = JSON.parse(body);
+  } catch (err) {
+    notes.push(`cba-official -> ${String(err.message || err).slice(0, 90)}`);
+    return null;
+  }
+
+  const rows = parsed?.data;
+  if (!Array.isArray(rows) || !rows.length) {
+    notes.push(`cba-official -> code ${parsed?.code}, ` +
+      `${String(parsed?.message || '').slice(0, 30)}, no rows`);
+    return null;
+  }
+
+  const num = v => (v === null || v === undefined || v === '') ? null : Number(v);
+  const matches = rows.map(r => {
+    /* `dates` and `time` are Beijing wall-clock with no zone attached. Stamping
+       +08:00 is what keeps a 19:35 tip-off from being read as UTC and landing
+       on the previous day for anyone west of China. */
+    const hhmm = String(r.time || '').slice(0, 5);
+    const start = r.dates && /^\d{2}:\d{2}$/.test(hhmm)
+      ? `${r.dates}T${hhmm}:00+08:00` : null;
+    const hs = num(r.HomeTeamScore), as = num(r.VisitingTeamScore);
+    /* Status 1 (not started) is the only value this feed has shown so far, so
+       the live/finished read leans on the scores and the game clock rather than
+       on codes that have never been observed. */
+    const clock = r.Quarter ? `Q${r.Quarter}` : '';
+    const played = hs !== null && as !== null;
+    const status = Number(r.Status) === 1 ? '' : (clock || (played ? 'FT' : ''));
+    return {
+      id: r.ScheduleID,
+      start,
+      status,
+      league: 'CBA',
+      home: { name: r.HomeTeamName, logo: fixProto(r.HomeTeamSmallLogo), score: hs },
+      away: { name: r.VisitingTeamName, logo: fixProto(r.VisitingTeamSmallLogo), score: as }
+    };
+  }).filter(m => m.start && m.home.name && m.away.name)
+    .sort((a, b) => new Date(a.start) - new Date(b.start));
+
+  if (!matches.length) { notes.push('cba-official -> rows present but none usable'); return null; }
+  notes.push(`cba-official -> ${matches.length} games, ` +
+    `${matches[0].start.slice(0, 10)} to ${matches[matches.length - 1].start.slice(0, 10)}`);
+  return { source: 'cba-official', matches };
+}
+
+// the portal returns protocol-relative logo URLs, which break outside a browser
+function fixProto(url) {
+  if (!url) return url;
+  return String(url).startsWith('//') ? 'https:' + url : url;
+}
+
 async function collectCbaChina(notes) {
   // columnId=100000 is Tencent's NBA column — it never carries a CBA fixture,
   // so ask for everything and keep only what is actually the CBA.
@@ -357,13 +423,13 @@ async function collectCbaChina(notes) {
 
 async function collectCba() {
   const notes = [];
-  const live = await collectCbaChina(notes);
+  const live = await collectCbaOfficial(notes) || await collectCbaChina(notes);
   if (live && live.matches.length) {
     const nowMs = Date.now();
     const shaped = live.matches.map(m => ({
-      start: m.start, status: m.status,
+      id: m.id, start: m.start, status: m.status,
       home: m.home, away: m.away
-    }));
+    })).sort((a, b) => new Date(a.start) - new Date(b.start));
     const value = {
       upcoming: shaped.filter(m => new Date(m.start).getTime() >= nowMs - 3 * 3600e3).slice(0, 30),
       recent: shaped.filter(m => new Date(m.start).getTime() < nowMs - 3 * 3600e3).slice(-30).reverse()

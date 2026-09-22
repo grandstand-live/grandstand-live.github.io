@@ -813,6 +813,11 @@
   .odds-bar .h { background: var(--accent); }
   .odds-bar .d { background: var(--draw); }
   .odds-bar .a { background: var(--loss); }
+  /* Two fighters are not a win and a loss, they are two sides — and in the
+     fight section the accent is already oxblood, so putting --loss opposite
+     it made one red bar with a seam in it. A neutral ink reads as "the other
+     one" against any sport's accent. */
+  .odds-bar .b { background: color-mix(in srgb, var(--ink) 42%, var(--surface)); }
   .odds-key { display: flex; justify-content: space-between; font-size: 12px; gap: 8px; }
   .odds-key b { font-weight: 600; }
   .kv { display: flex; gap: 10px; font-size: 12.5px; padding: 3px 0; }
@@ -7409,6 +7414,103 @@
       'UFC ' + pair + ' 集锦 ' + (isNaN(d) ? '' : dayCN(d)), '这场的集锦');
   }
 
+  /* The book's read on a fight. ESPN's site API carries no odds for MMA at
+     all — they live on the core API, one document per bout, and the two
+     prices are tied to athletes by a $ref instead of by home and away, so
+     the id has to be pulled back out of that URL to know whose is whose. */
+  function ufcOdds(evId, compId) {
+    var key = 'odds' + evId + ':' + compId;
+    if (ufcCache[key] !== undefined) return Promise.resolve(ufcCache[key]);
+    return getJSON('https://sports.core.api.espn.com/v2/sports/mma/leagues/ufc/events/' +
+      encodeURIComponent(evId) + '/competitions/' + encodeURIComponent(compId) + '/odds')
+      .then(function (d) {
+        var item = d && d.items && d.items[0];
+        if (!item) { ufcCache[key] = null; return null; }
+        function side(o) {
+          if (!o) return null;
+          var ref = String((o.athlete && o.athlete['$ref']) || '');
+          var m = ref.match(/athletes\/(\d+)/);
+          var open = o.open && o.open.moneyLine;
+          return {
+            id: m ? m[1] : '',
+            now: Number(o.moneyLine),
+            open: open ? Number(open.american) : null
+          };
+        }
+        var out = {
+          provider: (item.provider && item.provider.name) || '',
+          rounds: item.overUnder,
+          over: item.overOdds,
+          under: item.underOdds,
+          a: side(item.homeAthleteOdds),
+          b: side(item.awayAthleteOdds)
+        };
+        ufcCache[key] = out;
+        return out;
+      }).catch(function () { ufcCache[key] = null; return null; });
+  }
+
+  // -1050 and +675 are how a book writes a price, and how a fan reads it
+  function moneyLabel(ml) {
+    var v = Number(ml);
+    if (!isFinite(v) || !v) return '—';
+    return (v > 0 ? '+' : '') + v;
+  }
+
+  /* Two American money lines, stripped of the book's margin so they sum to a
+     hundred and read as a probability rather than as a price. The opening
+     line comes along when it has moved enough to mean something: a favourite
+     shortening is money arriving, which is the part of a betting market
+     actually worth reading. */
+  function ufcOddsHTML(odds, sideA, sideB) {
+    if (!odds || !odds.a || !odds.b) return '';
+    var by = {};
+    by[odds.a.id] = odds.a;
+    by[odds.b.id] = odds.b;
+    var A = by[String(sideA.id)], B = by[String(sideB.id)];
+    if (!A || !B) return '';
+
+    function split(x, y) {
+      var px = impliedProb(x), py = impliedProb(y);
+      if (px === null || py === null) return null;
+      var sum = px + py;
+      return sum ? Math.round(px / sum * 100) : null;
+    }
+    var now = split(A.now, B.now);
+    if (now === null) return '';
+    var open = (A.open !== null && B.open !== null) ? split(A.open, B.open) : null;
+
+    var nameA = esc(sideA.name || ''), nameB = esc(sideB.name || '');
+    var html = '<h4>赛前胜负预测</h4>' +
+      '<div class="odds-bar"><i class="h" style="width:' + now + '%"></i>' +
+      '<i class="b" style="width:' + (100 - now) + '%"></i></div>' +
+      '<div class="odds-key"><span><b>' + nameA + '</b> ' + now + '%</span>' +
+      '<span><b>' + nameB + '</b> ' + (100 - now) + '%</span></div>' +
+      '<div class="kv"><span class="k">盘口</span><span>' +
+      esc(moneyLabel(A.now)) + ' / ' + esc(moneyLabel(B.now)) +
+      (odds.provider ? ' · ' + esc(odds.provider) : '') + '</span></div>';
+
+    if (open !== null && Math.abs(open - now) >= 3) {
+      var rose = now > open;
+      html += '<div class="kv"><span class="k">开盘至今</span><span>' +
+        (rose ? nameA : nameB) + ' 从 ' + (rose ? open : 100 - open) + '% 升到 ' +
+        (rose ? now : 100 - now) + '%，钱在往这边走</span></div>';
+    }
+    if (odds.rounds) {
+      /* An over/under on rounds is a number no one who does not bet can
+         read. Which side of it is cheaper says how long the book expects
+         the fight to last, and that is the part a fan wants. */
+      var lean = '';
+      var ov = Number(odds.over), un = Number(odds.under);
+      if (isFinite(ov) && isFinite(un) && ov !== un) {
+        lean = ov < un ? ' · 庄家倾向打满' : ' · 庄家倾向提前结束';
+      }
+      html += '<div class="kv"><span class="k">打多久</span><span>' +
+        esc(odds.rounds) + ' 回合为界' + lean + '</span></div>';
+    }
+    return html;
+  }
+
   function toggleBoutStats(row) {
     var next = row.nextElementSibling;
     if (next && next.classList.contains('bout-detail')) { next.remove(); return; }
@@ -7432,12 +7534,17 @@
       Promise.all([
         ufcAthlete(parts[2]), ufcAthlete(parts[3]),
         ufcCareer(parts[2]), ufcCareer(parts[3]),
-        ufcDefence(sideA.name), ufcDefence(sideB.name)
+        ufcDefence(sideA.name), ufcDefence(sideB.name),
+        ufcOdds(parts[0], parts[1])
       ]).then(function (r) {
         if (!box.isConnected) return;
         r[2].defence = r[4];
         r[3].defence = r[5];
-        box.innerHTML = tapeHTML(r[0], r[1], sideA, sideB) +
+        /* The market's number leads, the way it does on a football or a
+           basketball tie. It is the one line that says who is expected to
+           win, and everything below it is the argument. */
+        box.innerHTML = ufcOddsHTML(r[6], sideA, sideB) +
+          tapeHTML(r[0], r[1], sideA, sideB) +
           careerHTML(r[2], r[3], sideA.name, sideB.name) +
           boutClipsHTML(names, when);
       });
@@ -7456,14 +7563,18 @@
       ufcFightId(names[0], names[1], when)
         .then(function (fid) { return fid ? ufcRounds(fid) : null; })
         .catch(function () { return null; }),
-      ufcDefence(sideA.name), ufcDefence(sideB.name)
+      ufcDefence(sideA.name), ufcDefence(sideB.name),
+      ufcOdds(parts[0], parts[1])
     ]).then(function (r) {
       if (!box.isConnected) return;
       r[2].defence = r[5];
       r[3].defence = r[6];
       var rounds = r[4] ? roundsHTML(r[4], names[0] || '') : '';
+      /* Kept on a finished fight too: seeing that the man who won was priced
+         at 12% is most of what makes the result worth reading twice. */
       box.innerHTML =
         boutHeroHTML(r[0], r[1], sideA, sideB) +
+        ufcOddsHTML(r[7], sideA, sideB) +
         boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '') +
         (rounds || '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
           '<span>' + (r[4] ? '官方没有这场的分回合数据。'

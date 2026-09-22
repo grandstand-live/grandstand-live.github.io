@@ -13,7 +13,20 @@
 <link rel="icon" href="icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-  html { padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
+  :root { --safetop: env(safe-area-inset-top, 0px); --safebottom: env(safe-area-inset-bottom, 0px); }
+  html { padding: var(--safetop) 0 var(--safebottom); }
+  /* The strip behind the status bar. The nav bar docks below it, so without
+     this the rows scrolling past underneath were painted straight into it —
+     two fixtures visible above the tabs, under the clock. It sits above the
+     bar so the bar slides away underneath rather than through it. */
+  .safetop {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--safetop);
+    background: var(--ground);
+    z-index: 25;
+    pointer-events: none;
+  }
   body { margin: 0; }
   img { max-width: 100%; }
   [hidden] { display: none !important; }
@@ -211,7 +224,7 @@
      detaches from the title so it stops feeling like a wall on top of the list. */
   .stickybar {
     position: sticky;
-    top: env(safe-area-inset-top, 0px);
+    top: var(--safetop);
     z-index: 20;
     background: var(--ground);
     margin: 0 -16px;
@@ -253,7 +266,7 @@
   .totop {
     position: fixed;
     right: 14px;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(16px + var(--safebottom));
     z-index: 30;
     width: 40px; height: 40px;
     display: flex; align-items: center; justify-content: center;
@@ -904,7 +917,7 @@
        fraction and the two edges can round apart, which leaves a hairline of
        the row underneath showing between them. The bar paints over the
        overlap, so nothing here is lost to it. */
-    top: calc(env(safe-area-inset-top, 0px) + var(--stickH, 0px) - 1px);
+    top: calc(var(--safetop) + var(--stickH, 0px) - 1px);
     z-index: 15;
     background: var(--ground);
     margin-left: -16px;
@@ -1687,6 +1700,7 @@
 
 </head>
 <body>
+<div class="safetop" aria-hidden="true"></div>
 <div class="wrap">
   <header>
     <div class="head-row">

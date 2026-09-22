@@ -1221,6 +1221,16 @@
     overflow: hidden; display: block; flex-shrink: 0;
   }
   .bh-shot img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+  /* The UFC's cutouts are transparent PNGs shot full length, so they stand on
+     the panel rather than sitting in a frame. Bottom-aligned and mirrored, the
+     way the two corners face each other on a card. */
+  .bh-body {
+    display: block; width: 92px; height: 116px;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .bh-body img { max-width: 100%; max-height: 100%; object-fit: contain; object-position: bottom; }
+  .bh-side.r .bh-body img { transform: scaleX(-1); }
+  .bout-hero { align-items: end; }
   .bh-name {
     font-size: 12px; font-weight: 600; color: var(--ink);
     text-align: center; line-height: 1.25; max-width: 100%;
@@ -7122,16 +7132,46 @@
   function mmaFace(id) {
     return id ? 'https://a.espncdn.com/i/headshots/mma/players/full/' + id + '.png' : '';
   }
+  /* The UFC's own cutouts, collected per fighter because the path cannot be
+     derived from an id. Matched on the full name first and the surname after,
+     since a card writes "Raul Rosas Jr." where the roster may not. */
+  function ufcBodies() {
+    return archiveGet('ufc-bodies.json').then(function (d) {
+      return (d && d.bodies) || {};
+    }).catch(function () { return {}; });
+  }
+  function bodyOf(map, name) {
+    if (!map || !name) return '';
+    var key = String(name).toLowerCase().trim();
+    if (map[key]) return map[key];
+    var want = ufcSurname(name);
+    if (!want) return '';
+    var hit = Object.keys(map).filter(function (k) { return ufcSurname(k) === want; })[0];
+    return hit ? map[hit] : '';
+  }
+
   /* A header the numbers hang off: both men facing each other, and the one
-     line that decides most fights — who landed more of what counts. */
-  function boutHeroHTML(A, B, a, b) {
+     line that decides most fights — who landed more of what counts. The cutout
+     is used when there is one and the headshot stands in when there is not, so
+     a fighter the collector has not reached yet still gets a face. */
+  function boutHeroHTML(A, B, a, b, bodies) {
     var sa = statNum(A, 'sigStrikesLanded'), sb = statNum(B, 'sigStrikesLanded');
     var total = sa + sb;
     var pa = total ? Math.round(sa / total * 100) : 50;
+    /* Both cutouts or neither. One fighter standing full length beside the
+       other reduced to a headshot circle reads as a bug, not as a gap in
+       the collection — and the collection fills in a batch at a time, so a
+       half-done pair is the normal state for a while. */
+    var bodyA = bodyOf(bodies, a.name), bodyB = bodyOf(bodies, b.name);
+    var pair = bodyA && bodyB;
     function face(side, right) {
-      return '<div class="bh-side' + (right ? ' r' : '') + '">' +
-        '<span class="bh-shot"><img src="' + esc(mmaFace(side.id)) + '" alt="" loading="lazy"' +
-        ' onerror="this.style.visibility=\'hidden\'"></span>' +
+      var body = pair ? (right ? bodyB : bodyA) : '';
+      var img = body
+        ? '<span class="bh-body"><img src="' + esc(body) + '" alt="" loading="lazy"' +
+          ' onerror="this.style.visibility=\'hidden\'"></span>'
+        : '<span class="bh-shot"><img src="' + esc(mmaFace(side.id)) + '" alt="" loading="lazy"' +
+          ' onerror="this.style.visibility=\'hidden\'"></span>';
+      return '<div class="bh-side' + (right ? ' r' : '') + '">' + img +
         '<span class="bh-name">' + esc(side.name) + '</span>' +
         (side.flag ? '<img class="flag-sm" src="' + esc(side.flag) + '" alt="">' : '') +
         '</div>';
@@ -7142,7 +7182,6 @@
       '<span class="bh-num r">' + sb + '</span></div>' + face(b, true) +
       '</div><div class="bh-bar"><i style="width:' + pa + '%"></i></div>';
   }
-
   function boutStatsHTML(A, B, nameA, nameB) {
     function bar(label, av, bv, aText, bText) {
       var sum = av + bv;
@@ -7649,7 +7688,8 @@
         .then(function (fid) { return fid ? ufcRounds(fid) : null; })
         .catch(function () { return null; }),
       ufcDefence(sideA.name), ufcDefence(sideB.name),
-      ufcOdds(parts[0], parts[1])
+      ufcOdds(parts[0], parts[1]),
+      ufcBodies()
     ]).then(function (r) {
       if (!box.isConnected) return;
       r[2].defence = r[5];
@@ -7657,7 +7697,7 @@
       /* Kept on a finished fight too: seeing that the man who won was priced
          at 12% is most of what makes the result worth reading twice. */
       box.innerHTML =
-        boutHeroHTML(r[0], r[1], sideA, sideB) +
+        boutHeroHTML(r[0], r[1], sideA, sideB, r[8]) +
         ufcOddsHTML(r[7], sideA, sideB) +
         boutTabsHTML(r[0], r[1], r[4], names[0] || '', names[1] || '') +
         careerHTML(r[2], r[3], sideA.name, sideB.name) +

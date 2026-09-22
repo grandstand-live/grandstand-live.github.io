@@ -1483,6 +1483,69 @@ async function prune(dir, keep = 400) {
   } catch { return 0; }
 }
 
+
+/* Full-body cutouts, the ones the UFC puts either side of its own stat tables.
+   They cannot be derived from an id: the path carries a month folder, a
+   fight-specific suffix and a cache token — GAETHJE_JUSTIN_R_BELT_06-14.png —
+   so each one has to be read off the fighter's own page. The slug is the name
+   lowercased and hyphenated, which holds for every name checked.
+
+   Paced like the defence walk: a slice per run, and a fighter already seen is
+   not asked for again unless the whole file is cleared. */
+const UFC_BODY_RE = /https:\/\/[^"' ]*athlete_bio_full_body[^"' ]*/;
+
+function ufcSlug(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // drop accents
+    .replace(/['’.]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function collectUfcBodies() {
+  const roster = await load('ufc-athletes.json');
+  const names = Object.keys((roster && roster.fighters) || {});
+  if (!names.length) return { skipped: 'no athlete roster yet' };
+
+  const store = (await load('ufc-bodies.json')) || { done: [], bodies: {} };
+  const seen = new Set(store.done || []);
+  const todo = names.filter(n => !seen.has(n));
+  if (!todo.length) {
+    return { bodies: Object.keys(store.bodies).length, added: 0, left: 0 };
+  }
+
+  const slice = todo.slice(0, MANUAL ? 60 : 25);
+  const got = await mapPool(slice, 4, async name => {
+    const slug = ufcSlug(name);
+    if (!slug) return { name, url: '' };
+    try {
+      const { status, body } = await getText(`https://www.ufc.com/athlete/${slug}`);
+      if (status !== 200 || !body) return { name, url: '' };
+      const m = body.match(UFC_BODY_RE);
+      if (!m) return { name, url: '' };
+      // the page writes it against the apex host, which 301s on every request
+      const url = m[0].replace(/&amp;/g, '&').replace('://ufc.com/', '://www.ufc.com/');
+      return { name, url };
+    } catch { return { name, url: '' }; }
+  });
+
+  let added = 0;
+  for (const { name, url } of got) {
+    seen.add(name);                    // a fighter with no cutout is still done
+    if (url) { store.bodies[name] = url; added++; }
+  }
+
+  store.done = [...seen];
+  store.updatedAt = new Date().toISOString();
+  await save('ufc-bodies.json', store);
+  return {
+    bodies: Object.keys(store.bodies).length,
+    added,
+    left: names.length - seen.size
+  };
+}
+
 const tasks = [
   ['lol', collectLol],
   ['cba', collectCba],
@@ -1491,6 +1554,7 @@ const tasks = [
   ['ufc', collectUfcRankings],
   ['ufcFights', collectUfcFights],
   ['ufcDefence', collectUfcDefence],
+  ['ufcBodies', collectUfcBodies],
   ['boxing', collectBoxing],
   ['boxChampions', collectBoxChampions],
   ['boxers', collectBoxers]

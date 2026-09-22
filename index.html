@@ -168,7 +168,9 @@
   }
   .segrow .seg { flex: 1; min-width: 0; border-bottom: none; margin-bottom: 0; }
   .subpick {
-    flex: 0 1 auto; max-width: 48%; margin-bottom: 7px;
+    /* Was capped at 48%, which suited "LPL" and cut "世预赛·南美" in half.
+       It takes what it needs now and the tabs keep the rest. */
+    flex: 0 1 auto; max-width: 62%; margin-bottom: 7px;
     font: inherit; font-size: 12px; color: var(--ink-2);
     background: var(--surface-2); border: 1px solid var(--hairline);
     border-radius: 7px; padding: 4px 6px; cursor: pointer;
@@ -1746,7 +1748,7 @@
           <button type="button" role="tab" data-tab="table" aria-selected="false">积分榜</button>
           <button type="button" role="tab" data-tab="mine" aria-selected="false">我的球队<span class="badge" id="favCount">0</span></button>
         </div>
-        <select class="subpick" id="chips2" hidden aria-label="赛区"></select>
+        <select class="subpick" id="chips2" hidden aria-label="联赛"></select>
       </div>
     </div>
   </div>
@@ -2139,8 +2141,11 @@
     var ready = !!s.ready;
     var isToday = id === 'today';
     $('footballHead').hidden = !ready || isToday;
-    $('chips').hidden = (id !== 'football' && id !== 'esports' && id !== 'basketball' && id !== 'fight');
-    $('chips2').hidden = id !== 'esports';
+    /* Football has no chip row any more — its leagues are in the dropdown
+       beside the tabs. Basketball and fight keep theirs: two options each is
+       exactly what a chip row is good at. */
+    $('chips').hidden = (id !== 'esports' && id !== 'basketball' && id !== 'fight');
+    $('chips2').hidden = (id !== 'esports' && id !== 'football');
     if (id === 'football') renderChips();
     $('status').hidden = !ready || isToday;
     $('settings').hidden = true;
@@ -2169,10 +2174,19 @@
   }
 
   /* ---------- header chrome ---------- */
+  /* Twelve leagues do not fit on a phone. As a chip row they were 767px of
+     content in 343px of screen, so the half that mattered least sat on the
+     left and every national-team competition was off the right edge, found
+     only by someone who thought to swipe a row they had no reason to think
+     scrolled. As the dropdown the esports board already uses, all twelve are
+     one tap away and legible, and the row it used to occupy is gone. */
   function renderChips() {
-    $('chips').innerHTML = LEAGUES.map(function (l) {
-      return '<button class="chip" type="button" data-lg="' + l.id + '" aria-pressed="' +
-        (l.id === league) + '">' + l.name + '</button>';
+    var sel = $('chips2');
+    sel.dataset.kind = 'football';
+    sel.setAttribute('aria-label', '联赛');
+    sel.innerHTML = LEAGUES.map(function (l) {
+      return '<option value="' + esc(l.id) + '"' +
+        (l.id === league ? ' selected' : '') + '>' + esc(l.name) + '</option>';
     }).join('');
   }
   var TABS = {
@@ -6700,6 +6714,7 @@
   function renderLolChips(leagues) {
     $('chips2').hidden = false;
     $('chips2').dataset.kind = 'lol';
+    $('chips2').setAttribute('aria-label', '赛区');
     $('chips2').innerHTML = leagues.map(function (l) {
       return '<option value="' + esc(l.slug) + '"' +
         (l.slug === lolLeague ? ' selected' : '') + '>' + esc(l.name) + '</option>';
@@ -7430,18 +7445,10 @@
           if (!o) return null;
           var ref = String((o.athlete && o.athlete['$ref']) || '');
           var m = ref.match(/athletes\/(\d+)/);
-          var open = o.open && o.open.moneyLine;
-          return {
-            id: m ? m[1] : '',
-            now: Number(o.moneyLine),
-            open: open ? Number(open.american) : null
-          };
+          return { id: m ? m[1] : '', now: Number(o.moneyLine) };
         }
         var out = {
           provider: (item.provider && item.provider.name) || '',
-          rounds: item.overUnder,
-          over: item.overOdds,
-          under: item.underOdds,
           a: side(item.homeAthleteOdds),
           b: side(item.awayAthleteOdds)
         };
@@ -7457,58 +7464,39 @@
     return (v > 0 ? '+' : '') + v;
   }
 
-  /* Two American money lines, stripped of the book's margin so they sum to a
-     hundred and read as a probability rather than as a price. The opening
-     line comes along when it has moved enough to mean something: a favourite
-     shortening is money arriving, which is the part of a betting market
-     actually worth reading. */
-  function ufcOddsHTML(odds, sideA, sideB) {
-    if (!odds || !odds.a || !odds.b) return '';
+  /* Two American money lines, normalised against each other so they sum to a
+     hundred and read as a probability rather than as a price — which also
+     drops the margin the house keeps. */
+  function ufcOddsHTML(odds, sideA, sideB, pre) {
+    /* Books price the next card and nothing beyond it, so every fight except
+       the closest one has no line at all. Saying so beats a blank space that
+       looks like something failed to load. A past fight stays quiet: ESPN
+       drops the odds a few weeks after, and "not open yet" is the wrong thing
+       to say about a fight that already happened. */
+    if (!odds || !odds.a || !odds.b) {
+      return pre ? '<h4>赛前胜负预测</h4><div class="kv"><span>' +
+        '这场的盘口还没开，一般只有最近一场有。</span></div>' : '';
+    }
     var by = {};
     by[odds.a.id] = odds.a;
     by[odds.b.id] = odds.b;
     var A = by[String(sideA.id)], B = by[String(sideB.id)];
     if (!A || !B) return '';
 
-    function split(x, y) {
-      var px = impliedProb(x), py = impliedProb(y);
-      if (px === null || py === null) return null;
-      var sum = px + py;
-      return sum ? Math.round(px / sum * 100) : null;
-    }
-    var now = split(A.now, B.now);
-    if (now === null) return '';
-    var open = (A.open !== null && B.open !== null) ? split(A.open, B.open) : null;
+    var px = impliedProb(A.now), py = impliedProb(B.now);
+    if (px === null || py === null) return '';
+    var sum = px + py;
+    if (!sum) return '';
+    var now = Math.round(px / sum * 100);
 
-    var nameA = esc(sideA.name || ''), nameB = esc(sideB.name || '');
-    var html = '<h4>赛前胜负预测</h4>' +
+    return '<h4>赛前胜负预测</h4>' +
       '<div class="odds-bar"><i class="h" style="width:' + now + '%"></i>' +
       '<i class="b" style="width:' + (100 - now) + '%"></i></div>' +
-      '<div class="odds-key"><span><b>' + nameA + '</b> ' + now + '%</span>' +
-      '<span><b>' + nameB + '</b> ' + (100 - now) + '%</span></div>' +
+      '<div class="odds-key"><span><b>' + esc(sideA.name || '') + '</b> ' + now + '%</span>' +
+      '<span><b>' + esc(sideB.name || '') + '</b> ' + (100 - now) + '%</span></div>' +
       '<div class="kv"><span class="k">盘口</span><span>' +
       esc(moneyLabel(A.now)) + ' / ' + esc(moneyLabel(B.now)) +
       (odds.provider ? ' · ' + esc(odds.provider) : '') + '</span></div>';
-
-    if (open !== null && Math.abs(open - now) >= 3) {
-      var rose = now > open;
-      html += '<div class="kv"><span class="k">开盘至今</span><span>' +
-        (rose ? nameA : nameB) + ' 从 ' + (rose ? open : 100 - open) + '% 升到 ' +
-        (rose ? now : 100 - now) + '%，钱在往这边走</span></div>';
-    }
-    if (odds.rounds) {
-      /* An over/under on rounds is a number no one who does not bet can
-         read. Which side of it is cheaper says how long the book expects
-         the fight to last, and that is the part a fan wants. */
-      var lean = '';
-      var ov = Number(odds.over), un = Number(odds.under);
-      if (isFinite(ov) && isFinite(un) && ov !== un) {
-        lean = ov < un ? ' · 庄家倾向打满' : ' · 庄家倾向提前结束';
-      }
-      html += '<div class="kv"><span class="k">打多久</span><span>' +
-        esc(odds.rounds) + ' 回合为界' + lean + '</span></div>';
-    }
-    return html;
   }
 
   function toggleBoutStats(row) {
@@ -7543,7 +7531,7 @@
         /* The market's number leads, the way it does on a football or a
            basketball tie. It is the one line that says who is expected to
            win, and everything below it is the argument. */
-        box.innerHTML = ufcOddsHTML(r[6], sideA, sideB) +
+        box.innerHTML = ufcOddsHTML(r[6], sideA, sideB, true) +
           tapeHTML(r[0], r[1], sideA, sideB) +
           careerHTML(r[2], r[3], sideA.name, sideB.name) +
           boutClipsHTML(names, when);
@@ -8564,14 +8552,6 @@
       setTab(tab);
       return;
     }
-    league = b.dataset.lg;
-    lsSet('lg', league);
-    renderChips();
-    summaryCache = {};
-    teamsOfLeague = [];
-    loadFixtures();
-    if (tab === 'table') loadStandings();
-    if (!$('settings').hidden) renderPicker();
   });
 
   $('sportnav').addEventListener('click', function (e) {
@@ -8581,6 +8561,16 @@
 
   $('chips2').addEventListener('change', function (e) {
     var sel = e.target;
+    if (sel.dataset.kind === 'football') {
+      league = sel.value;
+      lsSet('lg', league);
+      summaryCache = {};
+      teamsOfLeague = [];
+      loadFixtures();
+      if (tab === 'table') loadStandings();
+      if (!$('settings').hidden) renderPicker();
+      return;
+    }
     if (sel.dataset.kind === 'lol') {
       lolLeague = sel.value;
       lsSet('lolLeague', lolLeague);
@@ -8884,6 +8874,8 @@
     var hidden = 0;               // px of the bar currently tucked away
     var stuck = false, lastY = window.scrollY, settle = null, ticking = false;
     var homing = false;           // a programmatic trip back to the top
+    var homeFrom = 0;             // where that trip started, so the reveal can span it
+    var HOME_MAX = 900;           // ...but never stretched over more than this
     var top = $('toTop'), topOn = false;
 
     function measure() {
@@ -8909,12 +8901,18 @@
 
       if (homing) {
         /* On a trip back to the top the bar is driven by where the page is,
-           not by how far it just moved. Tracking the delta would finish the
-           whole reveal inside the first few frames of the fling — which is
-           gradual in principle and still reads as the bar popping in while
-           the content is somewhere far above. Tied to position it arrives
-           exactly as the top does. */
-        hidden = Math.min(HIDE, Math.max(0, y / REVEAL * HIDE));
+           not by how far it just moved — tracking the delta would finish the
+           whole reveal in the first few frames of the fling, while the
+           content is still somewhere far above.
+
+           The span is the trip itself rather than a fixed distance from the
+           top. Against a fixed 220px, a return from three thousand spent
+           almost all of its time with nothing happening and then rushed the
+           bar in at the end, which is what made it feel slow to respond.
+           Now a short trip reveals across the whole of it and a long one
+           across its last stretch. */
+        var span = Math.max(REVEAL, Math.min(homeFrom, HOME_MAX));
+        hidden = Math.min(HIDE, Math.max(0, y / span * HIDE));
         if (y <= 0) homing = false;
       } else {
         hidden = Math.min(HIDE, Math.max(0, hidden + dy));
@@ -8948,6 +8946,7 @@
 
     scrollHome = function () {
       homing = true;
+      homeFrom = Math.max(1, window.scrollY);
       try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
       catch (e) { window.scrollTo(0, 0); }
     };

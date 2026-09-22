@@ -8667,6 +8667,7 @@
   renderSportNav();
   setSport(sport);
   setFavCount();
+  var scrollHome = function () { window.scrollTo(0, 0); };
   (function () {
     var bar = $('stickybar');
     if (!bar) return;
@@ -8685,8 +8686,10 @@
        the gesture instead of reacting to it. Once scrolling stops it settles
        to whichever end it is nearer, so it never rests half-drawn. */
     var HIDE = 1;                 // px of scrolling that hides the whole bar
+    var REVEAL = 220;             // px from the top it draws back in over
     var hidden = 0;               // px of the bar currently tucked away
     var stuck = false, lastY = window.scrollY, settle = null, ticking = false;
+    var homing = false;           // a programmatic trip back to the top
     var top = $('toTop'), topOn = false;
 
     function measure() {
@@ -8705,10 +8708,21 @@
       var hit = bar.getBoundingClientRect().top <= inset + 1;
       if (hit !== stuck) { stuck = hit; bar.classList.toggle('stuck', hit); }
 
-      /* Near the top the bar is always whole — nothing below it has scrolled
-         far enough to be worth hiding it for. */
-      if (y < 140) hidden = 0;
-      else hidden = Math.min(HIDE, Math.max(0, hidden + dy));
+      if (homing) {
+        /* On a trip back to the top the bar is driven by where the page is,
+           not by how far it just moved. Tracking the delta would finish the
+           whole reveal inside the first few frames of the fling — which is
+           gradual in principle and still reads as the bar popping in while
+           the content is somewhere far above. Tied to position it arrives
+           exactly as the top does. */
+        hidden = Math.min(HIDE, Math.max(0, y / REVEAL * HIDE));
+        if (y <= 0) homing = false;
+      } else {
+        hidden = Math.min(HIDE, Math.max(0, hidden + dy));
+        /* And under a finger, the last stretch still cannot hold the bar
+           more hidden than the distance left to the top. */
+        if (y < REVEAL) hidden = Math.min(hidden, y / REVEAL * HIDE);
+      }
 
       bar.classList.remove('settling');
       paint();
@@ -8720,7 +8734,8 @@
 
       clearTimeout(settle);
       settle = setTimeout(function () {
-        if (hidden <= 0 || hidden >= HIDE) return;
+        /* a trip home is already steering; snapping would fight it */
+        if (homing || hidden <= 0 || hidden >= HIDE) return;
         bar.classList.add('settling');
         hidden = hidden > HIDE / 2 ? HIDE : 0;
         paint();
@@ -8732,29 +8747,82 @@
       requestAnimationFrame(function () { ticking = false; onScroll(); });
     }
 
+    scrollHome = function () {
+      homing = true;
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      catch (e) { window.scrollTo(0, 0); }
+    };
     measure();
     window.addEventListener('scroll', onScrollRaf, { passive: true });
+    /* grabbing the page cancels the trip */
+    window.addEventListener('touchstart', function () { homing = false; }, { passive: true });
+    window.addEventListener('wheel', function () { homing = false; }, { passive: true });
     window.addEventListener('resize', function () { measure(); onScroll(); });
     onScroll();
 
     if (top) {
-      top.addEventListener('click', function () {
-        /* Bring the bar back on the way up, so arriving at the top does not
-           need a second flick to reveal the tabs. */
-        bar.classList.add('settling');
-        hidden = 0;
-        paint();
-        try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        catch (e) { window.scrollTo(0, 0); }
-      });
+      top.addEventListener('click', scrollHome);
     }
   })();
 
+  /* ---------- swipe between boards ----------
+     Six boards and the only way across them is a row of tabs at the very top
+     — which is exactly what scrolls away while you read. A horizontal drag
+     moves one board left or right, so getting from 足球 to 电竞 does not mean
+     scrolling back up first. */
+  (function () {
+    var MIN_X = 56;      // px of travel before a drag counts as a swipe
+    var DRIFT = .6;      // how much vertical wander still reads as horizontal
+    var MAX_MS = 700;    // a slow drag is someone reading, not swiping
+    var x0 = 0, y0 = 0, t0 = 0, live = false;
+
+    /* A drag that begins on something which scrolls sideways belongs to that
+       thing: the box score, the driver field, the league chips, the sport row
+       itself. Taking those over would make them unusable. */
+    function scrollsSideways(el) {
+      while (el && el.nodeType === 1 && el !== document.body) {
+        if (el.scrollWidth > el.clientWidth + 4) {
+          var ov = getComputedStyle(el).overflowX;
+          if (ov === 'auto' || ov === 'scroll') return true;
+        }
+        el = el.parentElement;
+      }
+      return false;
+    }
+
+    document.addEventListener('touchstart', function (e) {
+      live = false;
+      if (e.touches.length !== 1) return;          // a pinch is not a swipe
+      if (scrollsSideways(e.target)) return;
+      var t = e.touches[0];
+      x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); live = true;
+    }, { passive: true });
+
+    document.addEventListener('touchend', function (e) {
+      if (!live) return;
+      live = false;
+      var t = e.changedTouches && e.changedTouches[0];
+      if (!t || Date.now() - t0 > MAX_MS) return;
+      var dx = t.clientX - x0, dy = t.clientY - y0;
+      if (Math.abs(dx) < MIN_X) return;
+      if (Math.abs(dy) > Math.abs(dx) * DRIFT) return;
+
+      var ids = SPORTS.map(function (x) { return x.id; });
+      var at = ids.indexOf(sport);
+      if (at === -1) return;
+      var to = at + (dx < 0 ? 1 : -1);
+      if (to < 0 || to >= ids.length) return;      // the ends do not wrap
+
+      setSport(ids[to]);
+      /* A new board starts at its top, and landing at the top also brings the
+         nav back on its own through REVEAL. */
+      window.scrollTo(0, 0);
+    }, { passive: true });
+  })();
   /* A paper's nameplate takes you to the front page. */
   $('mast').addEventListener('click', function () {
     if (sport !== 'today') setSport('today');
-    try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-    catch (e) { window.scrollTo(0, 0); }
+    scrollHome();
   });
 
   /* An installed app was opening on whatever it had cached, so a shipped

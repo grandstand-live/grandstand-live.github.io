@@ -128,6 +128,12 @@
   }
 
   * { box-sizing: border-box; }
+  /* Tapping quickly on a phone can turn two taps into a double-tap gesture,
+     and the browser then swallows or replays a click while it decides which
+     it was. On a toggle that reads as "that tap did nothing" -- exactly what
+     the theme button was accused of. manipulation opts out of double-tap
+     zoom, and of the click delay that comes with it. */
+  button, select, a { touch-action: manipulation; }
   body {
     margin: 0;
     background: var(--ground);
@@ -1704,6 +1710,7 @@
 
   <footer>
     ESPN<span class="sep">·</span>OpenF1<span class="sep">·</span>Riot<span class="sep">·</span>PandaScore<span class="sep">·</span>UFC.com<span class="sep">·</span>Wikipedia
+    <span class="sep">·</span><span id="build"></span>
   </footer>
 </div>
 
@@ -8643,6 +8650,19 @@
   /* The inline script in <head> already put data-theme on <html>; this is what
      brings the button's face and the accent set into line with it. */
   applyTheme();
+  /* Which build is this phone actually running? An installed app resumed
+     from the background never re-navigates, so it can sit on old code long
+     after a fix ships — and then a fixed bug still looks broken. The page
+     header answers it for free, no build step and nothing to remember to
+     bump. */
+  (function () {
+    var el = $('build');
+    if (!el) return;
+    var d = new Date(document.lastModified);
+    el.textContent = isNaN(d) ? ''
+      : '\u7248\u672c ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+        String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  })();
   renderChips();
   renderSportNav();
   setSport(sport);

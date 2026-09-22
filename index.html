@@ -234,7 +234,16 @@
   }
   .stickybar.stuck {
     border-bottom-color: var(--hairline);
-    box-shadow: 0 10px 18px -18px rgba(0, 0, 0, .55);
+    /* The second shadow is the cover for the status bar band. The bar docks
+       below the safe-area inset, so the strip above it belongs to nobody and
+       the rows scrolling past were painted into it — fixtures visible over
+       the clock. A fixed element covering that band works on a desktop and
+       did not on the phone, so the bar paints it itself: same element, same
+       sticky layer as the content it has to sit in front of, nothing to get
+       detached during momentum scrolling and no z-index to lose. It rides up
+       with the bar as it tucks, which is what the band needs. */
+    box-shadow: 0 10px 18px -18px rgba(0, 0, 0, .55),
+                0 calc(-1 * var(--safetop)) 0 var(--ground);
     padding-top: 6px;
   }
   /* --tuck runs 0 → 1 and is driven straight from the scroll delta, so the bar
@@ -250,7 +259,13 @@
        And exactly -100%, not -104%: the section headings below dock at the
        bar's remaining height, so any overshoot opens a sliver between the
        bar's bottom edge and the heading's top for rows to peek through. At
-       100% the two edges are the same edge the whole way. */
+       100% the two edges are the same edge the whole way.
+
+       A full -100% is also what puts the bar's own bottom edge on the safe
+       area inset once it is away, so while it is tucked the band under the
+       status bar is covered by the bar itself. Docked, the band is covered
+       by the shadow on .stuck. Between the two there is no state where the
+       rows behind can reach it. */
     transform: translateY(calc(var(--tuck, 0) * -100%));
   }
   .stickybar.gone { pointer-events: none; }

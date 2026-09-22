@@ -225,16 +225,24 @@
     padding-top: 6px;
   }
   /* --tuck runs 0 → 1 and is driven straight from the scroll delta, so the bar
-     slides and fades under the finger instead of snapping away at a threshold.
+     slides under the finger instead of snapping away at a threshold.
      No transition while it tracks — that would lag behind the gesture. The
      .settling class is added only for the snap after scrolling stops. */
   .stickybar {
-    transform: translateY(calc(var(--tuck, 0) * -104%));
-    opacity: calc(1 - var(--tuck, 0) * .88);
+    /* Slide only, never fade. Fading it out meant the fixtures underneath
+       showed straight through it on the way, so the top of the screen was
+       briefly two layers of content at once — which is the split look this
+       was supposed to remove, not cause.
+
+       And exactly -100%, not -104%: the section headings below dock at the
+       bar's remaining height, so any overshoot opens a sliver between the
+       bar's bottom edge and the heading's top for rows to peek through. At
+       100% the two edges are the same edge the whole way. */
+    transform: translateY(calc(var(--tuck, 0) * -100%));
   }
   .stickybar.gone { pointer-events: none; }
   .stickybar.settling {
-    transition: transform .2s cubic-bezier(.4, 0, .2, 1), opacity .2s ease,
+    transition: transform .2s cubic-bezier(.4, 0, .2, 1),
                 box-shadow .18s ease, border-color .18s ease, padding .18s ease;
   }
   @media (prefers-reduced-motion: reduce) {
@@ -892,7 +900,11 @@
      a floating bar with loose headings under it. */
   .day-head, .group-name {
     position: sticky;
-    top: calc(env(safe-area-inset-top, 0px) + var(--stickH, 0px));
+    /* One pixel of overlap, not a flush join: the bar's height lands on a
+       fraction and the two edges can round apart, which leaves a hairline of
+       the row underneath showing between them. The bar paints over the
+       overlap, so nothing here is lost to it. */
+    top: calc(env(safe-area-inset-top, 0px) + var(--stickH, 0px) - 1px);
     z-index: 15;
     background: var(--ground);
     margin-left: -16px;

@@ -869,6 +869,39 @@
   tr.z-mid td.rk::before { background: var(--hairline-strong); }
   tr.z-drop td.rk::before { background: var(--loss); }
   td.pts { font-weight: 700; color: var(--ink); }
+  /* ---- per-round panel ---- */
+  .rnd-tabs {
+    display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+    padding-bottom: 8px; margin-top: 4px;
+  }
+  .rnd-tabs::-webkit-scrollbar { display: none; }
+  .rnd-tab {
+    flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+    font-family: var(--serif); font-size: 12px; font-weight: 600;
+    color: var(--muted); background: none;
+    border: 1px solid var(--hairline); border-radius: 2px; padding: 4px 11px;
+  }
+  .rnd-tab.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .rnd-panel { padding-top: 2px; }
+  /* accuracy, as a ring on each side of the line it describes */
+  .acc-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 2px 0 10px;
+  }
+  .acc-mid {
+    flex: 1; text-align: center; font-size: 11px; color: var(--muted);
+    font-family: var(--narrow); letter-spacing: .04em;
+  }
+  .acc-slot { position: relative; width: 38px; height: 38px; flex-shrink: 0; }
+  .acc { width: 38px; height: 38px; transform: rotate(-90deg); }
+  .acc circle { fill: none; stroke-width: 3.5; }
+  .acc-bg { stroke: var(--hairline); }
+  .acc-fg { stroke: var(--accent); stroke-linecap: round; }
+  .acc-fg.r { stroke: color-mix(in srgb, var(--ink) 42%, var(--surface)); }
+  .acc-n {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700; color: var(--ink);
+  }
   .box-team {
     font-family: var(--serif); font-size: 13.5px; font-weight: 600;
     color: var(--ink); margin: 12px 0 2px;
@@ -7251,49 +7284,113 @@
     return attempted ? v + '/' + (r[attempted] || 0) : String(v);
   }
 
-  function roundsHTML(data, leftName) {
-    var sides = (data.rounds || []).slice();
-    if (sides.length < 2) return '';
+  /* Sum a fighter's rounds into one set of totals, so the "全局" tab is built
+     from the same numbers as every round tab and cannot disagree with them.
+     ControlTime is a clock, so it adds as seconds and goes back to mm:ss. */
+  function sumRounds(rounds) {
+    var out = {};
+    (rounds || []).forEach(function (r) {
+      Object.keys(r || {}).forEach(function (k) {
+        if (k === 'ControlTime') {
+          out[k] = (out[k] || 0) + clockSeconds(r[k]);
+        } else if (typeof r[k] === 'number') {
+          out[k] = (out[k] || 0) + r[k];
+        }
+      });
+    });
+    if (out.ControlTime !== undefined) {
+      var s = out.ControlTime;
+      out.ControlTime = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+    return out;
+  }
+
+  /* Accuracy as a ring rather than another bar. Twelve mirrored bars all read
+     the same after a while; the one number worth pulling out of them is how
+     much of what a fighter threw actually landed. */
+  function accRing(landed, thrown, right) {
+    if (!thrown) return '<span class="acc-slot"></span>';
+    var pct = Math.round(landed / thrown * 100);
+    var r = 15.5, c = 2 * Math.PI * r;
+    return '<span class="acc-slot"><svg class="acc" viewBox="0 0 38 38">' +
+      '<circle class="acc-bg" cx="19" cy="19" r="' + r + '"></circle>' +
+      '<circle class="acc-fg' + (right ? ' r' : '') + '" cx="19" cy="19" r="' + r +
+      '" stroke-dasharray="' + (c * pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '"></circle>' +
+      '</svg><b class="acc-n">' + pct + '%</b></span>';
+  }
+
+  function roundRowsHTML(ra, rb) {
+    return ROUND_ROWS.map(function (def) {
+      var va = roundValue(ra, def[1], def[2]);
+      var vb = roundValue(rb, def[1], def[2]);
+      if (!va && !vb) return '';
+      var na = parseInt(va, 10) || 0, nb = parseInt(vb, 10) || 0;
+      if (def[1] === 'ControlTime') { na = clockSeconds(va); nb = clockSeconds(vb); }
+      var sum = na + nb, aw = sum ? na / sum * 100 : 50;
+      return '<div class="stat"><span class="sv">' + esc(va || '0') + '</span>' +
+        '<span class="sl">' + def[0] + '</span>' +
+        '<span class="sv r">' + esc(vb || '0') + '</span>' +
+        '<span class="sbar"><span class="lw"><i style="width:' + aw.toFixed(1) + '%"></i></span>' +
+        '<span class="rw"><i style="width:' + (100 - aw).toFixed(1) + '%"></i></span></span></div>';
+    }).filter(Boolean).join('');
+  }
+
+  /* One table with a round picker over it, the way a fight is actually read:
+     who took the second. That comparison needs the numbers in the same place
+     each time, not four screens apart.
+
+     全局 is ESPN's totals rather than the sum of the rounds, because it
+     carries what the per-round feed does not — total strikes, where the work
+     happened, takedown defence, submission attempts. The round tabs are the
+     UFC's own feed. Two sources, but each is the better one for its tab. */
+  function boutTabsHTML(A, B, data, nameA, nameB) {
+    var totals = boutStatsHTML(A, B, nameA, nameB);
+    var sides = ((data && data.rounds) || []).slice();
     var nameOfId = function (fid) {
-      var f = (data.fighters || []).filter(function (x) { return x.id === fid; })[0];
+      var f = ((data && data.fighters) || []).filter(function (x) { return x.id === fid; })[0];
       return f ? f.name : '';
     };
-    // the UFC's feed does not order the two corners the way ESPN's card does,
-    // so line them up or the columns read backwards against the panel above
-    if (leftName) {
-      var want = ufcSurname(leftName);
+    if (sides.length >= 2 && nameA) {
+      // the UFC's feed does not order the corners the way ESPN's card does
+      var want = ufcSurname(nameA);
       if (want && ufcSurname(nameOfId(sides[0].FighterId)) !== want &&
           ufcSurname(nameOfId(sides[1].FighterId)) === want) {
         sides.reverse();
       }
     }
-    var a = sides[0].Rounds || [], b = sides[1].Rounds || [];
-    var count = Math.max(a.length, b.length);
-    if (!count) return '';
-    var nameOf = nameOfId;
-    var out = '<h4>逐回合</h4>';
+    var a = (sides[0] && sides[0].Rounds) || [];
+    var b = (sides[1] && sides[1].Rounds) || [];
+    var count = Math.min(a.length, b.length);
+
+    // no per-round feed for this fight: the totals stand on their own
+    if (!count) return '<h4>全场数据</h4>' + totals;
+
+    var accTotal = '<div class="acc-row">' +
+      accRing(statNum(A, 'sigStrikesLanded'), statNum(A, 'sigStrikesAttempted')) +
+      '<span class="acc-mid">有效击打命中率</span>' +
+      accRing(statNum(B, 'sigStrikesLanded'), statNum(B, 'sigStrikesAttempted'), true) +
+      '</div>';
+
+    var tabs = '<button type="button" class="rnd-tab on" data-rnd="0">全局</button>';
+    var panels = '<div class="rnd-panel" data-rnd="0">' + accTotal + totals + '</div>';
+
     for (var i = 0; i < count; i++) {
-      var ra = a[i], rb = b[i];
-      var rows = ROUND_ROWS.map(function (def) {
-        var va = roundValue(ra, def[1], def[2]);
-        var vb = roundValue(rb, def[1], def[2]);
-        if (!va && !vb) return '';
-        var na = parseInt(va, 10) || 0, nb = parseInt(vb, 10) || 0;
-        if (def[1] === 'ControlTime') { na = clockSeconds(va); nb = clockSeconds(vb); }
-        var sum = na + nb, aw = sum ? na / sum * 100 : 50;
-        return '<div class="stat"><span class="sv">' + esc(va || '0') + '</span>' +
-          '<span class="sl">' + def[0] + '</span>' +
-          '<span class="sv r">' + esc(vb || '0') + '</span>' +
-          '<span class="sbar"><span class="lw"><i style="width:' + aw.toFixed(1) + '%"></i></span>' +
-          '<span class="rw"><i style="width:' + (100 - aw).toFixed(1) + '%"></i></span></span></div>';
-      }).filter(Boolean).join('');
+      var rows = roundRowsHTML(a[i], b[i]);
       if (!rows) continue;
-      out += '<div class="round-block"><div class="round-no">第 ' +
-        ((ra && ra.RoundNumber) || (rb && rb.RoundNumber) || (i + 1)) + ' 回合</div>' + rows + '</div>';
+      var n = i + 1;
+      var la = a[i].SigStrikesLanded || 0, ta = a[i].SigStrikesAttempted || 0;
+      var lb = b[i].SigStrikesLanded || 0, tb = b[i].SigStrikesAttempted || 0;
+      tabs += '<button type="button" class="rnd-tab" data-rnd="' + n + '">第 ' +
+        (a[i].RoundNumber || b[i].RoundNumber || n) + ' 回合</button>';
+      panels += '<div class="rnd-panel" data-rnd="' + n + '" hidden>' +
+        '<div class="acc-row">' + accRing(la, ta) +
+        '<span class="acc-mid">有效击打命中率</span>' + accRing(lb, tb, true) + '</div>' +
+        '<div class="stat-head"><span>' + esc(nameA || '') + '</span><span>' +
+        esc(nameB || '') + '</span></div>' + rows + '</div>';
     }
-    return out === '<h4>逐回合</h4>' ? '' :
-      '<div class="stat-head"><span>' + esc(nameOf(sides[0].FighterId)) + '</span><span>' +
-      esc(nameOf(sides[1].FighterId)) + '</span></div>' + out;
+
+    return '<h4>数据</h4><div class="rnd-wrap"><div class="rnd-tabs">' + tabs + '</div>' +
+      panels + '</div>';
   }
 
   var CORE_MMA = 'https://sports.core.api.espn.com/v2/sports/mma/athletes/';
@@ -7557,16 +7654,12 @@
       if (!box.isConnected) return;
       r[2].defence = r[5];
       r[3].defence = r[6];
-      var rounds = r[4] ? roundsHTML(r[4], names[0] || '') : '';
       /* Kept on a finished fight too: seeing that the man who won was priced
          at 12% is most of what makes the result worth reading twice. */
       box.innerHTML =
         boutHeroHTML(r[0], r[1], sideA, sideB) +
         ufcOddsHTML(r[7], sideA, sideB) +
-        boutStatsHTML(r[0], r[1], names[0] || '', names[1] || '') +
-        (rounds || '<div class="kv" style="margin-top:10px"><span class="k">逐回合</span>' +
-          '<span>' + (r[4] ? '官方没有这场的分回合数据。'
-            : '这场还没有收录，抓取任务每小时补一批历史赛事。') + '</span></div>') +
+        boutTabsHTML(r[0], r[1], r[4], names[0] || '', names[1] || '') +
         careerHTML(r[2], r[3], sideA.name, sideB.name) +
         boutClipsHTML(names, when);
     });
@@ -8584,6 +8677,23 @@
       setTab(tab);
     }
   });
+
+  /* Round tabs swap which panel is on without touching anything else, so the
+     fight above and the careers below stay exactly where they were. */
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('.rnd-tab');
+    if (!t) return;
+    e.stopPropagation();
+    var wrap = t.closest('.rnd-wrap');
+    if (!wrap) return;
+    var pick = t.dataset.rnd;
+    [].forEach.call(wrap.querySelectorAll('.rnd-tab'), function (b) {
+      b.classList.toggle('on', b === t);
+    });
+    [].forEach.call(wrap.querySelectorAll('.rnd-panel'), function (p) {
+      p.hidden = p.dataset.rnd !== pick;
+    });
+  }, true);
 
   // open a CS2 / Valorant series to see the maps inside it
   $('panel-fixtures').addEventListener('click', function (e) {

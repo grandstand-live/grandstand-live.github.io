@@ -885,6 +885,23 @@
     margin-left: auto; font-size: 11.5px; color: var(--muted); white-space: nowrap;
   }
   tr.fav { background: var(--accent-soft); }
+  /* Both kinds of heading dock to the bottom of the nav bar and stay there.
+     --stickH is how much of that bar is still on screen, so as it slides away
+     these rise to take its place: the top of the screen always says which day
+     or which section you are in, and the two read as one block rather than as
+     a floating bar with loose headings under it. */
+  .day-head, .group-name {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + var(--stickH, 0px));
+    z-index: 15;
+    background: var(--ground);
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 7px 16px 6px 18px;
+  }
+  .day-head { margin-bottom: 6px; }
+  .group-name { margin-top: 16px; margin-bottom: 4px; }
+  .section { position: relative; }
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; color: var(--muted); margin-top: 10px; }
   .legend i { display: inline-block; width: 3px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
   /* Same dateline rule as .day-head and .detail h4 — every label on the page
@@ -2149,6 +2166,30 @@
   function viewStale(token) { return token !== viewSeq; }
   /* A renderer asks for its panel through this and writes to it as usual; the
      write is dropped if the view moved on while the data was loading. */
+  /* A section heading and the card it introduces are siblings, so a sticky
+     heading would stay pinned for the whole panel and the next one would come
+     to rest on top of it. Wrapping each heading together with the rows it
+     belongs to gives sticky a box to end at: the next section pushes the last
+     one out, which is how the day headings already behave because .day
+     happens to wrap them. Done here rather than at the twenty-odd places that
+     emit a heading, all of which go through this one setter. */
+  function groupSections(root) {
+    var kids = [].slice.call(root.children);
+    var open = null;
+    kids.forEach(function (node) {
+      if (node.classList && node.classList.contains('group-name')) {
+        open = document.createElement('div');
+        open.className = 'section';
+        root.insertBefore(open, node);
+        open.appendChild(node);
+        return;
+      }
+      /* The sources footer trails the last section but is not part of it —
+         absorbing it would keep that heading pinned over the credits. */
+      if (node.tagName === 'FOOTER') { open = null; return; }
+      if (open) open.appendChild(node);
+    });
+  }
   function panelFor(id) {
     var el = $(id);
     var token = viewSeq;
@@ -2157,6 +2198,7 @@
       set innerHTML(html) {
         if (viewStale(token)) return;
         el.innerHTML = html;
+        groupSections(el);
         // loading states shouldn't animate in and then out again a moment later
         if (html.indexOf('class="skeleton"') !== -1) { el.classList.remove('panel-in'); return; }
         el.classList.remove('panel-in');
@@ -8699,6 +8741,11 @@
       var p = HIDE ? hidden / HIDE : 0;
       bar.style.setProperty('--tuck', p.toFixed(4));
       bar.classList.toggle('gone', p > .98);
+      /* Read live rather than cached: the bar loses the chip row when it
+         sticks and gains it back at the top, and changes height again with
+         the sport. The headings below have to follow all of that. */
+      var shown = (bar.offsetHeight || 0) * (1 - p);
+      document.documentElement.style.setProperty('--stickH', shown.toFixed(1) + 'px');
     }
     function onScroll() {
       var y = Math.max(0, window.scrollY);
@@ -8753,6 +8800,8 @@
       catch (e) { window.scrollTo(0, 0); }
     };
     measure();
+    /* switching sport changes the bar's height with no scroll to notice it */
+    if (window.ResizeObserver) new ResizeObserver(function () { measure(); paint(); }).observe(bar);
     window.addEventListener('scroll', onScrollRaf, { passive: true });
     /* grabbing the page cancels the trip */
     window.addEventListener('touchstart', function () { homing = false; }, { passive: true });

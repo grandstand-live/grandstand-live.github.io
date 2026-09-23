@@ -869,6 +869,51 @@
   tr.z-mid td.rk::before { background: var(--hairline-strong); }
   tr.z-drop td.rk::before { background: var(--loss); }
   td.pts { font-weight: 700; color: var(--ink); }
+  /* ---- F1 team radio ---- */
+  .radio-card {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 4px; padding: 10px 12px 8px;
+  }
+  .radio-k {
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    letter-spacing: .12em; color: var(--muted); margin-bottom: 6px;
+  }
+  .radio-row {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: none; border: none; border-top: 1px solid var(--hairline);
+    padding: 9px 2px; font: inherit; text-align: left; cursor: pointer; color: inherit;
+  }
+  .radio-row.feat { border-top: none; padding-top: 4px; }
+  /* play turns to a pause while its clip is running */
+  .radio-play {
+    width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%;
+    background: var(--accent); position: relative;
+  }
+  .radio-play::after {
+    content: ''; position: absolute; left: 11px; top: 8px;
+    border-left: 9px solid var(--on-accent);
+    border-top: 6px solid transparent; border-bottom: 6px solid transparent;
+  }
+  .radio-row.playing .radio-play::after {
+    left: 9px; top: 9px; width: 3px; height: 10px; border: none;
+    background: var(--on-accent);
+    box-shadow: 6px 0 0 var(--on-accent);
+  }
+  .radio-row.feat .radio-play { width: 34px; height: 34px; }
+  .radio-row.feat .radio-play::after { left: 13px; top: 10px; border-left-width: 11px; border-top-width: 7px; border-bottom-width: 7px; }
+  .radio-row.feat.playing .radio-play::after { left: 11px; top: 11px; height: 12px; box-shadow: 7px 0 0 var(--on-accent); }
+  .radio-who { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 7px; }
+  .radio-who i { width: 3px; height: 13px; border-radius: 1px; flex-shrink: 0; align-self: center; }
+  .radio-who b { font-family: var(--serif); font-size: 14px; font-weight: 600; color: var(--ink); }
+  .radio-who span { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .radio-at { font-family: var(--narrow); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .radio-more summary {
+    cursor: pointer; list-style: none; padding: 9px 2px 3px;
+    border-top: 1px solid var(--hairline);
+    font-size: 12px; color: var(--accent); font-weight: 600;
+  }
+  .radio-more summary::-webkit-details-marker { display: none; }
+  .radio-more[open] summary { color: var(--muted); }
   /* ---- F1: season line, next-race card ---- */
   .f1-prog { padding: 4px 2px 14px; }
   .f1-prog-top { display: flex; justify-content: space-between; align-items: baseline; }
@@ -4131,6 +4176,114 @@
       '</div>';
   }
 
+  /* ---------- team radio ----------
+     The real recordings, from the F1 live-timing archive via OpenF1: what the
+     car said to the pit wall, and the wall back. 围场小组件 builds a daily
+     habit out of exactly this, so the board does the same — one clip of the
+     day up top, the rest of the last race a tap away. */
+  function f1RadioName(full) {
+    // OpenF1 writes "Lando NORRIS"; driverCN keys on "Lando Norris"
+    return String(full || '').toLowerCase().replace(/(^|[\s\-'])(\S)/g, function (m, a, b) {
+      return a + b.toUpperCase();
+    });
+  }
+
+  function f1Radio() {
+    if (f1Cache.radio !== undefined) return Promise.resolve(f1Cache.radio);
+    var O = 'https://api.openf1.org/v1/';
+    return getJSON(O + 'sessions?session_name=Race&year=' + new Date().getFullYear())
+      .then(function (list) {
+        var past = (list || []).filter(function (s) {
+          return new Date(s.date_start).getTime() < Date.now();
+        }).sort(function (a, b) { return new Date(b.date_start) - new Date(a.date_start); });
+        var last = past[0];
+        if (!last) return null;
+        return Promise.all([
+          getJSON(O + 'team_radio?session_key=' + last.session_key),
+          getJSON(O + 'drivers?session_key=' + last.session_key)
+        ]).then(function (r) {
+          var byNum = {};
+          (r[1] || []).forEach(function (d) { byNum[d.driver_number] = d; });
+          var start = new Date(last.date_start).getTime();
+          var clips = (r[0] || []).filter(function (c) { return c.recording_url; }).map(function (c) {
+            var d = byNum[c.driver_number] || {};
+            var t = new Date(c.date).getTime();
+            return {
+              url: c.recording_url,
+              name: driverCN(f1RadioName(d.full_name)) || f1RadioName(d.full_name) || ('#' + c.driver_number),
+              team: d.team_name || '',
+              colour: d.team_colour ? '#' + d.team_colour : '',
+              // minutes into the race, which is how a radio call is placed
+              at: isFinite(t) && isFinite(start) ? Math.max(0, Math.round((t - start) / 60000)) : null
+            };
+          });
+          return clips.length ? { where: last.location || '', when: last.date_start, clips: clips } : null;
+        });
+      })
+      .then(function (v) { f1Cache.radio = v; return v; })
+      .catch(function () { f1Cache.radio = null; return null; });
+  }
+
+  function f1RadioRow(c, i, featured) {
+    return '<button type="button" class="radio-row' + (featured ? ' feat' : '') +
+      '" data-radio="' + i + '">' +
+      '<span class="radio-play" aria-hidden="true"></span>' +
+      '<span class="radio-who"><i style="background:' + esc(c.colour || 'var(--muted)') + '"></i>' +
+        '<b>' + esc(c.name) + '</b><span>' + esc(c.team) + '</span></span>' +
+      (c.at !== null ? '<span class="radio-at">第 ' + c.at + ' 分钟</span>' : '') +
+      '</button>';
+  }
+
+  /* The clip of the day is picked from the date rather than at random, so it
+     holds still for everyone all day and turns over at midnight — a thing to
+     come back for, not a slot machine. */
+  function f1RadioHTML(r, label) {
+    if (!r || !r.clips.length) return '';
+    var now = new Date();
+    var seed = now.getFullYear() * 400 + now.getMonth() * 32 + now.getDate();
+    var pick = seed % r.clips.length;
+    var rest = r.clips.map(function (c, i) { return i === pick ? '' : f1RadioRow(c, i, false); })
+      .filter(Boolean);
+    window.__f1RadioClips = r.clips;
+    return '<div class="group-name">车队无线电</div>' +
+      '<div class="radio-card">' +
+      '<div class="radio-k">今日一条 · ' + esc(label || r.where) + '</div>' +
+      f1RadioRow(r.clips[pick], pick, true) +
+      (rest.length ? '<details class="radio-more"><summary>这一站其余 ' + rest.length +
+        ' 条</summary>' + rest.join('') + '</details>' : '') +
+      '</div>';
+  }
+
+  // one player for the whole board, so starting a clip stops the last one
+  var radioAudio = null, radioOn = null;
+  function radioPlay(btn) {
+    var clips = window.__f1RadioClips || [];
+    var c = clips[Number(btn.dataset.radio)];
+    if (!c) return;
+    if (!radioAudio) {
+      radioAudio = new Audio();
+      radioAudio.addEventListener('ended', function () {
+        if (radioOn) radioOn.classList.remove('playing');
+        radioOn = null;
+      });
+    }
+    if (radioOn === btn) {                       // tapping the playing clip stops it
+      radioAudio.pause();
+      btn.classList.remove('playing');
+      radioOn = null;
+      return;
+    }
+    if (radioOn) radioOn.classList.remove('playing');
+    radioAudio.src = c.url;
+    radioAudio.play().then(function () {
+      btn.classList.add('playing');
+      radioOn = btn;
+    }).catch(function () {
+      btn.classList.remove('playing');
+      radioOn = null;
+    });
+  }
+
   function renderF1Fixtures() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
@@ -4185,9 +4338,25 @@
 
       host.innerHTML = f1ProgressHTML(evs, doneCount, standings) +
         (next ? f1HeroHTML(next, nextCircuit) : '') +
+        '<div id="f1Radio"></div>' +
         '<div class="group-name">全年赛历</div>' + list;
 
       $('status').textContent = new Date(evs[0].date).getFullYear() + ' 赛季';
+
+      f1Radio().then(function (r) {
+        var slot = document.getElementById('f1Radio');
+        if (!slot || !slot.isConnected) return;
+        var label = '';
+        if (r && r.when) {
+          var t = new Date(r.when).getTime();
+          var match = evs.filter(function (e) {
+            var rd = new Date((raceOf(e) || {}).date || e.date).getTime();
+            return Math.abs(rd - t) < 2 * 86400000;
+          })[0];
+          if (match) label = gpName(match.name);
+        }
+        slot.innerHTML = f1RadioHTML(r, label);
+      });
 
       // the forecast arrives after the card, so it never holds the board up
       if (next) {
@@ -8982,6 +9151,13 @@
     [].forEach.call(wrap.querySelectorAll('.rnd-panel'), function (p) {
       p.hidden = p.dataset.rnd !== pick;
     });
+  }, true);
+
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.radio-row');
+    if (!b) return;
+    e.stopPropagation();
+    radioPlay(b);
   }, true);
 
   // open a CS2 / Valorant series to see the maps inside it

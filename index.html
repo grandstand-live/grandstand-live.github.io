@@ -869,6 +869,91 @@
   tr.z-mid td.rk::before { background: var(--hairline-strong); }
   tr.z-drop td.rk::before { background: var(--loss); }
   td.pts { font-weight: 700; color: var(--ink); }
+  /* ---- F1: season line, next-race card ---- */
+  .f1-prog { padding: 4px 2px 14px; }
+  .f1-prog-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .f1-prog-n { font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--ink); }
+  .f1-prog-of {
+    font-family: var(--narrow); font-size: 11px; letter-spacing: .06em; color: var(--muted);
+  }
+  .f1-prog-bar {
+    height: 4px; background: var(--hairline); border-radius: 2px;
+    overflow: hidden; margin: 8px 0 7px;
+  }
+  .f1-prog-bar i { display: block; height: 100%; background: var(--accent); }
+  .f1-prog-lead { font-size: 12.5px; color: var(--ink-2); }
+  .f1-prog-lead b { font-family: var(--serif); font-weight: 600; color: var(--ink); }
+
+  .f1-hero {
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px;
+    padding: 16px 16px 14px; margin-bottom: 4px;
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .f1-hero-k {
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    letter-spacing: .16em; color: var(--accent);
+  }
+  .f1-hero-t {
+    font-family: var(--serif); font-size: 22px; font-weight: 600;
+    color: var(--ink); line-height: 1.25; margin-top: 4px;
+  }
+  .f1-hero-p { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .f1-hero-cd {
+    display: inline-block; margin-top: 11px;
+    font-family: var(--narrow); font-size: 13px; font-weight: 700; letter-spacing: .04em;
+    color: var(--accent-ink); background: var(--accent-soft);
+    border-radius: 2px; padding: 4px 10px;
+  }
+
+  /* four facts in a row, number over label, like a spec sheet */
+  .f1-facts {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--hairline); border: 1px solid var(--hairline);
+    border-radius: 3px; overflow: hidden; margin-top: 14px;
+  }
+  .f1-fact {
+    background: var(--surface); padding: 9px 4px 8px; text-align: center;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .f1-fact b {
+    font-family: var(--narrow); font-size: 15px; font-weight: 700;
+    color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .f1-fact span { font-size: 10.5px; color: var(--muted); }
+  .f1-rec { display: flex; gap: 10px; font-size: 12.5px; padding: 10px 0 0; }
+  .f1-rec .k { color: var(--muted); flex-shrink: 0; }
+  .f1-rec b { font-family: var(--narrow); font-weight: 700; color: var(--ink); }
+
+  .f1-h {
+    display: flex; align-items: center; gap: 9px; margin: 15px 0 6px;
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    letter-spacing: .12em; color: var(--muted);
+  }
+  .f1-h::after { content: ''; flex: 1; height: 1px; background: var(--hairline); }
+  .f1-sess { display: grid; gap: 1px; }
+  .f1-s {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 6px 2px; border-bottom: 1px solid var(--hairline); font-size: 13px;
+  }
+  .f1-s:last-child { border-bottom: none; }
+  .f1-s-n { font-family: var(--serif); font-weight: 600; color: var(--ink); }
+  .f1-s-t { font-family: var(--narrow); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .f1-s.over .f1-s-n, .f1-s.over .f1-s-t { color: var(--muted); }
+  .f1-s.race .f1-s-n { color: var(--accent); }
+
+  .f1-wx { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .f1-wx-d {
+    border: 1px solid var(--hairline); border-radius: 3px;
+    padding: 8px 6px; text-align: center;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .f1-wx-d.wet { border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline)); }
+  .f1-wx-w { font-family: var(--narrow); font-size: 10.5px; letter-spacing: .08em; color: var(--muted); }
+  .f1-wx-c { font-family: var(--serif); font-size: 14px; font-weight: 600; color: var(--ink); }
+  .f1-wx-t { font-family: var(--narrow); font-size: 13px; color: var(--ink-2); }
+  .f1-wx-r { font-size: 10.5px; color: var(--muted); }
+  .f1-wx-d.wet .f1-wx-r { color: var(--accent); font-weight: 600; }
+  .f1-wx-none { font-size: 12.5px; color: var(--muted); padding: 2px 0; }
   /* ---- per-round panel ---- */
   .rnd-tabs {
     display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
@@ -3839,7 +3924,9 @@
   }
   var SESSION_CN = {
     FP1: '练习赛一', FP2: '练习赛二', FP3: '练习赛三', Qual: '排位赛', Race: '正赛',
-    Sprint: '冲刺赛', SprintQual: '冲刺排位', 'Sprint Qual': '冲刺排位', Practice: '练习赛'
+    Sprint: '冲刺赛', SprintQual: '冲刺排位', 'Sprint Qual': '冲刺排位', Practice: '练习赛',
+    // ESPN's own abbreviations for a sprint weekend, which were showing raw
+    SS: '冲刺排位', SR: '冲刺赛'
   };
   var DRIVER_CN = {
     'verstappen': '维斯塔潘', 'hamilton': '汉密尔顿', 'leclerc': '勒克莱尔', 'norris': '诺里斯',
@@ -3896,10 +3983,160 @@
     return href ? '<img class="flag" src="' + esc(href) + '" alt="" loading="lazy">' : '';
   }
 
+  /* Circuit facts, collected from Wikipedia because ESPN carries a circuit's
+     name and nothing else. Keyed by ESPN's circuit id. */
+  function f1Circuits() {
+    return archiveGet('f1-circuits.json').then(function (d) {
+      return (d && d.circuits) || {};
+    }).catch(function () { return {}; });
+  }
+
+  /* A grand prix is the fewest laps that pass 305 km — the sporting rule, so
+     laps and distance follow from the length rather than being looked up.
+     Monaco is the exception the rule itself makes, at 260 km. */
+  function f1Laps(km, wiki) {
+    if (!km) return null;
+    var target = /monaco/i.test(wiki || '') ? 260 : 305;
+    return Math.ceil(target / km);
+  }
+
+  // WMO weather codes, as Open-Meteo returns them
+  function wxCN(code) {
+    var c = Number(code);
+    if (c === 0) return '晴';
+    if (c <= 2) return '少云';
+    if (c === 3) return '阴';
+    if (c === 45 || c === 48) return '雾';
+    if (c >= 51 && c <= 57) return '毛毛雨';
+    if (c >= 61 && c <= 65) return c >= 65 ? '大雨' : '雨';
+    if (c >= 66 && c <= 67) return '冻雨';
+    if (c >= 71 && c <= 77) return '雪';
+    if (c >= 80 && c <= 82) return '阵雨';
+    if (c >= 95) return '雷雨';
+    return '—';
+  }
+
+  /* The race weekend's forecast, from the circuit's own position and in its
+     own time zone — Friday to Sunday there, which is what the sessions run
+     against. Returns nothing when the weekend is further out than the forecast
+     reaches, rather than a guess. */
+  function f1Weather(coord, raceDate) {
+    if (!coord || isNaN(raceDate)) return Promise.resolve(null);
+    var days = (raceDate.getTime() - Date.now()) / 86400000;
+    if (days > 15 || days < -1) return Promise.resolve(null);
+    return getJSON('https://api.open-meteo.com/v1/forecast?latitude=' + coord.lat +
+      '&longitude=' + coord.lon +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+      '&timezone=auto&forecast_days=16').then(function (w) {
+        var d = w && w.daily;
+        if (!d || !d.time) return null;
+        // the race day in the circuit's zone, and the two days before it
+        var raceLocal = raceDate.toLocaleDateString('en-CA', { timeZone: w.timezone });
+        var at = d.time.indexOf(raceLocal);
+        if (at < 0) return null;
+        var out = [];
+        for (var k = Math.max(0, at - 2); k <= at; k++) {
+          out.push({
+            day: d.time[k], code: d.weather_code[k],
+            hi: Math.round(d.temperature_2m_max[k]), lo: Math.round(d.temperature_2m_min[k]),
+            rain: d.precipitation_probability_max[k]
+          });
+        }
+        return out;
+      }).catch(function () { return null; });
+  }
+
+  function f1WeatherHTML(days) {
+    if (!days || !days.length) return '';
+    var WD = ['日', '一', '二', '三', '四', '五', '六'];
+    return '<div class="f1-wx">' + days.map(function (x) {
+      var d = new Date(x.day + 'T12:00:00');
+      var wet = x.rain >= 40;
+      return '<div class="f1-wx-d' + (wet ? ' wet' : '') + '">' +
+        '<span class="f1-wx-w">周' + WD[d.getDay()] + '</span>' +
+        '<span class="f1-wx-c">' + wxCN(x.code) + '</span>' +
+        '<span class="f1-wx-t">' + x.lo + '–' + x.hi + '°</span>' +
+        '<span class="f1-wx-r">降雨 ' + (x.rain == null ? '—' : x.rain + '%') + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  /* The season as a line: how far through it is and how tight the fight at
+     the top. The one-glance summary every one of the F1 apps leads with. */
+  function f1ProgressHTML(evs, doneCount, standings) {
+    var total = evs.length;
+    var pct = total ? Math.round(doneCount / total * 100) : 0;
+    var drv = ((standings && standings.children) || []).filter(function (c) {
+      return /driver/i.test(c.name || '');
+    })[0];
+    var entries = (drv && drv.standings && drv.standings.entries) || [];
+    function pts(e) {
+      var s = ((e && e.stats) || []).filter(function (x) { return x.name === 'championshipPts'; })[0];
+      return s ? Number(s.displayValue) || 0 : 0;
+    }
+    var lead = entries[0], second = entries[1];
+    var gap = lead && second ? pts(lead) - pts(second) : null;
+    return '<div class="f1-prog">' +
+      '<div class="f1-prog-top"><span class="f1-prog-n">已完成 ' + doneCount + ' / ' + total +
+        ' 站</span><span class="f1-prog-of">还剩 ' + (total - doneCount) + ' 站</span></div>' +
+      '<div class="f1-prog-bar"><i style="width:' + pct + '%"></i></div>' +
+      (lead ? '<div class="f1-prog-lead"><b>' + esc(driverCN(lead.athlete && lead.athlete.displayName)) +
+        '</b> 以 ' + pts(lead) + ' 分领跑' +
+        (gap !== null ? '，领先 ' + esc(driverCN(second.athlete && second.athlete.displayName)) +
+          ' ' + gap + ' 分' : '') + '</div>' : '') +
+      '</div>';
+  }
+
+  /* The next grand prix as its own card, the way every F1 app opens: when it
+     is, where, what the circuit is, when each session runs, and what the sky
+     will do. The calendar follows underneath. */
+  function f1HeroHTML(ev, circuit) {
+    var race = raceOf(ev) || {};
+    var when = new Date(race.date || ev.date);
+    var c = ev.circuit || {};
+    var place = [c.address && c.address.city, c.address && c.address.country].filter(Boolean).join(' · ');
+    var laps = circuit ? f1Laps(circuit.km, circuit.wiki) : null;
+    var facts = circuit ? [
+      ['赛道长度', circuit.km ? circuit.km.toFixed(3) + ' km' : ''],
+      ['圈数', laps ? laps + ' 圈' : ''],
+      ['总里程', laps && circuit.km ? (laps * circuit.km).toFixed(1) + ' km' : ''],
+      ['弯道', circuit.turns ? circuit.turns + ' 个' : '']
+    ].filter(function (f) { return f[1]; }) : [];
+    var record = circuit && circuit.recordTime
+      ? '<div class="f1-rec"><span class="k">正赛圈速纪录</span><span><b>' + esc(circuit.recordTime) +
+        '</b> ' + esc(driverCN(circuit.recordDriver) || circuit.recordDriver || '') +
+        (circuit.recordYear ? ' · ' + esc(circuit.recordYear) : '') + '</span></div>' : '';
+
+    var sessions = (ev.competitions || []).slice().sort(function (a, b) {
+      return new Date(a.date) - new Date(b.date);
+    }).map(function (s) {
+      var t = (s.type && (s.type.abbreviation || s.type.text)) || '';
+      var d = new Date(s.date);
+      var over = d.getTime() < Date.now() - 2 * 3600000;
+      return '<div class="f1-s' + (over ? ' over' : '') + (t === 'Race' ? ' race' : '') + '">' +
+        '<span class="f1-s-n">' + esc(SESSION_CN[t] || t) + '</span>' +
+        '<span class="f1-s-t">' + (isNaN(d) ? '待定' : esc(fmtDay(d) + ' ' + fmtTime(d))) + '</span></div>';
+    }).join('');
+
+    return '<div class="f1-hero" id="nextGp">' +
+      '<div class="f1-hero-k">下一站</div>' +
+      '<div class="f1-hero-t">' + esc(gpName(ev.name)) + '</div>' +
+      '<div class="f1-hero-p">' + esc(c.fullName || '') + (place ? ' · ' + esc(place) : '') + '</div>' +
+      '<div class="f1-hero-cd">' + esc(countdown(when)) + '</div>' +
+      (facts.length ? '<div class="f1-facts">' + facts.map(function (f) {
+        return '<div class="f1-fact"><b>' + esc(f[1]) + '</b><span>' + f[0] + '</span></div>';
+      }).join('') + '</div>' : '') +
+      record +
+      (sessions ? '<div class="f1-h">赛程</div><div class="f1-sess">' + sessions + '</div>' : '') +
+      '<div class="f1-h">比赛周天气</div><div id="f1Wx"><div class="f1-wx-none">正在获取预报…</div></div>' +
+      '</div>';
+  }
+
   function renderF1Fixtures() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
-    f1Season().then(function (d) {
+    Promise.all([f1Season(), f1Standings().catch(function () { return null; }), f1Circuits()])
+      .then(function (got) {
+      var d = got[0], standings = got[1], circuits = got[2];
       var evs = (d && d.events) || [];
       if (!evs.length) {
         host.innerHTML = '<div class="err">赛历没取到，刷新一下重试。</div>';
@@ -3915,8 +4152,14 @@
         var raceDate = new Date((raceOf(evs[n]) || {}).date || evs[n].date).getTime();
         if (st.state !== 'post' && raceDate >= now - 6 * 3600000) { nextIdx = n; break; }
       }
+      var doneCount = evs.filter(function (e) {
+        return e.status && e.status.type && e.status.type.state === 'post';
+      }).length;
 
-      host.innerHTML = '<div class="card">' + evs.map(function (ev, i) {
+      var next = nextIdx >= 0 ? evs[nextIdx] : null;
+      var nextCircuit = next && next.circuit ? circuits[String(next.circuit.id)] : null;
+
+      var list = '<div class="card">' + evs.map(function (ev, i) {
         var race = raceOf(ev) || {};
         var state = (ev.status && ev.status.type && ev.status.type.state) || '';
         var done = state === 'post';
@@ -3930,7 +4173,7 @@
               : '<span class="gp-when">—</span>')
           : '<span class="gp-when">' + (isNaN(d0) ? '待定' : fmtTime(d0)) + '</span>';
         return '<button class="gp' + (i === nextIdx ? ' next' : '') + (done ? ' done' : '') +
-            '" type="button" data-ev="' + esc(ev.id) + '"' + (i === nextIdx ? ' id="nextGp"' : '') + '>' +
+            '" type="button" data-ev="' + esc(ev.id) + '">' +
             '<span class="rd">R' + (i + 1) + '</span>' +
             '<span class="info"><span class="gp-name">' + esc(gpName(ev.name)) +
               (i === nextIdx ? '<span class="today">下一站</span>' : '') + '</span>' +
@@ -3940,16 +4183,22 @@
           '</button>';
       }).join('') + '</div>';
 
-      var s = $('status');
-      s.innerHTML = '2026 赛季 · ' + evs.length + ' 站，已完赛 ' +
-        evs.filter(function (e) {
-          return e.status && e.status.type && e.status.type.state === 'post';
-        }).length + ' 站' + (nextIdx > 0 ? '<button class="jump" type="button" id="jumpNext">跳到下一站 ↓</button>' : '');
-      var jump = $('jumpNext');
-      if (jump) jump.addEventListener('click', function () {
-        var el = $('nextGp');
-        if (el) window.scrollTo({ top: el.offsetTop - 120, behavior: 'smooth' });
-      });
+      host.innerHTML = f1ProgressHTML(evs, doneCount, standings) +
+        (next ? f1HeroHTML(next, nextCircuit) : '') +
+        '<div class="group-name">全年赛历</div>' + list;
+
+      $('status').textContent = new Date(evs[0].date).getFullYear() + ' 赛季';
+
+      // the forecast arrives after the card, so it never holds the board up
+      if (next) {
+        f1Weather(nextCircuit && nextCircuit.coord,
+          new Date((raceOf(next) || {}).date || next.date)).then(function (w) {
+          var slot = document.getElementById('f1Wx');
+          if (!slot || !slot.isConnected) return;
+          slot.innerHTML = w ? f1WeatherHTML(w)
+            : '<div class="f1-wx-none">比赛周还在预报范围之外，临近再看。</div>';
+        });
+      }
     });
   }
 

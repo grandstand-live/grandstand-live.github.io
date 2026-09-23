@@ -1654,6 +1654,52 @@ async function collectF1Circuits() {
   };
 }
 
+
+/* Every grand prix winner since 1950, filed by the day of the year it was won,
+   for the board's "on this day". From Jolpica — the community continuation of
+   Ergast after Ergast shut down — whose results/1 query returns each race's
+   date, name, circuit and winner in one paginated list. History only grows
+   by one row a race weekend, so this refreshes weekly rather than every run. */
+const F1_HISTORY_API = 'https://api.jolpi.ca/ergast/f1/results/1/';
+
+async function collectF1History() {
+  const store = await load('f1-history.json');
+  const age = store && store.updatedAt ? Date.now() - new Date(store.updatedAt) : Infinity;
+  if (!MANUAL && age < 7 * 86400e3) return { skipped: 'refreshed within the week' };
+
+  const headers = { 'user-agent': 'grandstand-live/1.0 (https://grandstand-live.github.io)' };
+  const days = {};
+  let offset = 0, total = Infinity, races = 0;
+  while (offset < total) {
+    const page = await getJSON(`${F1_HISTORY_API}?limit=100&offset=${offset}`, headers);
+    const m = page && page.MRData;
+    if (!m) throw new Error(`jolpica page at ${offset} did not parse`);
+    total = Number(m.total) || 0;
+    const list = (m.RaceTable && m.RaceTable.Races) || [];
+    if (!list.length) break;
+    for (const r of list) {
+      const w = (r.Results || [])[0];
+      if (!r.date || !w) continue;
+      const key = r.date.slice(5);                     // MM-DD
+      (days[key] = days[key] || []).push({
+        y: Number(r.date.slice(0, 4)),
+        race: r.raceName,
+        circuit: (r.Circuit && r.Circuit.circuitName) || '',
+        driver: [w.Driver && w.Driver.givenName, w.Driver && w.Driver.familyName].filter(Boolean).join(' '),
+        team: (w.Constructor && w.Constructor.name) || ''
+      });
+      races++;
+    }
+    offset += list.length;
+    await new Promise(res => setTimeout(res, 300));     // Jolpica asks for a few a second at most
+  }
+  if (!races) throw new Error('jolpica returned no races');
+  for (const k of Object.keys(days)) days[k].sort((a, b) => b.y - a.y);
+
+  await save('f1-history.json', { updatedAt: new Date().toISOString(), races, days });
+  return { races, days: Object.keys(days).length };
+}
+
 const tasks = [
   ['lol', collectLol],
   ['cba', collectCba],
@@ -1664,6 +1710,7 @@ const tasks = [
   ['ufcDefence', collectUfcDefence],
   ['ufcBodies', collectUfcBodies],
   ['f1Circuits', collectF1Circuits],
+  ['f1History', collectF1History],
   ['boxing', collectBoxing],
   ['boxChampions', collectBoxChampions],
   ['boxers', collectBoxers]

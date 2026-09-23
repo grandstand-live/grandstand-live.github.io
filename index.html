@@ -869,6 +869,23 @@
   tr.z-mid td.rk::before { background: var(--hairline-strong); }
   tr.z-drop td.rk::before { background: var(--loss); }
   td.pts { font-weight: 700; color: var(--ink); }
+  /* ---- F1: on this day ---- */
+  .hist-card {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 4px; padding: 2px 12px;
+  }
+  .hist-row {
+    display: flex; gap: 12px; align-items: baseline;
+    padding: 10px 0; border-bottom: 1px solid var(--hairline);
+  }
+  .hist-row:last-child { border-bottom: none; }
+  .hist-y {
+    font-family: var(--narrow); font-size: 15px; font-weight: 700;
+    color: var(--accent); flex-shrink: 0; font-variant-numeric: tabular-nums;
+  }
+  .hist-body { font-size: 13px; color: var(--ink-2); line-height: 1.5; min-width: 0; }
+  .hist-body b { font-family: var(--serif); font-weight: 600; color: var(--ink); }
+  .hist-sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -3957,7 +3974,15 @@
     'malaysian': '马来西亚', 'french': '法国', 'german': '德国', 'portuguese': '葡萄牙',
     'turkish': '土耳其', 'russian': '俄罗斯', 'korean': '韩国', 'madrid': '马德里',
     'barcelona': '巴塞罗那', 'catalunya': '加泰罗尼亚', 'malaysia': '马来西亚',
-    'mexico city': '墨西哥城', 'monaco': '摩纳哥'
+    'mexico city': '墨西哥城', 'monaco': '摩纳哥',
+    // races that have since left the calendar, for "on this day"
+    'south african': '南非', 'argentine': '阿根廷', 'san marino': '圣马力诺',
+    'european': '欧洲', 'pacific': '太平洋', 'swiss': '瑞士', 'detroit': '底特律',
+    'swedish': '瑞典', 'styrian': '施蒂利亚', 'dallas': '达拉斯',
+    '70th anniversary': '70周年纪念', 'pescara': '佩斯卡拉', 'tuscan': '托斯卡纳',
+    'caesars palace': '凯撒宫', 'luxembourg': '卢森堡', 'eifel': '艾费尔',
+    'moroccan': '摩洛哥', 'indian': '印度', 'sakhir': '萨基尔', 'mexican': '墨西哥',
+    'united states grand prix west': '美国西部'
   };
   var GP_KEYS = Object.keys(GP_CN).sort(function (a, b) { return b.length - a.length; });
   function gpName(name) {
@@ -3981,17 +4006,52 @@
     'bearman': '贝尔曼', 'lawson': '劳森', 'hadjar': '哈贾尔', 'bortoleto': '博托莱托',
     'colapinto': '科拉平托', 'doohan': '杜汉', 'zhou': '周冠宇', 'ricciardo': '里卡多',
     'bottas': '博塔斯', 'magnussen': '马格努森', 'sargeant': '萨金特', 'aron': '阿隆',
-    'browning': '布朗宁', 'lindblad': '林德布拉德', 'dunne': '邓恩', 'iwasa': '岩佐步梦'
+    'browning': '布朗宁', 'lindblad': '林德布拉德', 'dunne': '邓恩', 'iwasa': '岩佐步梦',
+    /* Past winners, for "on this day". Only names with a settled Chinese form;
+       a 1950s Indianapolis winner with no standard rendering stays in English
+       rather than get an invented one. Father-and-son and same-surname pairs
+       are keyed by full name, which is why driverCN prefers the longest key. */
+    'schumacher': '舒马赫', 'ralf schumacher': '拉尔夫·舒马赫', 'vettel': '维特尔',
+    'prost': '普罗斯特', 'senna': '塞纳', 'mansell': '曼塞尔', 'stewart': '斯图尔特',
+    'clark': '克拉克', 'lauda': '劳达', 'fangio': '方吉奥', 'piquet': '皮奎特',
+    'rosberg': '罗斯伯格', 'keke rosberg': '凯凯·罗斯伯格', 'damon hill': '达蒙·希尔',
+    'graham hill': '格雷厄姆·希尔', 'phil hill': '菲尔·希尔', 'raikkonen': '莱科宁',
+    'hakkinen': '哈基宁', 'moss': '莫斯', 'button': '巴顿', 'fittipaldi': '菲蒂帕尔迪',
+    'brabham': '布拉汉姆', 'ascari': '阿斯卡里', 'coulthard': '库塔德',
+    'alan jones': '艾伦·琼斯', 'reutemann': '罗伊特曼', 'andretti': '安德雷蒂',
+    'massa': '马萨', 'jacques villeneuve': '雅克·维伦纽夫',
+    'gilles villeneuve': '吉尔斯·维伦纽夫', 'barrichello': '巴里切罗', 'berger': '伯格',
+    'hunt': '亨特', 'scheckter': '谢克特', 'peterson': '彼得森', 'webber': '韦伯',
+    'hulme': '休姆', 'ickx': '伊克斯', 'montoya': '蒙托亚', 'arnoux': '阿努',
+    'laffite': '拉菲特', 'rindt': '林特', 'surtees': '瑟蒂斯', 'patrese': '帕特雷塞',
+    'regazzoni': '雷加佐尼', 'john watson': '约翰·沃森', 'alboreto': '阿尔博雷托',
+    'farina': '法里纳', 'bruce mclaren': '布鲁斯·迈凯伦', 'gurney': '格尼',
+    'irvine': '欧文', 'fisichella': '费斯切拉', 'frentzen': '弗伦岑', 'hawthorn': '霍索恩',
+    'boutsen': '布特森', 'kovalainen': '科瓦莱宁', 'trulli': '特鲁利', 'alesi': '阿莱西',
+    'panis': '帕尼斯', 'maldonado': '马尔多纳多', 'kubica': '库比卡', 'nannini': '南尼尼',
+    'pironi': '皮罗尼', 'revson': '雷夫森', 'depailler': '德帕耶', 'tambay': '坦贝'
   };
   var TEAM_CN = {
     'mercedes': '梅赛德斯', 'red bull': '红牛', 'ferrari': '法拉利', 'mclaren': '迈凯伦',
     'aston martin': '阿斯顿·马丁', 'alpine': '阿尔派', 'williams': '威廉姆斯',
     'racing bulls': '红牛二队', 'rb': '红牛二队', 'haas': '哈斯', 'sauber': '索伯',
-    'audi': '奥迪', 'cadillac': '凯迪拉克', 'alfa romeo': '阿尔法罗密欧', 'alphatauri': '阿尔法托利'
+    'audi': '奥迪', 'cadillac': '凯迪拉克', 'alfa romeo': '阿尔法罗密欧', 'alphatauri': '阿尔法托利',
+    // constructors from before the current grid
+    'lotus': '莲花', 'renault': '雷诺', 'benetton': '贝纳通', 'tyrrell': '泰雷尔',
+    'brabham': '布拉汉姆', 'cooper': '库珀', 'vanwall': '万沃尔', 'ligier': '利吉耶',
+    'matra': '马特拉', 'maserati': '玛莎拉蒂', 'brawn': '布朗', 'jordan': '乔丹',
+    'honda': '本田', 'march': '马奇', 'bmw sauber': '宝马索伯', 'penske': '彭斯克',
+    'racing point': '赛点', 'hesketh': '赫斯基思', 'toro rosso': '红牛二队',
+    'stewart': '斯图尔特', 'porsche': '保时捷', 'wolf': '沃尔夫'
   };
   function driverCN(name) {
     var low = plain(name || '');
-    var k = Object.keys(DRIVER_CN).filter(function (x) { return low.indexOf(x) !== -1; })[0];
+    /* Longest key first. The table now holds 'schumacher' and 'ralf schumacher',
+       'rosberg' and 'keke rosberg' — taking the first match in insertion order
+       would name Ralf as Michael. None of the keys that were here before
+       contain one another, so nothing that read correctly changes. */
+    var k = Object.keys(DRIVER_CN).filter(function (x) { return low.indexOf(x) !== -1; })
+      .sort(function (a, b) { return b.length - a.length; })[0];
     return k ? DRIVER_CN[k] : (name || '');
   }
   function teamCN(name) {
@@ -4284,6 +4344,58 @@
     });
   }
 
+  /* ---------- on this day ----------
+     Every grand prix winner since 1950, filed by day of the year. A date with
+     no race on it borrows the nearest one within three days and says which,
+     rather than leaving a card that is blank for a third of the year. */
+  function f1History() {
+    return archiveGet('f1-history.json').then(function (d) {
+      return (d && d.days) || null;
+    }).catch(function () { return null; });
+  }
+
+  function histGpName(name) {
+    // the one race in the record that was never a grand prix
+    if (/indianapolis/i.test(name || '')) return '印第安纳波利斯 500';
+    return gpName(name);
+  }
+
+  function f1HistoryHTML(days) {
+    if (!days) return '';
+    function key(d) {
+      return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    var today = new Date();
+    var pick = null, offset = 0;
+    // today first, then a day either side, widening to three
+    var tries = [0, -1, 1, -2, 2, -3, 3];
+    for (var i = 0; i < tries.length; i++) {
+      var d = new Date(today);
+      d.setDate(d.getDate() + tries[i]);
+      if (days[key(d)] && days[key(d)].length) { pick = days[key(d)]; offset = tries[i]; break; }
+    }
+    if (!pick) return '';
+
+    var shown = new Date(today);
+    shown.setDate(shown.getDate() + offset);
+    var label = offset === 0 ? '历史上的今天'
+      : '历史上的 ' + (shown.getMonth() + 1) + '月' + shown.getDate() + '日';
+
+    var rows = pick.slice(0, 4).map(function (x) {
+      var ago = today.getFullYear() - x.y;
+      return '<div class="hist-row">' +
+        '<span class="hist-y">' + x.y + '</span>' +
+        '<span class="hist-body"><b>' + esc(driverCN(x.driver) || x.driver) + '</b> 赢下' +
+          esc(histGpName(x.race)) +
+          '<span class="hist-sub">' + esc(teamCN(String(x.team || '').split('-')[0]) || x.team) +
+          ' · ' + ago + ' 年前</span></span>' +
+        '</div>';
+    }).join('');
+
+    return '<div class="group-name">' + esc(label) + '</div>' +
+      '<div class="hist-card">' + rows + '</div>';
+  }
+
   function renderF1Fixtures() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
@@ -4338,7 +4450,7 @@
 
       host.innerHTML = f1ProgressHTML(evs, doneCount, standings) +
         (next ? f1HeroHTML(next, nextCircuit) : '') +
-        '<div id="f1Radio"></div>' +
+        '<div id="f1Radio"></div><div id="f1Hist"></div>' +
         '<div class="group-name">全年赛历</div>' + list;
 
       $('status').textContent = new Date(evs[0].date).getFullYear() + ' 赛季';
@@ -4356,6 +4468,11 @@
           if (match) label = gpName(match.name);
         }
         slot.innerHTML = f1RadioHTML(r, label);
+      });
+
+      f1History().then(function (days) {
+        var slot = document.getElementById('f1Hist');
+        if (slot && slot.isConnected) slot.innerHTML = f1HistoryHTML(days);
       });
 
       // the forecast arrives after the card, so it never holds the board up

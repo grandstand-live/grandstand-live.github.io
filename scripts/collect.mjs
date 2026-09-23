@@ -1546,6 +1546,114 @@ async function collectUfcBodies() {
   };
 }
 
+
+/* An infobox value runs to the next line that opens another field — not to
+   the next pipe, because {{flagicon|MON}} carries a pipe of its own and a
+   pipe-bounded read returned "{{flagicon" as every lap record holder. */
+function circuitField(text, field) {
+  const m = text.match(new RegExp('\|\s*' + field + '\s*=\s*([\s\S]*?)\n\s*(?:\||\}\})'));
+  return m ? m[1].trim() : '';
+}
+
+function circuitPlain(v) {
+  let s = String(v || '')
+    .replace(/<ref[^>]*\/>/g, '')
+    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, '');
+  // templates nest ({{cite web|...{{...}}...}}), so peel from the inside out
+  let prev;
+  do { prev = s; s = s.replace(/\{\{[^{}]*\}\}/g, ' '); } while (s !== prev);
+  return s
+    .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, '$1')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/'{2,}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* Fallback only. GeoData is asked first because an infobox coord can be an
+   empty shell that defers to Wikidata — Suzuka's is — while GeoData in turn
+   has no entry for Miami, whose template does carry the numbers. */
+function circuitCoord(text) {
+  const all = text.match(/\{\{coord\s*\|[^}]*\}\}/gi) || [];
+  for (const t of all) {
+    const p = t.replace(/^\{\{coord\s*\|/i, '').replace(/\}\}$/, '').split('|').map(s => s.trim());
+    const n = i => Number(p[i]);
+    let lat = null, lon = null;
+    if (/^[NS]$/i.test(p[3] || '') && /^[EW]$/i.test(p[7] || '')) {
+      lat = n(0) + n(1) / 60 + n(2) / 3600; lon = n(4) + n(5) / 60 + n(6) / 3600;
+      if (/S/i.test(p[3])) lat = -lat; if (/W/i.test(p[7])) lon = -lon;
+    } else if (/^[NS]$/i.test(p[2] || '') && /^[EW]$/i.test(p[5] || '')) {
+      lat = n(0) + n(1) / 60; lon = n(3) + n(4) / 60;
+      if (/S/i.test(p[2])) lat = -lat; if (/W/i.test(p[5])) lon = -lon;
+    } else if (/^-?[\d.]+$/.test(p[0] || '') && /^-?[\d.]+$/.test(p[1] || '')) {
+      lat = n(0); lon = n(1);
+    }
+    if (isFinite(lat) && isFinite(lon) && lat !== null) {
+      return { lat: +lat.toFixed(4), lon: +lon.toFixed(4) };
+    }
+  }
+  return null;
+}
+
+async function collectF1Circuits() {
+  const year = new Date().getUTCFullYear();
+  const board = await getJSON(
+    `https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=${year}`);
+  const wanted = new Map();
+  for (const ev of (board && board.events) || []) {
+    const c = ev.circuit;
+    if (c && c.id && c.fullName) wanted.set(String(c.id), c.fullName);
+  }
+  if (!wanted.size) return { skipped: 'no circuits on the calendar' };
+
+  const store = (await load('f1-circuits.json')) || { circuits: {} };
+  const todo = [...wanted].filter(([id]) => !store.circuits[id]);
+  if (!todo.length) return { circuits: Object.keys(store.circuits).length, added: 0 };
+
+  const headers = { 'user-agent': 'grandstand-live/1.0 (https://grandstand-live.github.io)' };
+  let added = 0;
+  const notes = [];
+  for (const [id, name] of todo.slice(0, MANUAL ? 30 : 8)) {
+    try {
+      const found = await getJSON(`${WIKI_API}?action=query&list=search&format=json` +
+        `&srlimit=1&srsearch=${encodeURIComponent(name + ' circuit')}`, headers);
+      const hit = ((found && found.query && found.query.search) || [])[0];
+      if (!hit) { notes.push(`${name} -> no wiki hit`); continue; }
+      const page = await getJSON(`${WIKI_API}?action=query&prop=revisions|coordinates` +
+        `&rvprop=content&rvslots=main&format=json&titles=${encodeURIComponent(hit.title)}`, headers);
+      const first = Object.values(((page && page.query) || {}).pages || {})[0] || {};
+      const body = ((((first.revisions || [])[0] || {}).slots || {}).main || {})['*'] || '';
+      if (!body) { notes.push(`${name} -> no wikitext`); continue; }
+      const geo = (first.coordinates || [])[0];
+
+      const num = (field, re) => { const m = circuitPlain(circuitField(body, field)).match(re); return m ? m[1] : ''; };
+      store.circuits[id] = {
+        name,
+        wiki: hit.title,
+        km: Number(num('length_km', /^([\d.]+)/)) || null,
+        turns: Number(num('turns', /^(\d+)/)) || null,
+        recordTime: num('record_time', /(\d+:\d{2}\.\d+)/),
+        recordDriver: circuitPlain(circuitField(body, 'record_driver')),
+        recordYear: num('record_year', /(\d{4})/),
+        coord: geo ? { lat: +(+geo.lat).toFixed(4), lon: +(+geo.lon).toFixed(4) } : circuitCoord(body)
+      };
+      added++;
+    } catch (err) {
+      notes.push(`${name} -> ${String(err.message || err).slice(0, 60)}`);
+    }
+  }
+
+  store.updatedAt = new Date().toISOString();
+  await save('f1-circuits.json', store);
+  return {
+    circuits: Object.keys(store.circuits).length,
+    added,
+    left: wanted.size - Object.keys(store.circuits).length,
+    tried: notes
+  };
+}
+
 const tasks = [
   ['lol', collectLol],
   ['cba', collectCba],
@@ -1555,6 +1663,7 @@ const tasks = [
   ['ufcFights', collectUfcFights],
   ['ufcDefence', collectUfcDefence],
   ['ufcBodies', collectUfcBodies],
+  ['f1Circuits', collectF1Circuits],
   ['boxing', collectBoxing],
   ['boxChampions', collectBoxChampions],
   ['boxers', collectBoxers]

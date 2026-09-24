@@ -1143,7 +1143,20 @@
   .tl-scale { stroke: var(--ink-2); stroke-width: 2; }
   /* ---- F1 compare: replay ---- */
   .rp { background: var(--surface-2); border-radius: 4px; padding: 8px 10px 10px; }
-  .rp .tm-base { stroke-width: 7; }
+  .rp .tm-base { stroke-width: 7; vector-effect: non-scaling-stroke; }
+  .rp.follow .tm-base { stroke-width: 14; opacity: .7; }
+  .rp-car, .rp-trail, .rp-lab, .rp-scale { vector-effect: non-scaling-stroke; }
+  .rp.follow .rp-trail { stroke-width: 2.5; opacity: .95; }
+  .rp-scale { stroke: var(--ink-2); stroke-width: 2; }
+  .rp-scale-t { fill: var(--muted); font-family: var(--narrow); }
+  .rp svg { overflow: hidden; }
+  .rp-modes { display: flex; justify-content: flex-end; gap: 2px; margin-bottom: 6px; }
+  .rp-mode {
+    font-family: var(--serif); font-size: 11.5px; font-weight: 600; color: var(--muted); cursor: pointer;
+    background: none; border: 1px solid var(--hairline); border-radius: 2px; padding: 3px 9px;
+  }
+  .rp-mode.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+  .rp-note { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
   .rp-car { stroke: var(--surface); stroke-width: 2; }
   .rp-lab {
     font-family: var(--serif); font-size: 11px; font-weight: 600; fill: var(--ink);
@@ -6078,6 +6091,8 @@
     cmpRp = {
       TA: TA, TB: TB, SA: SA, SB: SB, fit: fit, A: A, B: B, end: end,
       t: 0, playing: false, speed: 1, last: 0,
+      // the follow camera: centre and width in the map's own units, eased
+      mode: 'follow', cam: null, H: fit.H,
       // per-driver time→distance, on the common length, for the live gap
       tdA: TA.car.map(function (c) { return c.t; }), ddA: TA.car.map(function (c) { return c.d * SA.k; }),
       tdB: TB.car.map(function (c) { return c.t; }), ddB: TB.car.map(function (c) { return c.d * SB.k; })
@@ -6093,6 +6108,8 @@
     }
     return '<div class="cmp-sub" style="margin-top:12px">最快圈回放 <span>两辆车各按自己的时间从起跑线出发</span></div>' +
       '<div class="rp" id="rp">' +
+        '<div class="rp-modes"><button type="button" class="rp-mode on" data-mode="follow">跟车镜头</button>' +
+          '<button type="button" class="rp-mode" data-mode="full">全景</button></div>' +
         '<svg class="tm" viewBox="0 0 ' + CW + ' ' + fit.H.toFixed(0) + '" role="img" aria-label="' +
           esc(A.name + ' 与 ' + B.name + ' 最快圈回放') + '">' +
           '<path class="tm-base" d="' + telePath(track, fit) + '"/>' +
@@ -6102,9 +6119,11 @@
           // few metres apart are still two cars
           '<text class="rp-lab" data-f="labA">' + esc(A.name) + '</text>' +
           '<text class="rp-lab" data-f="labB">' + esc(B.name) + '</text>' +
+          '<line class="rp-scale" data-f="bar"/><text class="rp-scale-t" data-f="barT">50 米</text>' +
         '</svg>' +
         '<div class="rp-gap" data-f="gap">点播放开始</div>' +
         '<div class="rp-hud">' + side(A, 'a') + side(B, 'b') + '</div>' +
+        '<div class="rp-note">公开定位数据精度约 1 米，两条线相差不到 1 米的地方会重合，那不代表两人走线完全一样。</div>' +
         '<div class="rp-ctl">' +
           '<button type="button" class="rp-play" aria-label="播放">▶</button>' +
           '<input type="range" class="rp-scrub" min="0" max="' + end.toFixed(2) + '" step="0.01" value="0" aria-label="回放进度">' +
@@ -6120,16 +6139,51 @@
     if (!R || !root) return false;
     function f(k) { return root.querySelector('[data-f="' + k + '"]'); }
     var t = R.t;
+    var svg = root.querySelector('svg'), follow = R.mode === 'follow';
+    var pos = {
+      A: R.fit.p(rpPos(R.TA, Math.min(t, R.TA.dur))).map(Number),
+      B: R.fit.p(rpPos(R.TB, Math.min(t, R.TB.dur))).map(Number)
+    };
+    /* The camera sits between the two cars, about 250 m across, and widens
+       when they draw apart so both stay in frame. It eases toward where it
+       wants to be, so it glides rather than jitters; a scrub snaps it. */
+    var m1 = 10 * R.fit.s;   // one metre, in map units (positions are decimetres)
+    var z = 1, vb = [0, 0, CW, R.H];
+    if (follow) {
+      var cx = (pos.A[0] + pos.B[0]) / 2, cy = (pos.A[1] + pos.B[1]) / 2;
+      var apart = Math.sqrt(Math.pow(pos.A[0] - pos.B[0], 2) + Math.pow(pos.A[1] - pos.B[1], 2));
+      var want = Math.max(250 * m1, apart * 1.6 + 60 * m1);
+      var C = R.cam;
+      if (!C || R.snap) C = R.cam = { x: cx, y: cy, w: want };
+      else { C.x += (cx - C.x) * 0.3; C.y += (cy - C.y) * 0.3; C.w += (want - C.w) * 0.08; }
+      R.snap = false;
+      var vh = C.w * R.H / CW;
+      vb = [C.x - C.w / 2, C.y - vh / 2, C.w, vh];
+      z = C.w / CW;
+    }
+    svg.setAttribute('viewBox', vb.map(function (v) { return v.toFixed(2); }).join(' '));
+    var bar = f('bar'), barT = f('barT');
+    bar.style.display = barT.style.display = follow ? '' : 'none';
+    if (follow) {
+      var bx = vb[0] + 12 * z, by = vb[1] + vb[3] - 10 * z;
+      bar.setAttribute('x1', bx); bar.setAttribute('x2', bx + 50 * m1);
+      bar.setAttribute('y1', by); bar.setAttribute('y2', by);
+      barT.setAttribute('x', bx + 50 * m1 + 5 * z); barT.setAttribute('y', by + 4 * z);
+      barT.style.fontSize = (10 * z) + 'px';
+    }
     [['A', R.TA], ['B', R.TB]].forEach(function (x) {
       var T = x[1], tt = Math.min(t, T.dur);
-      var p = R.fit.p(rpPos(T, tt)), car = f('car' + x[0]);
+      var p = pos[x[0]], car = f('car' + x[0]);
+      car.setAttribute('r', 6 * z);
       car.setAttribute('cx', p[0]); car.setAttribute('cy', p[1]);
       var lab = f('lab' + x[0]);
-      lab.setAttribute('x', Number(p[0]) + 9);
-      lab.setAttribute('y', Number(p[1]) + (x[0] === 'A' ? -8 : 15));
-      // the last two and a half seconds behind the car
+      lab.setAttribute('x', p[0] + 9 * z);
+      lab.setAttribute('y', p[1] + (x[0] === 'A' ? -8 : 15) * z);
+      lab.style.fontSize = (11 * z) + 'px';   // a style, since the stylesheet's size would beat an attribute
+      // the line each car has driven: fifteen seconds of it close up, enough
+      // to fill the frame; two and a half on the whole map
       var pts = [];
-      for (var s = Math.max(0, tt - 2.5); s < tt; s += 0.1) pts.push(R.fit.p(rpPos(T, s)));
+      for (var s = Math.max(0, tt - (follow ? 15 : 2.5)); s < tt; s += 0.1) pts.push(R.fit.p(rpPos(T, s)));
       pts.push(p);
       f('trail' + x[0]).setAttribute('d', pts.length > 1 ? pts.map(function (q, i) {
         return (i ? 'L' : 'M') + q[0] + ' ' + q[1];
@@ -6156,6 +6210,7 @@
       var behind = aHead ? R.SB.tAt(dA) - t : R.SA.tAt(dB) - t;
       gap.innerHTML = '<b>' + esc(aHead ? R.A.name : R.B.name) + '</b> 领先 ' + Math.max(0, behind).toFixed(3) + ' 秒';
     }
+    root.classList.toggle('follow', follow);
     root.querySelector('.rp-scrub').value = t.toFixed(2);
     return true;
   }
@@ -11308,6 +11363,14 @@ O
   $('panel-fixtures').addEventListener('click', function (e) {
     if (!cmpRp || !e.target.closest) return;
     if (e.target.closest('.rp-play')) { rpSet(!cmpRp.playing); return; }
+    var md = e.target.closest('.rp-mode');
+    if (md) {
+      cmpRp.mode = md.dataset.mode;
+      cmpRp.snap = true;
+      [].forEach.call(md.parentNode.children, function (b) { b.classList.toggle('on', b === md); });
+      rpDraw();
+      return;
+    }
     var sp = e.target.closest('.rp-sp');
     if (!sp) return;
     cmpRp.speed = Number(sp.dataset.sp) || 1;
@@ -11317,6 +11380,7 @@ O
     if (!cmpRp || !e.target.classList.contains('rp-scrub')) return;
     cmpRp.t = Number(e.target.value) || 0;
     cmpRp.last = 0;
+    cmpRp.snap = true;
     rpDraw();
   });
 

@@ -1093,6 +1093,33 @@
     font-family: var(--serif); font-size: 12.5px; font-weight: 600; color: var(--accent);
     background: none; border: 1px solid var(--hairline-strong); border-radius: 14px;
   }
+  /* ---- F1 compare: tyres ---- */
+  .ty-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .ty-k {
+    width: 66px; flex-shrink: 0; display: flex; align-items: center; gap: 4px;
+    font-family: var(--serif); font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden;
+  }
+  .ty-track { position: relative; flex: 1; height: 16px; background: var(--surface-2); border-radius: 3px; }
+  .ty-track .ty { position: absolute; top: 0; bottom: 0; border-radius: 3px; box-shadow: 0 0 0 1px var(--surface); }
+  .ty {
+    display: inline-flex; align-items: center; justify-content: center;
+    font-style: normal; font-family: var(--narrow); font-size: 10px; font-weight: 700;
+  }
+  .ty-legend .ty, .ty-pace .ty { width: 16px; height: 16px; border-radius: 50%; }
+  /* Pirelli's compound colours: the one place colour is the sport's own code */
+  .ty.s { background: #E8413C; color: #fff; }
+  .ty.m { background: #E3C534; color: #1b1a17; }
+  .ty.h { background: #DDE2E0; color: #1b1a17; outline: 1px solid var(--hairline-strong); outline-offset: -1px; }
+  .ty.i { background: #3FA34D; color: #fff; }
+  .ty.w { background: #2F6FD0; color: #fff; }
+  .ty.u { background: #8A9491; color: #fff; }
+  .ty-axis {
+    display: flex; justify-content: space-between; margin-left: 74px;
+    font-family: var(--narrow); font-size: 9.5px; color: var(--muted);
+  }
+  .ty-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 11.5px; color: var(--ink-2); }
+  .ty-legend span { display: flex; align-items: center; gap: 5px; }
+  .ty-pace .cmp-st em { font-style: normal; font-size: 10.5px; color: var(--muted); margin-left: 4px; }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -5022,10 +5049,13 @@
         (r[1] || []).forEach(function (x) { res[x.driver_number] = x; });
         return Promise.all([
           na != null ? of1('laps?session_key=' + sk + '&driver_number=' + na) : null,
-          nb != null ? of1('laps?session_key=' + sk + '&driver_number=' + nb) : null
-        ]).then(function (laps) {
+          nb != null ? of1('laps?session_key=' + sk + '&driver_number=' + nb) : null,
+          na != null ? of1('stints?session_key=' + sk + '&driver_number=' + na) : null,
+          nb != null ? of1('stints?session_key=' + sk + '&driver_number=' + nb) : null
+        ]).then(function (r) {
+          var laps = [r[0], r[1]];
           return cmpLapHTML(session, [na != null ? res[na] : null, nb != null ? res[nb] : null],
-            laps, [na, nb], nA, nB);
+            laps, [na, nb], nA, nB) + cmpTyreHTML(session, laps, [r[2], r[3]], nA, nB);
         });
       });
   }
@@ -5561,6 +5591,92 @@
     if (!mate || mate === B.key || !sel) return '';
     if (![].some.call(sel.options, function (o) { return o.value === mate; })) return '';
     return '<button type="button" class="cmp-mate" data-key="' + esc(mate) + '">和队友' + esc(mate) + '比</button>';
+  }
+
+  /* ---- tyres ----
+     Each driver's stints across the session, in Pirelli's own compound
+     colours with the letter on the band, so the compound never rests on
+     colour alone. Then pace per stint: the average of a stint's clean laps,
+     which in practice is the long-run read everyone looks for on Friday. */
+  // the race detail's tyre table already names the compounds; this adds a letter
+  function cmpTy(c) {
+    var k = String(c || '').toUpperCase();
+    var cls = { SOFT: 's', MEDIUM: 'm', HARD: 'h', INTERMEDIATE: 'i', WET: 'w' }[k] || 'u';
+    return [cls, cls === 'u' ? '?' : k.charAt(0), tyre(k).n];
+  }
+
+  function cmpTyreHTML(session, laps, stints, nA, nB) {
+    var st = [stints[0] || [], stints[1] || []];
+    if (!st[0].length && !st[1].length) return '';
+    var isRace = /^(Race|Sprint)$/.test(session.session_name);
+    var isQual = /Qualifying|Shootout/.test(session.session_name);
+    var maxLap = 1;
+    [0, 1].forEach(function (k) {
+      st[k].forEach(function (s) { maxLap = Math.max(maxLap, s.lap_end || s.lap_start || 1); });
+      (laps[k] || []).forEach(function (l) { maxLap = Math.max(maxLap, l.lap_number); });
+    });
+    var used = {};
+    function row(k, name, cls) {
+      var last = 0;
+      (laps[k] || []).forEach(function (l) { last = Math.max(last, l.lap_number); });
+      var bands = st[k].slice().sort(function (a, b) { return a.stint_number - b.stint_number; })
+        .map(function (s) {
+          var t = cmpTy(s.compound);
+          used[t[1]] = t;
+          var from = (s.lap_start || 1) - 1, to = s.lap_end || last || s.lap_start;
+          var w = Math.max(0, to - from) / maxLap * 100;
+          return '<i class="ty ' + t[0] + '" style="left:' + (from / maxLap * 100).toFixed(2) + '%;width:' +
+            w.toFixed(2) + '%" title="' + esc(t[2] + ' · 第 ' + (from + 1) + '–' + to + ' 圈' +
+              (s.tyre_age_at_start ? ' · 旧胎 ' + s.tyre_age_at_start + ' 圈起' : ' · 新胎')) + '">' +
+            (w > 7 ? t[1] : '') + '</i>';
+        }).join('');
+      return '<div class="ty-row"><span class="ty-k"><i class="sw ' + cls + '"></i>' + esc(name) + '</span>' +
+        '<span class="ty-track">' + bands + '</span></div>';
+    }
+    var html = '<div class="cmp-sub" style="margin-top:12px">轮胎策略</div>' +
+      row(0, nA, 'a') + row(1, nB, 'b') +
+      '<div class="ty-axis"><span>第 1 圈</span><span>第 ' + maxLap + ' 圈</span></div>' +
+      '<div class="ty-legend">' + Object.keys(used).map(function (k) {
+        return '<span><i class="ty ' + used[k][0] + '">' + used[k][1] + '</i>' + esc(used[k][2]) + '</span>';
+      }).join('') + '</div>';
+    if (isQual) return html;
+
+    // clean laps only: no out-laps, nothing past 107% of the driver's best
+    function pace(k) {
+      var ls = (laps[k] || []).filter(function (l) { return l.lap_duration && !l.is_pit_out_lap; });
+      if (!ls.length) return [];
+      var best = Math.min.apply(null, ls.map(function (l) { return l.lap_duration; }));
+      return st[k].map(function (s) {
+        var to = s.lap_end || 999;
+        var run = ls.filter(function (l) {
+          return l.lap_number >= s.lap_start && l.lap_number <= to && l.lap_duration <= best * 1.07;
+        });
+        if (run.length < (isRace ? 3 : 4)) return null;
+        var avg = run.reduce(function (a, l) { return a + l.lap_duration; }, 0) / run.length;
+        return { c: s.compound, n: run.length, avg: avg, from: s.lap_start };
+      }).filter(Boolean);
+    }
+    var pa = pace(0), pb = pace(1);
+    if (!pa.length && !pb.length) return html;
+    // one line per compound: each driver's longest run on it
+    var comps = {};
+    pa.concat(pb).forEach(function (p) { comps[p.c] = 1; });
+    function longest(list, c) {
+      return list.filter(function (p) { return p.c === c; }).sort(function (a, b) { return b.n - a.n; })[0];
+    }
+    var rows = Object.keys(comps).map(function (c) {
+      var a = longest(pa, c), b = longest(pb, c), t = cmpTy(c);
+      function cell(p, o) {
+        if (!p) return '<span>—</span>';
+        var lead = o && p.avg < o.avg;
+        return '<span class="' + (lead ? 'lead' : '') + '">' + esc(f1Lap(p.avg)) + '<em>' + p.n + ' 圈</em></span>';
+      }
+      return '<div class="cmp-st">' + cell(a, b) +
+        '<span class="k"><i class="ty ' + t[0] + '">' + t[1] + '</i></span>' + cell(b, a) + '</div>';
+    }).join('');
+    return html + '<div class="cmp-sub" style="margin-top:12px">' + (isRace ? '每种胎的平均圈速' : '长距离节奏') +
+      ' <span>' + (isRace ? '同一段里的干净圈' : '同一套胎 4 圈以上干净圈') + '，油量不同，仅作参考</span></div>' +
+      '<div class="cmp-stats ty-pace">' + rows + '</div>';
   }
 
   /* ---- the block ---- */

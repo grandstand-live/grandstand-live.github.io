@@ -1069,6 +1069,30 @@
     display: flex; justify-content: space-between; margin-top: 2px;
     font-family: var(--narrow); font-size: 9.5px; color: var(--muted);
   }
+  /* ---- F1 compare: qualifying gap, circuit, teammate ---- */
+  .qbar.a { fill: var(--ser-a); }
+  .qbar.b { fill: var(--ser-b); }
+  .cmp-grid.zero { stroke: var(--hairline-strong); }
+  .cmp-dot.d { display: none; }
+  .cmp-tip .cmp-tip-f { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .trk {
+    display: grid; align-items: center; margin-top: 8px;
+    font-family: var(--narrow); font-size: 12.5px; font-variant-numeric: tabular-nums;
+    border-top: 1px solid var(--hairline);
+  }
+  .trk > span { padding: 6px 2px; border-bottom: 1px solid var(--hairline); text-align: center; color: var(--ink-2); }
+  .trk .trk-k {
+    text-align: left; display: flex; align-items: center; gap: 4px; min-width: 0;
+    font-family: var(--serif); font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden;
+  }
+  .trk .trk-y { color: var(--muted); font-size: 11px; }
+  .trk .lead { color: var(--ink); font-weight: 700; }
+  .trk .out, .trk .none { color: var(--muted); }
+  .cmp-mate {
+    display: block; margin: 10px auto 0; padding: 6px 14px; cursor: pointer;
+    font-family: var(--serif); font-size: 12.5px; font-weight: 600; color: var(--accent);
+    background: none; border: 1px solid var(--hairline-strong); border-radius: 14px;
+  }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -4704,14 +4728,38 @@
      and finishing positions for every round; ESPN's standings carry the
      points per round; OpenF1 has the laps. */
   var JOLPICA = 'https://api.jolpi.ca/ergast/f1/';
-  var jolQueue = Promise.resolve();
-
-  // Jolpica allows a few requests a second, so they go out one at a time
+  /* Jolpica allows four requests a second but takes one to three seconds to
+     answer each, so one at a time made the career wait half a minute. Three
+     in flight, starts spaced 260 ms apart, keeps under the limit. Answers
+     are kept for the page's life, so switching back to a driver is free. */
+  var jolActive = 0, jolWaiting = [], jolLast = 0, jolTimer = null;
+  function jolPump() {
+    while (jolActive < 3 && jolWaiting.length) {
+      var gap = jolLast + 260 - Date.now();
+      if (gap > 0) {
+        if (!jolTimer) jolTimer = setTimeout(function () { jolTimer = null; jolPump(); }, gap);
+        return;
+      }
+      jolActive++;
+      jolLast = Date.now();
+      jolWaiting.shift()();
+    }
+  }
   function jolpica(path) {
-    var run = jolQueue.then(function () {
-      return of1Fetch(JOLPICA + path, 0);
+    var key = 'jol:' + path;
+    if (f1Cache[key]) return f1Cache[key];
+    var run = new Promise(function (resolve) {
+      jolWaiting.push(function () {
+        of1Fetch(JOLPICA + path, 0).then(function (d) {
+          jolActive--;
+          if (!d) delete f1Cache[key];   // a failure can be asked again
+          resolve(d);
+          jolPump();
+        });
+      });
+      jolPump();
     });
-    jolQueue = run.then(function () { return wait(260); });
+    f1Cache[key] = run;
     return run;
   }
 
@@ -4729,8 +4777,11 @@
             if (have) have[field] = have[field].concat(r[field] || []);
             else byRound[r.round] = r;
           });
-          var seen = offset + Number(m.limit || 100);
-          return seen < Number(m.total || 0) ? page(seen) : null;
+          // the first page gives the total; the rest go out together
+          if (offset) return null;
+          var size = Number(m.limit || 100), rest = [];
+          for (var o = size; o < Number(m.total || 0); o += size) rest.push(page(o));
+          return Promise.all(rest);
         });
     }
     return page(0).then(function () {
@@ -4742,6 +4793,7 @@
   function f1SeasonDetail() {
     if (f1Cache.detail) return f1Cache.detail;
     var y = new Date().getFullYear();
+    f1Schedule();
     f1Cache.detail = Promise.all([
       jolpicaAll(y + '/results/', 'Results'),
       jolpicaAll(y + '/qualifying/', 'QualifyingResults')
@@ -4884,7 +4936,7 @@
     if (!c) return;
     var box = el.getBoundingClientRect();
     var x = (clientX - box.left) / box.width * CW;
-    var i = c.n < 2 ? 0 : Math.round((x - CPL) / (CW - CPL - CPR) * (c.n - 1));
+    var i = c.pick ? c.pick(x) : c.n < 2 ? 0 : Math.round((x - CPL) / (CW - CPL - CPR) * (c.n - 1));
     i = Math.max(0, Math.min(c.n - 1, i));
     // settle on the nearest lap either driver has a time for
     function has(k) { return c.series.some(function (s) { return s.vals[k] != null; }); }
@@ -4907,7 +4959,7 @@
       rows += '<div><i class="sw ' + s.cls + '"></i>' + esc(s.name) +
         '<b>' + (v == null ? '—' : esc(c.fmt.tip(v))) + '</b></div>';
     });
-    tip.innerHTML = '<div class="cmp-tip-h">' + esc(c.tipX(i)) + '</div>' + rows;
+    tip.innerHTML = '<div class="cmp-tip-h">' + esc(c.tipX(i)) + '</div>' + (c.rows ? c.rows(i) : rows);
     tip.hidden = false;
     // keep the tooltip on the far side of the crosshair, inside the chart
     var px = c.X(i) / CW * box.width;
@@ -5098,7 +5150,8 @@
       '<div class="ch-mid"><b>' + ptsA + '</b><span>积分</span><b>' + ptsB + '</b></div>' +
       side(B, true) + '</div>' +
       '<div class="ch-bar"><i class="a" style="flex:' + (ptsA || 0.0001) + '"></i>' +
-        '<i class="b" style="flex:' + (ptsB || 0.0001) + '"></i></div>';
+        '<i class="b" style="flex:' + (ptsB || 0.0001) + '"></i></div>' +
+      cmpMateHTML(A, B, grid);
   }
 
   // the fight card's tug-of-war bar, each side's share of the two together
@@ -5189,6 +5242,327 @@
       '<div class="cmp-sub"><span>缺口是退赛或未出赛</span></div>';
   }
 
+  /* ---- qualifying gap, this circuit, the career ---- */
+  // the board's own round number for a race, found by its date
+  function cmpRoundOf(evs, date) {
+    var t = new Date(date).getTime();
+    for (var i = 0; i < evs.length; i++) {
+      var d = new Date((raceOf(evs[i]) || {}).date || evs[i].date).getTime();
+      if (Math.abs(d - t) < 2 * 86400000) return i;
+    }
+    return -1;
+  }
+
+  function qSec(t) {
+    var m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim());
+    return m ? Number(m[1] || 0) * 60 + Number(m[2]) : null;
+  }
+
+  /* Each round's gap in the last part both reached — Q3 against Q3, else Q2,
+     else Q1 — which is how a qualifying head to head is scored. Positive
+     means the left-hand driver was quicker. */
+  function cmpQualGaps(detail, ka, kb, evs) {
+    var out = [];
+    (detail.qual || []).forEach(function (r) {
+      var a = null, b = null;
+      (r.QualifyingResults || []).forEach(function (x) {
+        var k = jolKey(x.Driver);
+        if (k === ka) a = x; else if (k === kb) b = x;
+      });
+      if (!a || !b) return;
+      var parts = ['Q3', 'Q2', 'Q1'];
+      for (var i = 0; i < parts.length; i++) {
+        var ta = qSec(a[parts[i]]), tb = qSec(b[parts[i]]);
+        if (!ta || !tb) continue;
+        var idx = cmpRoundOf(evs, r.date);
+        out.push({
+          x: idx >= 0 ? 'R' + (idx + 1) : 'R?', name: idx >= 0 ? gpName(evs[idx].name) : r.raceName,
+          part: parts[i], a: ta, b: tb, gap: tb - ta
+        });
+        break;
+      }
+    });
+    return out;
+  }
+
+  function cmpQualGapHTML(gaps, A, B) {
+    if (gaps.length < 2) return '';
+    var abs = gaps.map(function (g) { return Math.abs(g.gap); });
+    var sorted = gaps.map(function (g) { return g.gap; }).sort(function (x, y) { return x - y; });
+    var mid = sorted.length >> 1;
+    var med = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    var medAbs = abs.slice().sort(function (x, y) { return x - y; })[abs.length >> 1];
+    /* A wet session can put two seconds between teammates; on a scale that
+       wide every dry round is a sliver. The scale follows the typical gap,
+       and a bar past it is cut at the edge — its tooltip keeps the number. */
+    var scale = Math.min(Math.max.apply(null, abs), Math.max(0.3, medAbs * 4)) || 0.1;
+    var clipped = abs.some(function (v) { return v > scale; });
+
+    var H = 150, T = 10, BM = 20, n = gaps.length;
+    var slot = (CW - CPL - CPR) / n, bw = Math.max(2, slot - 2);
+    function X(i) { return CPL + slot * i + slot / 2; }
+    function Y(v) {
+      var c = Math.max(-scale, Math.min(scale, v));
+      return T + (1 - (c + scale) / (2 * scale)) * (H - T - BM);
+    }
+    var grid = [scale, 0, -scale].map(function (v) {
+      var y = Y(v).toFixed(1);
+      return '<line class="cmp-grid' + (v === 0 ? ' zero' : '') + '" x1="' + CPL + '" x2="' + (CW - CPR) +
+        '" y1="' + y + '" y2="' + y + '"/><text class="cmp-ax" x="' + (CPL - 5) + '" y="' + (Number(y) + 3) +
+        '" text-anchor="end">' + (v === 0 ? '0' : Math.abs(v).toFixed(2)) + '</text>';
+    }).join('');
+    var step = Math.max(1, Math.ceil(n / 6)), xl = '';
+    for (var i = 0; i < n; i += step) {
+      xl += '<text class="cmp-ax" x="' + X(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(gaps[i].x) + '</text>';
+    }
+    var bars = gaps.map(function (g, k) {
+      var y0 = Y(0), y1 = Y(g.gap);
+      return '<rect class="qbar ' + (g.gap >= 0 ? 'a' : 'b') + '" x="' + (X(k) - bw / 2).toFixed(1) +
+        '" y="' + Math.min(y0, y1).toFixed(1) + '" width="' + bw.toFixed(1) +
+        '" height="' + Math.max(1, Math.abs(y1 - y0)).toFixed(1) + '" rx="1.5"/>';
+    }).join('');
+
+    cmpCharts.qgap = {
+      n: n, X: X, Y: Y, xs: gaps.map(function (g) { return g.x; }),
+      series: [{ name: '', cls: 'd', vals: gaps.map(function (g) { return g.gap; }) }],
+      fmt: {}, tipX: function (k) { return gaps[k].x + ' · ' + gaps[k].name; },
+      pick: function (x) { return Math.max(0, Math.min(n - 1, Math.floor((x - CPL) / slot))); },
+      rows: function (k) {
+        var g = gaps[k];
+        return '<div><i class="sw a"></i>' + esc(A.name) + '<b>' + esc(f1Lap(g.a)) + '</b></div>' +
+          '<div><i class="sw b"></i>' + esc(B.name) + '<b>' + esc(f1Lap(g.b)) + '</b></div>' +
+          '<div class="cmp-tip-f">' + g.part + ' · ' + esc(g.gap >= 0 ? A.name : B.name) + ' 快 ' +
+            Math.abs(g.gap).toFixed(3) + ' 秒</div>';
+      }
+    };
+    return '<div class="cmp-sub" style="margin-top:12px">排位成绩差距 <span>比两人都跑到的最后一节</span></div>' +
+      '<div class="cmp-gap">中位数：<b>' + esc(med >= 0 ? A.name : B.name) + '</b> 快 <b>' +
+        Math.abs(med).toFixed(3) + '</b> 秒 · ' + n + ' 站</div>' +
+      '<div class="cmp-legend"><span><i class="sw a"></i>' + esc(A.name) + ' 更快</span>' +
+        '<span><i class="sw b"></i>' + esc(B.name) + ' 更快</span></div>' +
+      '<div class="cmp-chart" data-chart="qgap"><svg viewBox="0 0 ' + CW + ' ' + H + '" role="img" aria-label="' +
+        esc(A.name + ' 与 ' + B.name + ' 每站排位差距') + '">' + grid + xl + bars +
+        '<line class="cmp-cross" x1="0" x2="0" y1="' + T + '" y2="' + (H - BM) + '" visibility="hidden"/>' +
+        '<circle class="cmp-dot d" r="4" visibility="hidden"/>' +
+      '</svg><div class="cmp-tip" hidden></div></div>' +
+      (clipped ? '<div class="cmp-sub"><span>超出刻度的柱子截在边上，点开能看实际差距</span></div>' : '');
+  }
+
+  function jolDriverId(detail, key) {
+    var id = '';
+    (detail.results || []).some(function (r) {
+      return (r.Results || []).some(function (x) {
+        if (jolKey(x.Driver) !== key) return false;
+        id = x.Driver.driverId;
+        return true;
+      });
+    });
+    return id;
+  }
+  function jolTotal(path) {
+    return jolpica(path + '?limit=1').then(function (d) {
+      return d && d.MRData ? Number(d.MRData.total) || 0 : null;
+    });
+  }
+  function f1Schedule() {
+    if (!f1Cache.sched) {
+      f1Cache.sched = jolpica(new Date().getFullYear() + '/?limit=100').then(function (d) {
+        return (d && d.MRData && d.MRData.RaceTable && d.MRData.RaceTable.Races) || [];
+      });
+    }
+    return f1Cache.sched;
+  }
+  // this weekend's grand prix, or the next one — the same pick as the hero card
+  function cmpNextEv(evs) {
+    var now = Date.now();
+    return evs.filter(function (e) {
+      var st = (e.status && e.status.type) || {};
+      return st.state !== 'post' &&
+        new Date((raceOf(e) || {}).date || e.date).getTime() >= now - 6 * 3600000;
+    })[0] || null;
+  }
+
+  /* ---- this circuit ---- */
+  function cmpTrackFill(detail, evs, A, B, seq) {
+    var slot = document.getElementById('cmpTrack');
+    if (!slot) return;
+    var ev = cmpNextEv(evs);
+    var ia = jolDriverId(detail, A.key), ib = jolDriverId(detail, B.key);
+    if (!ev) { slot.innerHTML = '<div class="cmp-none">赛季已经结束。</div>'; return; }
+    if (!ia || !ib) { slot.innerHTML = '<div class="cmp-none">这条赛道的历史没取到。</div>'; return; }
+    var t = new Date((raceOf(ev) || {}).date || ev.date).getTime();
+    return f1Schedule().then(function (races) {
+      var race = races.filter(function (r) { return Math.abs(new Date(r.date).getTime() - t) < 2 * 86400000; })[0];
+      var cid = race && race.Circuit && race.Circuit.circuitId;
+      if (!cid) return null;
+      return Promise.all([ia, ib].map(function (id) {
+        return jolpica('circuits/' + cid + '/drivers/' + id + '/results/?limit=100').then(function (d) {
+          return ((d && d.MRData && d.MRData.RaceTable && d.MRData.RaceTable.Races) || []).map(function (r) {
+            return { y: Number(r.season), x: (r.Results || [])[0] || {} };
+          });
+        });
+      }));
+    }).then(function (r) {
+      if (seq !== cmpSeq) return;
+      var now = document.getElementById('cmpTrack');
+      if (!now) return;
+      now.innerHTML = r ? cmpTrackHTML(r[0], r[1], A, B, gpName(ev.name))
+        : '<div class="cmp-none">这条赛道的历史没取到。</div>';
+    });
+  }
+
+  function cmpTrackHTML(ra, rb, A, B, gp) {
+    if (!ra.length && !rb.length) {
+      return '<div class="cmp-none">两人都还没在' + esc(gp) + '跑过。</div>';
+    }
+    function done(x) { return /^\d+$/.test(x.positionText || ''); }
+    function sum(rs) {
+      var fin = rs.filter(function (r) { return done(r.x); }).map(function (r) { return Number(r.x.position); });
+      return {
+        starts: rs.length,
+        wins: fin.filter(function (p) { return p === 1; }).length,
+        pod: fin.filter(function (p) { return p <= 3; }).length,
+        best: fin.length ? Math.min.apply(null, fin) : null
+      };
+    }
+    var sa = sum(ra), sb = sum(rb);
+    var byA = {}, byB = {}, years = {};
+    ra.forEach(function (r) { byA[r.y] = r.x; years[r.y] = 1; });
+    rb.forEach(function (r) { byB[r.y] = r.x; years[r.y] = 1; });
+    var ys = Object.keys(years).map(Number).sort(function (x, y) { return y - x; }).slice(0, 6);
+    function cell(x, other) {
+      if (!x) return '<span class="none">—</span>';
+      if (!done(x)) return '<span class="out">退赛</span>';
+      var lead = other && done(other) && Number(x.position) < Number(other.position);
+      return '<span class="' + (lead ? 'lead' : '') + '">P' + esc(x.position) + '</span>';
+    }
+    var cols = ' style="grid-template-columns:66px repeat(' + ys.length + ', 1fr)"';
+    return '<div class="cmp-sub">' + esc(gp) + ' · 以往正赛</div>' +
+      cmpBar('出赛', sa.starts, sb.starts) +
+      cmpBar('领奖台', sa.pod, sb.pod) +
+      cmpBar('分站冠军', sa.wins, sb.wins) +
+      '<div class="cmp-stats"><div class="cmp-st"><span>' + (sa.best ? 'P' + sa.best : '—') +
+        '</span><span class="k">最好名次</span><span>' + (sb.best ? 'P' + sb.best : '—') + '</span></div></div>' +
+      '<div class="trk"' + cols + '><span class="trk-k"></span>' +
+        ys.map(function (y) { return '<span class="trk-y">' + y + '</span>'; }).join('') +
+        '<span class="trk-k"><i class="sw a"></i>' + esc(A.name) + '</span>' +
+        ys.map(function (y) { return cell(byA[y], byB[y]); }).join('') +
+        '<span class="trk-k"><i class="sw b"></i>' + esc(B.name) + '</span>' +
+        ys.map(function (y) { return cell(byB[y], byA[y]); }).join('') +
+      '</div>' + (Object.keys(years).length > 6 ? '<div class="cmp-sub"><span>表里是最近 6 年</span></div>' : '');
+  }
+
+  /* ---- the career ----
+     Totals are a single count each (limit=1 and read the total). Jolpica
+     will not list one driver's standings across seasons, so titles come
+     from each season's final table — and a finished season never changes,
+     so each is fetched once and kept on the device for good. */
+  function cmpCareer(id) {
+    var key = 'f1Career:' + id, day = new Date().toDateString();
+    var have = lsGet(key, null);
+    if (have && have.day === day) return Promise.resolve(have.v);
+    var p = 'drivers/' + id + '/';
+    return Promise.all([
+      jolTotal(p + 'results/'), jolTotal(p + 'results/1/'), jolTotal(p + 'results/2/'),
+      jolTotal(p + 'results/3/'), jolTotal(p + 'qualifying/1/'),
+      jolpica(p + 'seasons/?limit=100')
+    ]).then(function (r) {
+      var seasons = ((r[5] && r[5].MRData && r[5].MRData.SeasonTable && r[5].MRData.SeasonTable.Seasons) || [])
+        .map(function (s) { return Number(s.season); });
+      if (r.slice(0, 5).some(function (x) { return x == null; }) || !seasons.length) return null;
+      var v = { starts: r[0], wins: r[1], pod: r[1] + r[2] + r[3], poles: r[4], seasons: seasons };
+      lsSet(key, { day: day, v: v });
+      return v;
+    });
+  }
+
+  function f1FinalStandings(years) {
+    var store = lsGet('f1Final', {}) || {};
+    var y0 = new Date().getFullYear();
+    var need = years.filter(function (y) { return y < y0 && !store[y]; });
+    return Promise.all(need.map(function (y) {
+      return jolpica(y + '/driverStandings/?limit=100').then(function (d) {
+        var L = d && d.MRData && d.MRData.StandingsTable && d.MRData.StandingsTable.StandingsLists[0];
+        if (!L) return;
+        var m = {};
+        (L.DriverStandings || []).forEach(function (x) { m[x.Driver.driverId] = Number(x.position); });
+        store[y] = m;
+      });
+    })).then(function () {
+      if (need.length) lsSet('f1Final', store);
+      return store;
+    });
+  }
+
+  function cmpCareerFill(detail, A, B, seq) {
+    var ia = jolDriverId(detail, A.key), ib = jolDriverId(detail, B.key);
+    var slot = document.getElementById('cmpCareer');
+    if (!slot) return;
+    if (!ia || !ib) { slot.innerHTML = '<div class="cmp-none">生涯数据没取到。</div>'; return; }
+    Promise.all([cmpCareer(ia), cmpCareer(ib)]).then(function (c) {
+      if (!c[0] || !c[1]) return [c, null];
+      var ys = {};
+      c[0].seasons.concat(c[1].seasons).forEach(function (y) { ys[y] = 1; });
+      return f1FinalStandings(Object.keys(ys).map(Number)).then(function (fin) { return [c, fin]; });
+    }).then(function (r) {
+      if (seq !== cmpSeq) return;
+      var now = document.getElementById('cmpCareer');
+      if (!now) return;
+      now.innerHTML = r[1] ? cmpCareerHTML(r[0][0], r[0][1], r[1], ia, ib, A, B)
+        : '<div class="cmp-none">生涯数据没取到，稍后再试。</div>';
+    });
+  }
+
+  function cmpCareerHTML(ca, cb, fin, ia, ib, A, B) {
+    var y0 = new Date().getFullYear();
+    function titles(c, id) {
+      return c.seasons.filter(function (y) { return fin[y] && fin[y][id] === 1; }).length;
+    }
+    // the season under way reads from the live standings, marked as such
+    function rank(e) {
+      var s = ((e && e.stats) || []).filter(function (x) { return x.name === 'rank'; })[0];
+      return s ? Number(s.displayValue) || null : null;
+    }
+    var html = cmpBar('世界冠军', titles(ca, ia), titles(cb, ib)) +
+      cmpBar('分站冠军', ca.wins, cb.wins) +
+      cmpBar('杆位', ca.poles, cb.poles) +
+      cmpBar('领奖台', ca.pod, cb.pod) +
+      cmpBar('出赛', ca.starts, cb.starts) +
+      cmpBar('赛季', ca.seasons.length, cb.seasons.length) +
+      '<div class="acc-row" style="margin-top:8px">' + accRing(ca.wins, ca.starts) +
+        '<span class="acc-mid">胜率</span>' + accRing(cb.wins, cb.starts, true) + '</div>' +
+      '<div class="acc-row">' + accRing(ca.pod, ca.starts) +
+        '<span class="acc-mid">领奖台率</span>' + accRing(cb.pod, cb.starts, true) + '</div>';
+
+    var first = Math.min(ca.seasons[0], cb.seasons[0]);
+    if (y0 - first < 1) return html;
+    var xs = [], va = [], vb = [], hi = 10;
+    for (var y = first; y <= y0; y++) {
+      var pa = y === y0 ? (ca.seasons.indexOf(y) !== -1 ? rank(A.entry) : null) : (fin[y] || {})[ia] || null;
+      var pb = y === y0 ? (cb.seasons.indexOf(y) !== -1 ? rank(B.entry) : null) : (fin[y] || {})[ib] || null;
+      xs.push(String(y)); va.push(pa); vb.push(pb);
+      hi = Math.max(hi, pa || 0, pb || 0);
+    }
+    return html + '<div class="cmp-sub" style="margin-top:12px">每季年终排名 <span>' + y0 + ' 为当前排名</span></div>' +
+      cmpLegend(A.name, B.name) + cmpChartHTML('car', xs, [
+        { name: A.name, cls: 'a', vals: va }, { name: B.name, cls: 'b', vals: vb }
+      ], {
+        y: function (v) { return 'P' + Math.round(v); }, tip: function (v) { return '第 ' + v + ' 名'; },
+        range: [1, hi], invert: true, dots: true, label: A.name + ' 与 ' + B.name + ' 每季年终排名'
+      }, function (i) { return xs[i] + ' 赛季' + (Number(xs[i]) === y0 ? '（进行中）' : ''); });
+  }
+
+  // one tap to the teammate, the comparison most people open this for
+  function cmpMateHTML(A, B, grid) {
+    var g = grid && grid[A.key];
+    if (!g) return '';
+    var mate = Object.keys(grid).filter(function (k) { return k !== A.key && grid[k].team === g.team; })[0];
+    var sel = document.getElementById('cmpB');
+    if (!mate || mate === B.key || !sel) return '';
+    if (![].some.call(sel.options, function (o) { return o.value === mate; })) return '';
+    return '<button type="button" class="cmp-mate" data-key="' + esc(mate) + '">和队友' + esc(mate) + '比</button>';
+  }
+
   /* ---- the block ---- */
   function cmpDriverList(standings) {
     var drv = ((standings && standings.children) || []).filter(function (c) {
@@ -5255,11 +5629,14 @@
 
     body.innerHTML = '<div id="cmpHero">' + cmpHeroHTML(A, B, null, totalPts(A.entry), totalPts(B.entry)) + '</div>' +
       '<div class="f1-h">当下圈速</div><div id="cmpLap"><div class="cmp-none">正在读取圈速…</div></div>' +
+      '<div class="f1-h">本站赛道历史</div><div id="cmpTrack"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
       '<div class="f1-h">本赛季正面交锋</div><div id="cmpH2H"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
+      '<div id="cmpQGap"></div>' +
       '<div class="f1-h">本赛季数据</div><div id="cmpStats"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
       '<div class="f1-h">逐站正赛名次</div><div id="cmpPos"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
       '<div class="f1-h">逐站积分走势</div>' +
-      (ptsChart ? cmpLegend(A.name, B.name) + ptsChart : '<div class="cmp-none">赛季还没开始。</div>');
+      (ptsChart ? cmpLegend(A.name, B.name) + ptsChart : '<div class="cmp-none">赛季还没开始。</div>') +
+      '<div class="f1-h">生涯数据</div><div id="cmpCareer"><div class="cmp-none">正在读取生涯数据…</div></div>';
 
     // the portraits need the entry list, which is one request away
     f1Grid().then(function (grid) {
@@ -5275,7 +5652,9 @@
       if (!detail) {
         var miss = '<div class="cmp-none">本赛季成绩没取到，稍后再试。</div>';
         h.innerHTML = st.innerHTML = miss;
-        if (document.getElementById('cmpPos')) document.getElementById('cmpPos').innerHTML = miss;
+        ['cmpPos', 'cmpTrack', 'cmpCareer'].forEach(function (id) {
+          if (document.getElementById(id)) document.getElementById(id).innerHTML = miss;
+        });
         return;
       }
       var sa = cmpSeason(detail, ka), sb = cmpSeason(detail, kb);
@@ -5287,6 +5666,12 @@
       var ps = document.getElementById('cmpPos');
       if (ps) ps.innerHTML = cmpPositionsHTML(detail, sa, sb, evs, A, B) ||
         '<div class="cmp-none">比赛还不够两站。</div>';
+      var qg = document.getElementById('cmpQGap');
+      if (qg) qg.innerHTML = cmpQualGapHTML(cmpQualGaps(detail, ka, kb, evs), A, B);
+      // both go through Jolpica's queue after the season, so they never race it
+      Promise.resolve(cmpTrackFill(detail, evs, A, B, seq)).then(function () {
+        cmpCareerFill(detail, A, B, seq);
+      });
     });
 
     cmpMeeting().then(function (sessions) {
@@ -10250,6 +10635,15 @@
     document.addEventListener('pointermove', at);
     document.addEventListener('pointerdown', at);
   })();
+
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.cmp-mate');
+    if (!b) return;
+    var sel = document.getElementById('cmpB');
+    if (!sel) return;
+    sel.value = b.dataset.key;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 
   $('panel-fixtures').addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('.f1-r-more');

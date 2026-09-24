@@ -1235,6 +1235,45 @@
   /* a score that just changed, once */
   @keyframes scoreflash { 0%, 100% { background: transparent; } 20% { background: var(--live-soft); } }
   .match.flash { animation: scoreflash 2.4s ease-out 1; }
+  /* ---- today: my follows ---- */
+  .mc-row {
+    display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+    margin: 0 -16px; padding: 0 16px 4px; scroll-snap-type: x mandatory;
+  }
+  .mc-row::-webkit-scrollbar { display: none; }
+  .mc {
+    flex: 0 0 216px; scroll-snap-align: start; text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px;
+    padding: 10px 12px; font: inherit; color: inherit; box-shadow: var(--shadow);
+  }
+  .mc-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .mc-top img { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
+  .mc-top b {
+    font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mc-tag {
+    margin-left: auto; flex-shrink: 0; font-family: var(--narrow); font-size: 10px;
+    letter-spacing: .06em; color: var(--muted);
+  }
+  .mc-stand { font-size: 12px; color: var(--ink-2); margin-top: 5px; }
+  .mc-form { margin-top: 6px; min-height: 16px; }
+  .mc-form .form { margin-left: 0; }
+  .mc-none { font-size: 11.5px; color: var(--muted); }
+  .mc-pos { display: inline-flex; gap: 3px; }
+  .mc-pos i {
+    font-style: normal; font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    color: var(--ink-2); background: var(--surface-2); border-radius: 3px; padding: 1px 4px;
+  }
+  .mc-pos i.pod { color: var(--on-accent); background: var(--accent); }
+  .mc-next {
+    margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--hairline);
+    font-family: var(--narrow); font-size: 12.5px; font-weight: 700; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .mc-next span { display: block; font-family: var(--display); font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+  .mc-next.live { color: var(--live); }
+  .mc-next.none { color: var(--muted); font-weight: 400; }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -2568,6 +2607,12 @@
   ];
   var sport = lsGet('sport', 'today');
   if (!SPORTS.some(function (s) { return s.id === sport; })) sport = 'football';
+  // back after a while, a fan wants today first rather than wherever they left off
+  if (Date.now() - lsGet('lastSeen', 0) > 6 * 3600000) sport = 'today';
+  lsSet('lastSeen', Date.now());
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) lsSet('lastSeen', Date.now());
+  });
 
   function renderSportNav() {
     $('sportnav').innerHTML = SPORTS.map(function (s) {
@@ -3444,7 +3489,7 @@
       if (m) {
         var far = m[1].match(/^more than (\d+) yards(?: on the (left|right) wing)?$/);
         if (!COM_WHERE[m[1]] && !far) return null;
-        out.where = far ? (far[2] ? COM_SIDE[far[2]] + '路' : '') + far[1] + ' 码开外' : COM_WHERE[m[1]];
+        out.where = far ? (far[2] ? COM_SIDE[far[2]] + '路 ' : '') + far[1] + ' 码开外' : COM_WHERE[m[1]];
         r = r.slice(m[0].length);
       }
     }
@@ -7653,6 +7698,120 @@ O
     return '还有 ' + Math.floor(hrs / 24) + ' 天 ' + (hrs % 24) + ' 小时';
   }
 
+  /* ---------- 我的关注: one card per follow ----------
+     The feed below this is ordered by time; this row is ordered by who. For
+     every club, team and driver followed: where they stand, how the last
+     five went, and how long until the next one. A tap opens their board. */
+  var DIV_CN = {
+    atlantic: '大西洋', central: '中部', southeast: '东南', northwest: '西北', pacific: '太平洋', southwest: '西南'
+  };
+  // "6th in English Premier League", "1st in Pacific Division"
+  function standCN(s, lgName) {
+    var m = /^(\d+)(?:st|nd|rd|th) in (.+)$/.exec(s || '');
+    if (!m) return '';
+    var div = /(\w+) Division/.exec(m[2]);
+    var where = div ? (DIV_CN[div[1].toLowerCase()] || div[1]) + '赛区'
+      : /conference/i.test(m[2]) ? (/east/i.test(m[2]) ? '东部' : '西部') : (lgName || '联赛');
+    return where + '第 ' + m[1];
+  }
+
+  function favCardsHTML(results) {
+    var cards = [];
+    function form(list) {
+      return list.length ? '<span class="form">' + list.map(function (r) {
+        return '<span class="f ' + r + '">' + r + '</span>';
+      }).join('') + '</span>' : '<span class="mc-none">还没有比赛</span>';
+    }
+    function nextLine(n) {
+      if (!n) return '<div class="mc-next none">暂无排赛</div>';
+      return '<div class="mc-next' + (n.live ? ' live' : '') + '">' + (n.live ? '正在进行' : esc(countdown(n.when))) +
+        '<span>' + n.text + '</span></div>';
+    }
+    results.forEach(function (res) {
+      if (res.kind === 'team') {
+        var f = res.fav, team = (res.past && res.past.team) || (res.future && res.future.team) || {};
+        var lgName = (LEAGUES.filter(function (l) { return l.id === f.league; })[0] || {}).name || '';
+        var played = ((res.past && res.past.events) || []).filter(function (e) {
+          return ((sideOf(e, f.id).comp.status || {}).type || {}).completed;
+        }).sort(function (a, b) { return new Date(a.date) - new Date(b.date); }).slice(-5);
+        var fm = played.map(function (e) {
+          var s = sideOf(e, f.id);
+          return s.me.winner === true ? 'W' : s.opp.winner === true ? 'L' : 'D';
+        });
+        var nx = ((res.future && res.future.events) || []).filter(function (e) {
+          return !((sideOf(e, f.id).comp.status || {}).type || {}).completed;
+        }).sort(function (a, b) { return new Date(a.date) - new Date(b.date); })[0];
+        var ns = nx && sideOf(nx, f.id);
+        cards.push('<button type="button" class="mc" data-go="football">' +
+          '<div class="mc-top">' + (team.logo ? '<img src="' + esc(team.logo) + '" alt="" loading="lazy">' : '') +
+            '<b>' + esc(f.name) + '</b><span class="mc-tag">' + esc(lgName) + '</span></div>' +
+          '<div class="mc-stand">' + esc(standCN(team.standingSummary, lgName) || lgName) + '</div>' +
+          '<div class="mc-form">' + form(fm) + '</div>' +
+          nextLine(ns && {
+            when: new Date(nx.date), live: ((ns.comp.status || {}).type || {}).state === 'in',
+            text: (ns.me.homeAway === 'home' ? '主场 vs ' : '客场 vs ') +
+              esc(cn(ns.opp.team && ns.opp.team.displayName, ns.opp.team && ns.opp.team.shortDisplayName))
+          }) + '</button>');
+      }
+      if (res.kind === 'nba') {
+        var f2 = res.fav, t2 = (res.sched && res.sched.team) || {};
+        var evs = ((res.sched && res.sched.events) || []).slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+        var me = function (e) {
+          var cs = ((e.competitions || [])[0] || {}).competitors || [];
+          var m1 = cs.filter(function (x) { return String(x.team && x.team.id) === String(f2.id); })[0] || cs[0] || {};
+          return { me: m1, opp: cs.filter(function (x) { return x !== m1; })[0] || {}, st: ((((e.competitions || [])[0] || {}).status || {}).type) || {} };
+        };
+        var fm2 = evs.filter(function (e) { return me(e).st.completed; }).slice(-5).map(function (e) {
+          return me(e).me.winner === true ? 'W' : 'L';
+        });
+        var nx2 = evs.filter(function (e) { return !me(e).st.completed; })[0];
+        var n2 = nx2 && me(nx2);
+        var rec = /^(\d+)-(\d+)$/.exec(t2.recordSummary || '');
+        cards.push('<button type="button" class="mc" data-go="basketball">' +
+          '<div class="mc-top">' + (t2.logo ? '<img src="' + esc(t2.logo) + '" alt="" loading="lazy">' : '') +
+            '<b>' + esc(f2.name) + '</b><span class="mc-tag">NBA</span></div>' +
+          '<div class="mc-stand">' + esc(standCN(t2.standingSummary)) + (rec ? ' · ' + rec[1] + ' 胜 ' + rec[2] + ' 负' : '') + '</div>' +
+          '<div class="mc-form">' + form(fm2) + '</div>' +
+          nextLine(n2 && {
+            when: new Date(nx2.date), live: n2.st.state === 'in',
+            text: (n2.me.homeAway === 'home' ? '主场 vs ' : '客场 vs ') + esc(nbaCN(n2.opp.team && n2.opp.team.displayName))
+          }) + '</button>');
+      }
+      if (res.kind === 'f1') {
+        var evs3 = ((res.season && res.season.events) || []).slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+        var entries = ((((res.standings && res.standings.children) || []).filter(function (c) {
+          return /driver/i.test(c.name || '');
+        })[0] || {}).standings || {}).entries || [];
+        var ran = evs3.filter(function (e) { return ((e.status || {}).type || {}).state === 'post'; });
+        var nx3 = evs3.filter(function (e) { return ((e.status || {}).type || {}).state !== 'post'; })[0];
+        favDrivers.forEach(function (fd) {
+          var key = f1DriverKey(fd.name);
+          var st = entries.filter(function (e) { return f1DriverKey((e.athlete || {}).displayName) === key; })[0];
+          var mm = {};
+          ((st && st.stats) || []).forEach(function (x) { mm[x.name] = x.displayValue; });
+          // the last five finishes, as positions rather than letters
+          var fin = ran.slice(-5).map(function (e) {
+            var c = ((raceOf(e) || {}).competitors || []).filter(function (x) {
+              return f1DriverKey((x.athlete || {}).displayName) === key;
+            })[0];
+            return c ? c.order : null;
+          });
+          var race = nx3 && (raceOf(nx3) || {});
+          cards.push('<button type="button" class="mc" data-go="f1">' +
+            '<div class="mc-top"><b>' + esc(driverCN(fd.name) || fd.name) + '</b><span class="mc-tag">F1</span></div>' +
+            '<div class="mc-stand">' + (st ? '车手榜第 ' + esc(mm.rank || '?') + ' · ' + esc(mm.championshipPts || '0') + ' 分' : '不在本赛季积分榜') + '</div>' +
+            '<div class="mc-form">' + (fin.some(function (p) { return p != null; }) ? '<span class="mc-pos">' + fin.map(function (p) {
+              return '<i class="' + (p && p <= 3 ? 'pod' : '') + '">' + (p ? 'P' + p : '—') + '</i>';
+            }).join('') + '</span>' : '<span class="mc-none">本赛季还没有完赛</span>') + '</div>' +
+            nextLine(race && { when: new Date(race.date || nx3.date), live: false, text: esc(gpName(nx3.name)) + ' 正赛' }) +
+            '</button>');
+        });
+      }
+    });
+    if (!cards.length) return '';
+    return '<div class="group-name">我的关注</div><div class="mc-row">' + cards.join('') + '</div>';
+  }
+
   function renderToday() {
     var host = panelFor('panel-today');
     host.innerHTML = '<div class="skeleton">正在汇总…</div>';
@@ -7968,6 +8127,7 @@ O
         html += '<div class="group-name"><span class="dot"></span>正在进行</div><div class="card">' +
           liveRest.map(rowUpcoming).join('') + '</div>';
       }
+      html += favCardsHTML(results);
       if (futureRest.length) {
         html += '<div class="group-name">接下来</div><div class="card">' +
           futureRest.slice(0, 12).map(rowUpcoming).join('') + '</div>';
@@ -12180,6 +12340,13 @@ O
       window.scrollTo(0, 0);
     }, { passive: true });
   })();
+  // a follow card opens that follow's board
+  $('panel-today').addEventListener('click', function (e) {
+    var c = e.target.closest && e.target.closest('.mc');
+    if (!c) return;
+    setSport(c.dataset.go);
+    window.scrollTo(0, 0);
+  });
   /* A paper's nameplate takes you to the front page. */
   $('mast').addEventListener('click', function () {
     if (sport !== 'today') setSport('today');

@@ -77,6 +77,8 @@
     --crest-pad: transparent;
     --pitch: #E8EDE3;
     --pitch-line: #CBD5C4;
+    --ser-a: #2a78d6;
+    --ser-b: #eb6834;
     --shadow: 0 1px 2px rgba(40, 32, 18, .05), 0 6px 18px -12px rgba(40, 32, 18, .26);
     --display: 'Archivo', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
     --narrow: 'Archivo Narrow', 'Archivo', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -112,6 +114,8 @@
       --crest-pad: rgba(255, 253, 247, .92);
       --pitch: #1A2419;
       --pitch-line: #2C3828;
+      --ser-a: #3987e5;
+      --ser-b: #d95926;
       --shadow: 0 1px 2px rgba(0, 0, 0, .4);
     }
   }
@@ -137,6 +141,8 @@
     --crest-pad: rgba(255, 253, 247, .92);
     --pitch: #1A2419;
     --pitch-line: #2C3828;
+    --ser-a: #3987e5;
+    --ser-b: #d95926;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4);
   }
 
@@ -919,6 +925,86 @@
     display: block; width: 100%; margin-top: 4px; padding: 8px 0;
     background: none; border: none; cursor: pointer;
     font-family: var(--serif); font-size: 12px; font-weight: 600; color: var(--accent);
+  }
+  /* ---- F1: driver compare ---- */
+  .cmp-card {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 4px; padding: 12px 12px 14px;
+  }
+  .cmp-pick { display: flex; align-items: center; gap: 8px; }
+  .cmp-sel {
+    flex: 1; min-width: 0; appearance: none; -webkit-appearance: none;
+    font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--ink);
+    background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 3px;
+    padding: 7px 10px; text-overflow: ellipsis;
+  }
+  #cmpB { text-align: right; text-align-last: right; }
+  .cmp-vs { font-family: var(--narrow); font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .1em; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .sw.a { background: var(--ser-a); }
+  .sw.b { background: var(--ser-b); }
+  .cmp-legend {
+    display: flex; gap: 14px; margin-top: 10px;
+    font-size: 12px; color: var(--ink-2);
+  }
+  .cmp-legend span { display: flex; align-items: center; gap: 5px; }
+  .cmp-none { font-size: 12.5px; color: var(--muted); padding: 6px 0; }
+  .cmp-sub { font-size: 12px; color: var(--ink-2); margin: 2px 0 6px; }
+  .cmp-sub span { color: var(--muted); margin-left: 6px; font-size: 11px; }
+  .cmp-gap { font-size: 13px; color: var(--ink-2); margin: 4px 0 6px; }
+  .cmp-gap b { font-family: var(--serif); font-weight: 600; color: var(--ink); }
+
+  .cmp-stats { display: grid; }
+  .cmp-st {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;
+    padding: 6px 2px; border-bottom: 1px solid var(--hairline); font-size: 13.5px;
+    font-family: var(--narrow); font-variant-numeric: tabular-nums; color: var(--ink-2);
+  }
+  .cmp-st:last-child { border-bottom: none; }
+  .cmp-st > span:last-child { text-align: right; }
+  .cmp-st .k { font-family: var(--display); font-size: 11.5px; color: var(--muted); text-align: center; padding: 0 8px; }
+  .cmp-st .lead, .h2h .lead { color: var(--ink); font-weight: 700; }
+
+  .h2h { padding: 4px 0 8px; }
+  .h2h-k { font-size: 12px; color: var(--ink-2); margin-bottom: 5px; }
+  .h2h-k span { color: var(--muted); margin-left: 6px; font-size: 11px; }
+  .h2h-none { font-size: 12.5px; color: var(--muted); }
+  .h2h-row { display: flex; align-items: center; gap: 10px; }
+  .h2h-row b {
+    width: 22px; font-family: var(--narrow); font-size: 16px; font-weight: 600;
+    color: var(--ink-2); font-variant-numeric: tabular-nums;
+  }
+  .h2h-row b:last-child { text-align: right; }
+  .h2h-bar { flex: 1; display: flex; gap: 2px; height: 8px; }
+  .h2h-bar i { display: block; min-width: 0; }
+  .h2h-bar .a { background: var(--ser-a); border-radius: 4px 0 0 4px; }
+  .h2h-bar .b { background: var(--ser-b); border-radius: 0 4px 4px 0; }
+
+  .cmp-chart { position: relative; touch-action: pan-y; margin-top: 4px; }
+  .cmp-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .cmp-grid { stroke: var(--hairline); stroke-width: 1; }
+  .cmp-ax { fill: var(--muted); font-family: var(--narrow); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .cmp-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .cmp-line.a { stroke: var(--ser-a); }
+  .cmp-line.b { stroke: var(--ser-b); }
+  /* a push lap sits alone between an out-lap and a cool-down, so each lap gets a point */
+  .cmp-pt { stroke: var(--surface); stroke-width: 1.5; }
+  .cmp-pt.a { fill: var(--ser-a); }
+  .cmp-pt.b { fill: var(--ser-b); }
+  .cmp-cross { stroke: var(--hairline-strong); stroke-width: 1; }
+  .cmp-dot { stroke: var(--surface); stroke-width: 2; }
+  .cmp-dot.a { fill: var(--ser-a); }
+  .cmp-dot.b { fill: var(--ser-b); }
+  .cmp-tip {
+    position: absolute; top: 2px; pointer-events: none; min-width: 120px;
+    background: var(--surface); border: 1px solid var(--hairline-strong); border-radius: 4px;
+    box-shadow: var(--shadow); padding: 6px 9px; font-size: 12px; color: var(--ink-2);
+  }
+  .cmp-tip-h { font-size: 11px; color: var(--muted); margin-bottom: 3px; white-space: nowrap; }
+  .cmp-tip div:not(.cmp-tip-h) { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .cmp-tip b {
+    margin-left: auto; padding-left: 10px; color: var(--ink);
+    font-family: var(--narrow); font-variant-numeric: tabular-nums;
   }
   /* ---- F1 team radio ---- */
   .radio-card {
@@ -4548,6 +4634,497 @@
       '<div class="rnd-tabs">' + tabs + '</div>' + panels + '</div>';
   }
 
+  /* ---------- driver compare ----------
+     Two drivers side by side: this weekend's pace, the season head to head,
+     the season in numbers, and the points race round by round. The season
+     detail comes from Jolpica (Ergast's continuation), which has qualifying
+     and finishing positions for every round; ESPN's standings carry the
+     points per round; OpenF1 has the laps. */
+  var JOLPICA = 'https://api.jolpi.ca/ergast/f1/';
+  var jolQueue = Promise.resolve();
+
+  // Jolpica allows a few requests a second, so they go out one at a time
+  function jolpica(path) {
+    var run = jolQueue.then(function () {
+      return of1Fetch(JOLPICA + path, 0);
+    });
+    jolQueue = run.then(function () { return wait(260); });
+    return run;
+  }
+
+  // every page of a season table, merged by round (a race can straddle two pages)
+  function jolpicaAll(path, field) {
+    var byRound = {};
+    function page(offset) {
+      return jolpica(path + (path.indexOf('?') === -1 ? '?' : '&') + 'limit=100&offset=' + offset)
+        .then(function (d) {
+          var m = d && d.MRData;
+          if (!m) throw new Error('jolpica');
+          var races = (m.RaceTable && m.RaceTable.Races) || [];
+          races.forEach(function (r) {
+            var have = byRound[r.round];
+            if (have) have[field] = have[field].concat(r[field] || []);
+            else byRound[r.round] = r;
+          });
+          var seen = offset + Number(m.limit || 100);
+          return seen < Number(m.total || 0) ? page(seen) : null;
+        });
+    }
+    return page(0).then(function () {
+      return Object.keys(byRound).map(function (k) { return byRound[k]; })
+        .sort(function (a, b) { return a.round - b.round; });
+    });
+  }
+
+  function f1SeasonDetail() {
+    if (f1Cache.detail) return f1Cache.detail;
+    var y = new Date().getFullYear();
+    f1Cache.detail = Promise.all([
+      jolpicaAll(y + '/results/', 'Results'),
+      jolpicaAll(y + '/qualifying/', 'QualifyingResults')
+    ]).then(function (r) { return { results: r[0], qual: r[1] }; })
+      .catch(function () { f1Cache.detail = null; return null; });
+    return f1Cache.detail;
+  }
+
+  function jolKey(d) {
+    return f1DriverKey([d && d.givenName, d && d.familyName].filter(Boolean).join(' '));
+  }
+
+  // one driver's season out of the two tables, keyed by round
+  function cmpSeason(detail, key) {
+    var race = {}, qual = {};
+    (detail.results || []).forEach(function (r) {
+      (r.Results || []).forEach(function (x) { if (jolKey(x.Driver) === key) race[r.round] = x; });
+    });
+    (detail.qual || []).forEach(function (r) {
+      (r.QualifyingResults || []).forEach(function (x) { if (jolKey(x.Driver) === key) qual[r.round] = x; });
+    });
+    var rs = Object.keys(race).map(function (k) { return race[k]; });
+    var qs = Object.keys(qual).map(function (k) { return Number(qual[k].position); });
+    var classified = rs.filter(function (x) { return /^\d+$/.test(x.positionText); })
+      .map(function (x) { return Number(x.position); });
+    function mean(a) { return a.length ? a.reduce(function (s, v) { return s + v; }, 0) / a.length : null; }
+    return {
+      race: race, qual: qual, starts: rs.length,
+      wins: rs.filter(function (x) { return x.position === '1'; }).length,
+      podiums: rs.filter(function (x) { return Number(x.position) <= 3; }).length,
+      poles: qs.filter(function (p) { return p === 1; }).length,
+      avgQ: mean(qs), avgF: mean(classified),
+      best: classified.length ? Math.min.apply(null, classified) : null,
+      fastest: rs.filter(function (x) { return x.FastestLap && x.FastestLap.rank === '1'; }).length,
+      dnf: rs.length - classified.length
+    };
+  }
+
+  // who finished ahead, over the rounds both took part in
+  function cmpH2H(a, b, field) {
+    var wa = 0, wb = 0;
+    Object.keys(a[field]).forEach(function (k) {
+      if (!b[field][k]) return;
+      var pa = Number(a[field][k].position), pb = Number(b[field][k].position);
+      if (pa < pb) wa++; else if (pb < pa) wb++;
+    });
+    return [wa, wb];
+  }
+
+  function cmpPoints(entry) {
+    var pts = 0;
+    return ((entry && entry.stats) || []).filter(function (s) {
+      return s.name !== 'rank' && s.name !== 'championshipPts' && s.name !== 'overall';
+    }).map(function (s) {
+      var v = String(s.displayValue == null ? '' : s.displayValue).trim();
+      if (v === '') return null;                 // not run yet, or cancelled
+      pts += Number(v) || 0;                     // '-' is a round without points
+      return pts;
+    });
+  }
+
+  /* ---- a two-line chart with a crosshair ----
+     Geometry is kept per chart so the hover layer can find the nearest point
+     without re-deriving the scales. */
+  var cmpCharts = {};
+  var CW = 340, CH = 170, CPL = 38, CPR = 12, CPT = 12, CPB = 22;
+
+  function cmpChartHTML(id, xs, series, fmt, tipX) {
+    var all = [];
+    series.forEach(function (s) { s.vals.forEach(function (v) { if (v != null) all.push(v); }); });
+    if (!all.length) return '';
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+    if (fmt.zero) lo = 0;
+    if (hi === lo) hi = lo + 1;
+    if (fmt.zero) {
+      // a count reads best on round steps: 0, 100, 200, 300 rather than 0, 105, 210
+      var raw = hi / 3, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+      var nice = [1, 2, 2.5, 5, 10].filter(function (m) { return m * mag >= raw; })[0] * mag;
+      hi = nice * 3;
+    } else {
+      var padY = (hi - lo) * 0.08;
+      lo -= padY;
+      hi += padY;
+    }
+    var n = xs.length;
+    function X(i) { return CPL + (n < 2 ? 0 : i / (n - 1) * (CW - CPL - CPR)); }
+    function Y(v) { return CPT + (1 - (v - lo) / (hi - lo)) * (CH - CPT - CPB); }
+
+    var grid = '';
+    for (var g = 0; g <= 3; g++) {
+      var v = lo + (hi - lo) * g / 3, y = Y(v);
+      grid += '<line class="cmp-grid" x1="' + CPL + '" x2="' + (CW - CPR) + '" y1="' + y.toFixed(1) +
+        '" y2="' + y.toFixed(1) + '"/><text class="cmp-ax" x="' + (CPL - 5) + '" y="' + (y + 3).toFixed(1) +
+        '" text-anchor="end">' + esc(fmt.y(v)) + '</text>';
+    }
+    // a handful of x labels, first and last always
+    var step = Math.max(1, Math.ceil(n / 6)), xl = '';
+    for (var i = 0; i < n; i += step) {
+      xl += '<text class="cmp-ax" x="' + X(i).toFixed(1) + '" y="' + (CH - 6) + '" text-anchor="middle">' + esc(xs[i]) + '</text>';
+    }
+    // the last label, unless it would sit on top of the one before it
+    if ((n - 1) % step >= step * 0.6) {
+      xl += '<text class="cmp-ax" x="' + X(n - 1).toFixed(1) + '" y="' + (CH - 6) + '" text-anchor="middle">' + esc(xs[n - 1]) + '</text>';
+    }
+
+    var lines = series.map(function (s) {
+      var d = '', pen = false;
+      s.vals.forEach(function (v, i) {
+        if (v == null) { pen = false; return; }
+        d += (pen ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1);
+        pen = true;
+      });
+      var dots = !fmt.dots ? '' : s.vals.map(function (v, i) {
+        return v == null ? '' : '<circle class="cmp-pt ' + s.cls + '" r="3" cx="' + X(i).toFixed(1) +
+          '" cy="' + Y(v).toFixed(1) + '"/>';
+      }).join('');
+      return '<path class="cmp-line ' + s.cls + '" d="' + d + '"/>' + dots;
+    }).join('');
+
+    cmpCharts[id] = { xs: xs, series: series, X: X, Y: Y, n: n, fmt: fmt, tipX: tipX };
+    return '<div class="cmp-chart" data-chart="' + id + '">' +
+      '<svg viewBox="0 0 ' + CW + ' ' + CH + '" role="img" aria-label="' + esc(fmt.label || '') + '">' +
+        grid + xl + lines +
+        '<line class="cmp-cross" x1="0" x2="0" y1="' + CPT + '" y2="' + (CH - CPB) + '" visibility="hidden"/>' +
+        series.map(function (s) {
+          return '<circle class="cmp-dot ' + s.cls + '" r="4" visibility="hidden"/>';
+        }).join('') +
+      '</svg><div class="cmp-tip" hidden></div></div>';
+  }
+
+  function cmpHover(el, clientX) {
+    var c = cmpCharts[el.dataset.chart];
+    if (!c) return;
+    var box = el.getBoundingClientRect();
+    var x = (clientX - box.left) / box.width * CW;
+    var i = c.n < 2 ? 0 : Math.round((x - CPL) / (CW - CPL - CPR) * (c.n - 1));
+    i = Math.max(0, Math.min(c.n - 1, i));
+    // settle on the nearest lap either driver has a time for
+    function has(k) { return c.series.some(function (s) { return s.vals[k] != null; }); }
+    for (var off = 0; off < c.n; off++) {
+      if (i - off >= 0 && has(i - off)) { i -= off; break; }
+      if (i + off < c.n && has(i + off)) { i += off; break; }
+    }
+    var svg = el.querySelector('svg'), tip = el.querySelector('.cmp-tip');
+    var cross = svg.querySelector('.cmp-cross');
+    cross.setAttribute('x1', c.X(i)); cross.setAttribute('x2', c.X(i));
+    cross.setAttribute('visibility', 'visible');
+    var rows = '';
+    c.series.forEach(function (s, k) {
+      var dot = svg.querySelectorAll('.cmp-dot')[k], v = s.vals[i];
+      if (v == null) { dot.setAttribute('visibility', 'hidden'); }
+      else {
+        dot.setAttribute('cx', c.X(i)); dot.setAttribute('cy', c.Y(v));
+        dot.setAttribute('visibility', 'visible');
+      }
+      rows += '<div><i class="sw ' + s.cls + '"></i>' + esc(s.name) +
+        '<b>' + (v == null ? '—' : esc(c.fmt.tip(v))) + '</b></div>';
+    });
+    tip.innerHTML = '<div class="cmp-tip-h">' + esc(c.tipX(i)) + '</div>' + rows;
+    tip.hidden = false;
+    // keep the tooltip on the far side of the crosshair, inside the chart
+    var px = c.X(i) / CW * box.width;
+    var left = px > box.width / 2 ? px - tip.offsetWidth - 10 : px + 10;
+    tip.style.left = Math.max(0, Math.min(box.width - tip.offsetWidth, left)) + 'px';
+  }
+  function cmpUnhover(el) {
+    var svg = el.querySelector('svg');
+    if (!svg) return;
+    [].forEach.call(svg.querySelectorAll('.cmp-cross, .cmp-dot'), function (n) {
+      n.setAttribute('visibility', 'hidden');
+    });
+    el.querySelector('.cmp-tip').hidden = true;
+  }
+
+  function cmpLegend(nA, nB) {
+    return '<div class="cmp-legend"><span><i class="sw a"></i>' + esc(nA) + '</span>' +
+      '<span><i class="sw b"></i>' + esc(nB) + '</span></div>';
+  }
+
+  function cmpH2HRow(label, w, total) {
+    if (!w[0] && !w[1]) return '<div class="h2h"><div class="h2h-k">' + label +
+      '</div><div class="h2h-none">还没有同场</div></div>';
+    return '<div class="h2h"><div class="h2h-k">' + label + '<span>' + total + ' 站</span></div>' +
+      '<div class="h2h-row"><b class="' + (w[0] > w[1] ? 'lead' : '') + '">' + w[0] + '</b>' +
+      '<div class="h2h-bar"><i class="a" style="flex:' + (w[0] || 0.0001) + '"></i>' +
+        '<i class="b" style="flex:' + (w[1] || 0.0001) + '"></i></div>' +
+      '<b class="' + (w[1] > w[0] ? 'lead' : '') + '">' + w[1] + '</b></div></div>';
+  }
+
+  function cmpStatsHTML(sa, sb, pa, pb) {
+    function f1(v) { return v == null ? '—' : v.toFixed(1); }
+    var rows = [
+      ['积分', pa, pb, 'high', String],
+      ['分站冠军', sa.wins, sb.wins, 'high', String],
+      ['领奖台', sa.podiums, sb.podiums, 'high', String],
+      ['杆位', sa.poles, sb.poles, 'high', String],
+      ['最快圈', sa.fastest, sb.fastest, 'high', String],
+      ['平均排位', sa.avgQ, sb.avgQ, 'low', f1],
+      ['平均完赛名次', sa.avgF, sb.avgF, 'low', f1],
+      ['最好名次', sa.best, sb.best, 'low', function (v) { return v == null ? '—' : 'P' + v; }],
+      ['退赛', sa.dnf, sb.dnf, 'low', String],
+      ['出赛', sa.starts, sb.starts, '', String]
+    ];
+    return '<div class="cmp-stats">' + rows.map(function (r) {
+      var a = r[1], b = r[2], wa = false, wb = false;
+      if (r[3] && a != null && b != null && a !== b) {
+        wa = r[3] === 'high' ? a > b : a < b;
+        wb = !wa;
+      }
+      return '<div class="cmp-st"><span class="' + (wa ? 'lead' : '') + '">' + esc(r[4](a)) + '</span>' +
+        '<span class="k">' + r[0] + '</span>' +
+        '<span class="' + (wb ? 'lead' : '') + '">' + esc(r[4](b)) + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  /* ---- this weekend's pace ----
+     The latest meeting with a session run — the current grand prix during a
+     weekend, the last one between them. One session at a time, laps fetched
+     only for the session on screen. */
+  function cmpMeeting() {
+    return of1('sessions?year=' + new Date().getFullYear()).then(function (list) {
+      var ran = (list || []).filter(function (s) {
+        return !s.is_cancelled && new Date(s.date_end || s.date_start).getTime() < Date.now();
+      }).sort(function (a, b) { return new Date(a.date_start) - new Date(b.date_start); });
+      if (!ran.length) return null;
+      var mk = ran[ran.length - 1].meeting_key;
+      return ran.filter(function (s) { return s.meeting_key === mk; });
+    });
+  }
+
+  var OF1_SESSION_CN = {
+    'Practice 1': '练习赛一', 'Practice 2': '练习赛二', 'Practice 3': '练习赛三',
+    'Qualifying': '排位赛', 'Sprint Qualifying': '冲刺排位', 'Sprint Shootout': '冲刺排位',
+    'Sprint': '冲刺赛', 'Race': '正赛'
+  };
+
+  function cmpLapPanel(session, keyA, keyB, nA, nB) {
+    var sk = session.session_key;
+    return Promise.all([of1('drivers?session_key=' + sk), of1('session_result?session_key=' + sk)])
+      .then(function (r) {
+        var num = {};
+        (r[0] || []).forEach(function (d) { num[f1DriverKey(f1RadioName(d.full_name))] = d.driver_number; });
+        var na = num[keyA], nb = num[keyB];
+        var res = {};
+        (r[1] || []).forEach(function (x) { res[x.driver_number] = x; });
+        return Promise.all([
+          na != null ? of1('laps?session_key=' + sk + '&driver_number=' + na) : null,
+          nb != null ? of1('laps?session_key=' + sk + '&driver_number=' + nb) : null
+        ]).then(function (laps) {
+          return cmpLapHTML(session, [na != null ? res[na] : null, nb != null ? res[nb] : null],
+            laps, [na, nb], nA, nB);
+        });
+      });
+  }
+
+  function cmpLapHTML(session, res, laps, nums, nA, nB) {
+    var isRace = /^(Race|Sprint)$/.test(session.session_name);
+    function valid(l) { return l && l.lap_duration && !l.is_pit_out_lap; }
+    var sides = [0, 1].map(function (k) {
+      var ls = (laps[k] || []).filter(valid);
+      var best = ls.length ? Math.min.apply(null, ls.map(function (l) { return l.lap_duration; })) : null;
+      function minOf(f) {
+        var v = (laps[k] || []).map(function (l) { return l[f]; }).filter(function (x) { return x; });
+        return v.length ? Math.min.apply(null, v) : null;
+      }
+      var sp = (laps[k] || []).map(function (l) { return l.st_speed; }).filter(Boolean);
+      return {
+        in: nums[k] != null, laps: ls, best: best,
+        s1: minOf('duration_sector_1'), s2: minOf('duration_sector_2'), s3: minOf('duration_sector_3'),
+        top: sp.length ? Math.max.apply(null, sp) : null,
+        pos: res[k] && res[k].position, count: (laps[k] || []).length
+      };
+    });
+    var A = sides[0], B = sides[1];
+    if (!A.in && !B.in) return '<div class="cmp-none">两人都没有参加这一节。</div>';
+
+    var head = '';
+    if (A.best && B.best) {
+      var gap = Math.abs(A.best - B.best), faster = A.best <= B.best ? nA : nB;
+      head = '<div class="cmp-gap"><b>' + esc(faster) + '</b> 快 <b>' + gap.toFixed(3) + '</b> 秒</div>';
+    }
+    function cell(v, other, fmt, low) {
+      var lead = v != null && other != null && v !== other && (low ? v < other : v > other);
+      return '<span class="' + (lead ? 'lead' : '') + '">' + (v == null ? '—' : esc(fmt(v))) + '</span>';
+    }
+    function sec(v) { return v.toFixed(3); }
+    var rows = [
+      ['最快圈', A.best, B.best, f1Lap, true],
+      ['第一段', A.s1, B.s1, sec, true],
+      ['第二段', A.s2, B.s2, sec, true],
+      ['第三段', A.s3, B.s3, sec, true],
+      ['极速', A.top, B.top, function (v) { return v + ' km/h'; }, false]
+    ];
+    var table = '<div class="cmp-stats">' +
+      '<div class="cmp-st"><span>' + (A.in ? 'P' + (A.pos || '—') : '未参加') + '</span><span class="k">' +
+        (isRace ? '名次' : '排名') + '</span><span>' + (B.in ? 'P' + (B.pos || '—') : '未参加') + '</span></div>' +
+      rows.map(function (r) {
+        return '<div class="cmp-st">' + cell(r[1], r[2], r[3], r[4]) + '<span class="k">' + r[0] + '</span>' +
+          cell(r[2], r[1], r[3], r[4]) + '</div>';
+      }).join('') +
+      '<div class="cmp-st"><span>' + A.count + '</span><span class="k">跑了圈数</span><span>' + B.count + '</span></div>' +
+      '</div>';
+
+    // every lap within 107% of that driver's best: the push laps and the long
+    // runs, without the in-laps and cool-downs that would flatten the scale
+    var maxLap = 0;
+    sides.forEach(function (s) { s.laps.forEach(function (l) { if (l.lap_number > maxLap) maxLap = l.lap_number; }); });
+    var chart = '';
+    if (maxLap > 1) {
+      var xs = [], va = [], vb = [];
+      for (var i = 1; i <= maxLap; i++) { xs.push(String(i)); va.push(null); vb.push(null); }
+      [[A, va], [B, vb]].forEach(function (p) {
+        p[0].laps.forEach(function (l) {
+          if (l.lap_duration <= p[0].best * 1.07) p[1][l.lap_number - 1] = l.lap_duration;
+        });
+      });
+      chart = '<div class="cmp-sub">每圈用时 <span>越低越快 · 已去掉进出站圈和慢圈</span></div>' +
+        cmpChartHTML('laps', xs, [
+          { name: nA, cls: 'a', vals: va }, { name: nB, cls: 'b', vals: vb }
+        ], {
+          y: function (v) { return f1Lap(v).replace(/(\.\d)\d+$/, '$1'); },
+          tip: f1Lap, dots: true, label: nA + ' 与 ' + nB + ' 每圈用时'
+        }, function (i) { return '第 ' + (i + 1) + ' 圈'; });
+    }
+    return head + table + chart;
+  }
+
+  /* ---- the block ---- */
+  function cmpDriverList(standings) {
+    var drv = ((standings && standings.children) || []).filter(function (c) {
+      return /driver/i.test(c.name || '');
+    })[0];
+    return ((drv && drv.standings && drv.standings.entries) || []).map(function (e) {
+      var name = (e.athlete && e.athlete.displayName) || '';
+      return { key: f1DriverKey(name), name: driverCN(name) || name, entry: e };
+    }).filter(function (d) { return d.key; });
+  }
+
+  function f1CompareHTML(standings) {
+    var list = cmpDriverList(standings);
+    if (list.length < 2) return '';
+    var keys = list.map(function (d) { return d.key; });
+    var a = lsGet('cmpA', null), b = lsGet('cmpB', null);
+    if (keys.indexOf(a) === -1) a = keys[0];
+    if (keys.indexOf(b) === -1 || b === a) b = keys[a === keys[1] ? 0 : 1];
+    function sel(id, pick) {
+      return '<select id="' + id + '" class="cmp-sel" aria-label="选择车手">' + list.map(function (d) {
+        return '<option value="' + esc(d.key) + '"' + (d.key === pick ? ' selected' : '') + '>' +
+          esc(d.name) + '</option>';
+      }).join('') + '</select>';
+    }
+    return '<div class="group-name">车手对比</div>' +
+      '<div class="cmp-card">' +
+        '<div class="cmp-pick"><span class="sw a"></span>' + sel('cmpA', a) +
+          '<span class="cmp-vs">vs</span>' + sel('cmpB', b) + '<span class="sw b"></span></div>' +
+        '<div id="cmpBody"></div>' +
+      '</div>';
+  }
+
+  var cmpSeq = 0;
+  function f1CompareFill(evs, standings) {
+    var body = document.getElementById('cmpBody');
+    if (!body) return;
+    var seq = ++cmpSeq;
+    var list = cmpDriverList(standings);
+    var ka = $('cmpA').value, kb = $('cmpB').value;
+    var A = list.filter(function (d) { return d.key === ka; })[0];
+    var B = list.filter(function (d) { return d.key === kb; })[0];
+    if (!A || !B) return;
+    if (ka === kb) { body.innerHTML = '<div class="cmp-none">选两名不同的车手。</div>'; return; }
+
+    // the points race needs nothing but the standings, so it is drawn at once
+    var ptsA = cmpPoints(A.entry), ptsB = cmpPoints(B.entry);
+    var rounds = [];
+    ptsA.forEach(function (v, i) { if (v != null || ptsB[i] != null) rounds.push(i); });
+    var xs = rounds.map(function (i) { return 'R' + (i + 1); });
+    var ptsChart = rounds.length > 1 ? cmpChartHTML('pts', xs, [
+      { name: A.name, cls: 'a', vals: rounds.map(function (i) { return ptsA[i]; }) },
+      { name: B.name, cls: 'b', vals: rounds.map(function (i) { return ptsB[i]; }) }
+    ], {
+      y: function (v) { return String(Math.round(v)); }, tip: function (v) { return v + ' 分'; },
+      zero: true, label: A.name + ' 与 ' + B.name + ' 累计积分'
+    }, function (k) {
+      var ev = evs[rounds[k]];
+      return 'R' + (rounds[k] + 1) + (ev ? ' · ' + gpName(ev.name) : '');
+    }) : '';
+    function totalPts(e) {
+      var s = ((e && e.stats) || []).filter(function (x) { return x.name === 'championshipPts'; })[0];
+      return s ? Number(s.displayValue) || 0 : 0;
+    }
+
+    body.innerHTML = cmpLegend(A.name, B.name) +
+      '<div class="f1-h">当下圈速</div><div id="cmpLap"><div class="cmp-none">正在读取圈速…</div></div>' +
+      '<div class="f1-h">本赛季正面交锋</div><div id="cmpH2H"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
+      '<div class="f1-h">本赛季数据</div><div id="cmpStats"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
+      '<div class="f1-h">逐站积分走势</div>' + (ptsChart || '<div class="cmp-none">赛季还没开始。</div>');
+
+    f1SeasonDetail().then(function (detail) {
+      if (seq !== cmpSeq) return;
+      var h = document.getElementById('cmpH2H'), st = document.getElementById('cmpStats');
+      if (!h || !st) return;
+      if (!detail) {
+        h.innerHTML = st.innerHTML = '<div class="cmp-none">本赛季成绩没取到，稍后再试。</div>';
+        return;
+      }
+      var sa = cmpSeason(detail, ka), sb = cmpSeason(detail, kb);
+      var q = cmpH2H(sa, sb, 'qual'), r = cmpH2H(sa, sb, 'race');
+      h.innerHTML = cmpH2HRow('排位赛', q, q[0] + q[1]) + cmpH2HRow('正赛', r, r[0] + r[1]);
+      st.innerHTML = cmpStatsHTML(sa, sb, totalPts(A.entry), totalPts(B.entry));
+    });
+
+    cmpMeeting().then(function (sessions) {
+      if (seq !== cmpSeq) return;
+      var slot = document.getElementById('cmpLap');
+      if (!slot) return;
+      if (!sessions || !sessions.length) { slot.innerHTML = '<div class="cmp-none">还没有可比的圈速。</div>'; return; }
+      var ev = evs.filter(function (e) {
+        var t = new Date((raceOf(e) || {}).date || e.date).getTime();
+        return Math.abs(t - new Date(sessions[sessions.length - 1].date_start).getTime()) < 4 * 86400000;
+      })[0];
+      var tabs = sessions.map(function (s, i) {
+        return '<button type="button" class="rnd-tab cmp-stab' + (i === sessions.length - 1 ? ' on' : '') +
+          '" data-sk="' + s.session_key + '">' + esc(OF1_SESSION_CN[s.session_name] || s.session_name) + '</button>';
+      }).join('');
+      slot.innerHTML = (ev ? '<div class="cmp-sub">' + esc(gpName(ev.name)) + '</div>' : '') +
+        '<div class="rnd-tabs">' + tabs + '</div><div id="cmpLapBody"></div>';
+      cmpShowSession(sessions[sessions.length - 1], A, B, seq);
+      slot.sessions = sessions;
+    });
+  }
+
+  function cmpShowSession(session, A, B, seq) {
+    var box = document.getElementById('cmpLapBody');
+    if (!box) return;
+    box.innerHTML = '<div class="cmp-none">正在读取圈速…</div>';
+    cmpLapPanel(session, A.key, B.key, A.name, B.name).then(function (html) {
+      if (seq !== cmpSeq) return;
+      var now = document.getElementById('cmpLapBody');
+      if (now && now.dataset.sk === String(session.session_key)) now.innerHTML = html;
+    }).catch(function () {
+      var now = document.getElementById('cmpLapBody');
+      if (now) now.innerHTML = '<div class="cmp-none">圈速没取到，稍后再试。</div>';
+    });
+    box.dataset.sk = String(session.session_key);
+  }
+
   function renderF1Fixtures() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
@@ -4603,7 +5180,11 @@
       host.innerHTML = f1ProgressHTML(evs, doneCount, standings) +
         (next ? f1HeroHTML(next, nextCircuit) : '') +
         '<div id="f1Radio"></div><div id="f1Hist"></div>' +
+        f1CompareHTML(standings) +
         '<div class="group-name">全年赛历</div>' + list;
+
+      f1Cache.cmpCtx = { evs: evs, standings: standings };
+      if (document.getElementById('cmpA')) f1CompareFill(evs, standings);
 
       $('status').textContent = new Date(evs[0].date).getFullYear() + ' 赛季';
 
@@ -9435,6 +10016,42 @@
     });
   }, true);
 
+  $('panel-fixtures').addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.id !== 'cmpA' && t.id !== 'cmpB') return;
+    lsSet(t.id, t.value);
+    var ctx = f1Cache.cmpCtx;
+    if (ctx) f1CompareFill(ctx.evs, ctx.standings);
+  });
+
+  // capture, alongside the round tabs' handler, which stops the click there
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('.cmp-stab');
+    if (!t || t.classList.contains('on')) return;
+    var slot = document.getElementById('cmpLap');
+    var ctx = f1Cache.cmpCtx;
+    if (!slot || !slot.sessions || !ctx) return;
+    [].forEach.call(slot.querySelectorAll('.cmp-stab'), function (b) { b.classList.toggle('on', b === t); });
+    var list = cmpDriverList(ctx.standings);
+    function find(k) { return list.filter(function (d) { return d.key === k; })[0]; }
+    var session = slot.sessions.filter(function (s) { return String(s.session_key) === t.dataset.sk; })[0];
+    var A = find($('cmpA').value), B = find($('cmpB').value);
+    if (session && A && B) cmpShowSession(session, A, B, cmpSeq);
+  }, true);
+
+  /* The crosshair follows a mouse, and a finger drawn sideways along the
+     chart; a tap anywhere else puts it away. */
+  (function () {
+    var shown = null;
+    function at(e) {
+      var el = e.target.closest && e.target.closest('.cmp-chart');
+      if (el) { shown = el; cmpHover(el, e.clientX); }
+      else if (shown) { cmpUnhover(shown); shown = null; }
+    }
+    document.addEventListener('pointermove', at);
+    document.addEventListener('pointerdown', at);
+  })();
+
   $('panel-fixtures').addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('.f1-r-more');
     if (!b) return;
@@ -9859,6 +10476,7 @@
       live = false;
       if (e.touches.length !== 1) return;          // a pinch is not a swipe
       if (scrollsSideways(e.target)) return;
+      if (e.target.closest && e.target.closest('.cmp-chart')) return;
       var t = e.touches[0];
       x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); live = true;
     }, { passive: true });

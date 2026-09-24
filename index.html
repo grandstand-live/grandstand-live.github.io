@@ -1141,6 +1141,55 @@
   .tl-arr.a { fill: var(--ser-a); }
   .tl-arr.b { fill: var(--ser-b); }
   .tl-scale { stroke: var(--ink-2); stroke-width: 2; }
+  /* ---- F1 compare: replay ---- */
+  .rp { background: var(--surface-2); border-radius: 4px; padding: 8px 10px 10px; }
+  .rp .tm-base { stroke-width: 7; }
+  .rp-car { stroke: var(--surface); stroke-width: 2; }
+  .rp-lab {
+    font-family: var(--serif); font-size: 11px; font-weight: 600; fill: var(--ink);
+    paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round;
+  }
+  .rp-car.a { fill: var(--ser-a); }
+  .rp-car.b { fill: var(--ser-b); }
+  .rp-trail { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: .55; }
+  .rp-trail.a { stroke: var(--ser-a); }
+  .rp-trail.b { stroke: var(--ser-b); }
+  .rp-gap {
+    text-align: center; font-size: 13px; color: var(--ink-2); margin: 6px 0 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rp-gap b { font-family: var(--serif); font-weight: 600; color: var(--ink); }
+  .rp-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rp-side { min-width: 0; }
+  .rp-side.done .rp-t { color: var(--ink); }
+  .rp-n {
+    display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden;
+    font-family: var(--serif); font-size: 12.5px; font-weight: 600; color: var(--ink);
+  }
+  .rp-t {
+    font-family: var(--narrow); font-size: 18px; font-weight: 700; color: var(--ink-2);
+    font-variant-numeric: tabular-nums; margin: 1px 0;
+  }
+  .rp-row { display: flex; align-items: baseline; gap: 3px; font-variant-numeric: tabular-nums; }
+  .rp-row b { font-family: var(--narrow); font-size: 15px; font-weight: 600; color: var(--ink); min-width: 1.6em; }
+  .rp-row span { font-size: 10.5px; color: var(--muted); margin-right: 8px; }
+  .rp-bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+  .rp-bar i { flex: 1; height: 5px; border-radius: 3px; background: var(--hairline); overflow: hidden; display: block; }
+  .rp-bar em { display: block; height: 100%; width: 0; border-radius: 3px; }
+  .rp-bar em.th { background: var(--win); }
+  .rp-bar em.br { background: var(--loss); }
+  .rp-ctl { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .rp-play {
+    width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); border: none; font-size: 13px;
+  }
+  .rp-scrub { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .rp-sps { display: flex; gap: 2px; }
+  .rp-sp {
+    font-family: var(--narrow); font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer;
+    background: none; border: 1px solid var(--hairline); border-radius: 2px; padding: 3px 5px;
+  }
+  .rp-sp.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -5747,7 +5796,7 @@
 
   function teleBuild(car, loc, t0, dur) {
     var cs = (car || []).map(function (c) {
-      return { t: (new Date(c.date).getTime() - t0) / 1000, v: c.speed || 0 };
+      return { t: (new Date(c.date).getTime() - t0) / 1000, v: c.speed || 0, g: c.n_gear, th: c.throttle, br: c.brake };
     }).sort(function (a, b) { return a.t - b.t; });
     if (cs.length < 40) return null;
     /* The feed drops out now and then — one FP1 lap in Baku had 28 seconds
@@ -5773,7 +5822,7 @@
     return {
       dur: dur, L: L, loc: ps,
       car: cs.filter(function (c) { return c.t >= 0 && c.t <= dur; })
-        .map(function (c) { return { t: c.t, d: c.d - d0, v: c.v }; })
+        .map(function (c) { return { t: c.t, d: c.d - d0, v: c.v, g: c.g, th: c.th, br: c.br }; })
     };
   }
 
@@ -5882,6 +5931,7 @@
     var N = 25, won = [0, 0], segs = '';
     var track = teleRun(SA, 0, Lc);
     var fit = teleFit(track, CW, 250, 14);
+    var replay = rpHTML(TA, TB, SA, SB, fit, track, A, B);
     for (var k = 0; k < N; k++) {
       var a0 = Lc * k / N, a1 = Lc * (k + 1) / N;
       var ta = SA.tAt(a1) - SA.tAt(a0), tb = SB.tAt(a1) - SB.tAt(a0);
@@ -5971,7 +6021,7 @@
     return '<div class="cmp-sub" style="margin-top:12px">最快圈对比 <span>' + esc(faster) + ' 快 ' +
         Math.abs(TA.dur - TB.dur).toFixed(3) + ' 秒</span></div>' +
       (subst ? '<div class="cmp-sub"><span>' + subst + '。</span></div>' : '') +
-      cmpLegend(A.name, B.name) +
+      replay + cmpLegend(A.name, B.name) +
       '<div class="cmp-sub"><span>车速 km/h · 横轴是这一圈跑过的距离</span></div>' + speed +
       '<div class="cmp-sub" style="margin-top:8px"><span>累计差距 · 线在 0 上方是' + esc(A.name) +
         '领先，下方是' + esc(B.name) + '领先</span></div>' + delta +
@@ -5988,6 +6038,154 @@
         '<div class="rnd-wrap"><div class="rnd-tabs">' + tabs + '</div>' + panels + '</div>' +
         '<div class="cmp-sub"><span>小点是实际定位点，约 0.24 秒一个；大圈是各自车速最低处。F1 官方定位精度大约 1 米，最低速点按 10 米一格估算。</span></div>'
         : '');
+  }
+
+  /* ---------- replay: both laps run side by side, in real time ----------
+     Each car is placed by its own clock from the start line, so the two
+     dots are where each car actually was that many seconds into its lap —
+     the gap you see opening is the real one. Positions between fixes are
+     eased with a Catmull-Rom curve so the dots round a corner instead of
+     cutting it, and the lap is played through requestAnimationFrame, which
+     a hidden tab pauses on its own. */
+  var cmpRp = null;
+
+  function rpPos(T, t) {
+    var L = T.loc, n = L.length;
+    if (t <= L[0].t) return [L[0].x, L[0].y];
+    if (t >= L[n - 1].t) return [L[n - 1].x, L[n - 1].y];
+    var lo = 0, hi = n - 1;
+    while (hi - lo > 1) { var m = (lo + hi) >> 1; if (L[m].t <= t) lo = m; else hi = m; }
+    var p0 = L[Math.max(0, lo - 1)], p1 = L[lo], p2 = L[hi], p3 = L[Math.min(n - 1, hi + 1)];
+    var u = (t - p1.t) / ((p2.t - p1.t) || 1), u2 = u * u, u3 = u2 * u;
+    function cr(a, b, c, d) {
+      return 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3);
+    }
+    return [cr(p0.x, p1.x, p2.x, p3.x), cr(p0.y, p1.y, p2.y, p3.y)];
+  }
+
+  // the car sample nearest a moment, for the readouts
+  function rpCar(T, t) {
+    var C = T.car, lo = 0, hi = C.length - 1;
+    if (!C.length) return {};
+    if (!T._ts) { T._ts = C.map(function (x) { return x.t; }); T._vs = C.map(function (x) { return x.v; }); }
+    while (hi - lo > 1) { var m = (lo + hi) >> 1; if (C[m].t <= t) lo = m; else hi = m; }
+    var c = Math.abs(C[hi].t - t) < Math.abs(C[lo].t - t) ? C[hi] : C[lo];
+    return { v: interp(T._ts, T._vs, t), g: c.g, th: c.th, br: c.br };
+  }
+
+  function rpHTML(TA, TB, SA, SB, fit, track, A, B) {
+    var end = Math.max(TA.dur, TB.dur);
+    cmpRp = {
+      TA: TA, TB: TB, SA: SA, SB: SB, fit: fit, A: A, B: B, end: end,
+      t: 0, playing: false, speed: 1, last: 0,
+      // per-driver time→distance, on the common length, for the live gap
+      tdA: TA.car.map(function (c) { return c.t; }), ddA: TA.car.map(function (c) { return c.d * SA.k; }),
+      tdB: TB.car.map(function (c) { return c.t; }), ddB: TB.car.map(function (c) { return c.d * SB.k; })
+    };
+    function side(D, cls) {
+      return '<div class="rp-side ' + cls + '">' +
+        '<div class="rp-n"><i class="sw ' + cls + '"></i>' + esc(D.name) + '</div>' +
+        '<div class="rp-t" data-f="time">0:00.000</div>' +
+        '<div class="rp-row"><b data-f="v">0</b><span>km/h</span><b data-f="g">–</b><span>档</span></div>' +
+        '<div class="rp-bar"><span>油门</span><i><em class="th" data-f="th"></em></i></div>' +
+        '<div class="rp-bar"><span>刹车</span><i><em class="br" data-f="br"></em></i></div>' +
+        '</div>';
+    }
+    return '<div class="cmp-sub" style="margin-top:12px">最快圈回放 <span>两辆车各按自己的时间从起跑线出发</span></div>' +
+      '<div class="rp" id="rp">' +
+        '<svg class="tm" viewBox="0 0 ' + CW + ' ' + fit.H.toFixed(0) + '" role="img" aria-label="' +
+          esc(A.name + ' 与 ' + B.name + ' 最快圈回放') + '">' +
+          '<path class="tm-base" d="' + telePath(track, fit) + '"/>' +
+          '<path class="rp-trail a" data-f="trailA"/><path class="rp-trail b" data-f="trailB"/>' +
+          '<circle class="rp-car b" r="6" data-f="carB"/><circle class="rp-car a" r="6" data-f="carA"/>' +
+          // names ride with the dots, one above and one below, so two cars a
+          // few metres apart are still two cars
+          '<text class="rp-lab" data-f="labA">' + esc(A.name) + '</text>' +
+          '<text class="rp-lab" data-f="labB">' + esc(B.name) + '</text>' +
+        '</svg>' +
+        '<div class="rp-gap" data-f="gap">点播放开始</div>' +
+        '<div class="rp-hud">' + side(A, 'a') + side(B, 'b') + '</div>' +
+        '<div class="rp-ctl">' +
+          '<button type="button" class="rp-play" aria-label="播放">▶</button>' +
+          '<input type="range" class="rp-scrub" min="0" max="' + end.toFixed(2) + '" step="0.01" value="0" aria-label="回放进度">' +
+          '<span class="rp-sps">' + [0.5, 1, 2, 4].map(function (x) {
+            return '<button type="button" class="rp-sp' + (x === 1 ? ' on' : '') + '" data-sp="' + x + '">' + x + '×</button>';
+          }).join('') + '</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function rpDraw() {
+    var R = cmpRp, root = document.getElementById('rp');
+    if (!R || !root) return false;
+    function f(k) { return root.querySelector('[data-f="' + k + '"]'); }
+    var t = R.t;
+    [['A', R.TA], ['B', R.TB]].forEach(function (x) {
+      var T = x[1], tt = Math.min(t, T.dur);
+      var p = R.fit.p(rpPos(T, tt)), car = f('car' + x[0]);
+      car.setAttribute('cx', p[0]); car.setAttribute('cy', p[1]);
+      var lab = f('lab' + x[0]);
+      lab.setAttribute('x', Number(p[0]) + 9);
+      lab.setAttribute('y', Number(p[1]) + (x[0] === 'A' ? -8 : 15));
+      // the last two and a half seconds behind the car
+      var pts = [];
+      for (var s = Math.max(0, tt - 2.5); s < tt; s += 0.1) pts.push(R.fit.p(rpPos(T, s)));
+      pts.push(p);
+      f('trail' + x[0]).setAttribute('d', pts.length > 1 ? pts.map(function (q, i) {
+        return (i ? 'L' : 'M') + q[0] + ' ' + q[1];
+      }).join('') : '');
+      var side = root.querySelector('.rp-side.' + x[0].toLowerCase());
+      var c = rpCar(T, tt);
+      side.querySelector('[data-f="time"]').textContent = f1Lap(tt);
+      side.querySelector('[data-f="v"]').textContent = Math.round(c.v || 0);
+      side.querySelector('[data-f="g"]').textContent = c.g || '–';
+      side.querySelector('[data-f="th"]').style.width = Math.max(0, Math.min(100, c.th || 0)) + '%';
+      side.querySelector('[data-f="br"]').style.width = (c.br > 0 ? 100 : 0) + '%';
+      side.classList.toggle('done', t >= T.dur);
+    });
+    // the gap as the broadcast gives it: how long the second car takes to
+    // reach the point the first has reached
+    var dA = interp(R.tdA, R.ddA, Math.min(t, R.TA.dur)), dB = interp(R.tdB, R.ddB, Math.min(t, R.TB.dur));
+    var gap = f('gap');
+    if (t <= 0) gap.textContent = '点播放开始';
+    else if (t >= R.end) {
+      var fa = R.TA.dur <= R.TB.dur;
+      gap.innerHTML = '<b>' + esc(fa ? R.A.name : R.B.name) + '</b> 快 ' + Math.abs(R.TA.dur - R.TB.dur).toFixed(3) + ' 秒完成这一圈';
+    } else {
+      var aHead = dA >= dB;
+      var behind = aHead ? R.SB.tAt(dA) - t : R.SA.tAt(dB) - t;
+      gap.innerHTML = '<b>' + esc(aHead ? R.A.name : R.B.name) + '</b> 领先 ' + Math.max(0, behind).toFixed(3) + ' 秒';
+    }
+    root.querySelector('.rp-scrub').value = t.toFixed(2);
+    return true;
+  }
+
+  function rpTick(now) {
+    var R = cmpRp;
+    if (!R || !R.playing) return;
+    if (!document.getElementById('rp')) { R.playing = false; return; }
+    if (R.last) R.t = Math.min(R.end, R.t + (now - R.last) / 1000 * R.speed);
+    R.last = now;
+    rpDraw();
+    if (R.t >= R.end) { rpSet(false); return false; }
+    return true;
+  }
+
+  function rpSet(play) {
+    var R = cmpRp, root = document.getElementById('rp');
+    if (!R || !root) return;
+    if (play && R.t >= R.end) R.t = 0;   // play at the end starts over
+    R.playing = play;
+    R.last = 0;
+    var b = root.querySelector('.rp-play');
+    b.textContent = play ? '❚❚' : '▶';
+    b.setAttribute('aria-label', play ? '暂停' : '播放');
+    // one loop at a time: pause and play inside a frame must not leave two running
+    R.run = (R.run || 0) + 1;
+    var run = R.run;
+    if (play) requestAnimationFrame(function step(now) {
+      if (R.run === run && rpTick(now)) requestAnimationFrame(step);
+    });
   }
 
   function cmpTeleFill(session, A, B, seq) {
@@ -6025,6 +6223,7 @@ O
       if (seq !== cmpSeq || !slot()) return;
       slot().innerHTML = T && T[0] && T[1] ? cmpTeleHTML(T[0], T[1], A, B)
         : '<div class="cmp-none">这一节两人没有都完整的快圈遥测（数据有缺口），没法逐米对比。</div>';
+      rpDraw();
     }).catch(function () {
       if (slot()) slot().innerHTML = '<div class="cmp-none">遥测没取到，稍后再试。</div>';
     });
@@ -11107,6 +11306,21 @@ O
   })();
 
   $('panel-fixtures').addEventListener('click', function (e) {
+    if (!cmpRp || !e.target.closest) return;
+    if (e.target.closest('.rp-play')) { rpSet(!cmpRp.playing); return; }
+    var sp = e.target.closest('.rp-sp');
+    if (!sp) return;
+    cmpRp.speed = Number(sp.dataset.sp) || 1;
+    [].forEach.call(sp.parentNode.children, function (b) { b.classList.toggle('on', b === sp); });
+  });
+  $('panel-fixtures').addEventListener('input', function (e) {
+    if (!cmpRp || !e.target.classList.contains('rp-scrub')) return;
+    cmpRp.t = Number(e.target.value) || 0;
+    cmpRp.last = 0;
+    rpDraw();
+  });
+
+  $('panel-fixtures').addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('.cmp-mate');
     if (!b) return;
     var sel = document.getElementById('cmpB');
@@ -11539,7 +11753,7 @@ O
       live = false;
       if (e.touches.length !== 1) return;          // a pinch is not a swipe
       if (scrollsSideways(e.target)) return;
-      if (e.target.closest && e.target.closest('.cmp-chart')) return;
+      if (e.target.closest && e.target.closest('.cmp-chart, .rp')) return;
       var t = e.touches[0];
       x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); live = true;
     }, { passive: true });

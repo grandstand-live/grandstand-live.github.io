@@ -1022,6 +1022,7 @@
   }
   .ch-body img { max-width: 100%; max-height: 100%; object-fit: contain; object-position: bottom; }
   .ch-name {
+    flex-wrap: wrap; justify-content: center; text-align: center; line-height: 1.25;
     display: flex; align-items: center; gap: 5px; max-width: 100%;
     font-family: var(--serif); font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap;
   }
@@ -1295,6 +1296,26 @@
   }
   .sh-acts .sh-go { background: var(--accent); color: var(--on-accent); }
   .sh-tip { text-align: center; font-size: 11.5px; color: rgba(255, 253, 247, .7); }
+  /* ---- settings ---- */
+  .set-box {
+    width: 100%; max-width: 360px; background: var(--surface); border-radius: 10px;
+    padding: 18px 18px 14px; box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
+  }
+  .set-h { font-family: var(--serif); font-size: 17px; font-weight: 600; color: var(--ink); margin-bottom: 14px; }
+  .set-k { font-family: var(--narrow); font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
+  .set-seg { display: flex; gap: 4px; }
+  .set-seg button {
+    flex: 1; padding: 9px 0; cursor: pointer; border-radius: 6px;
+    font-family: var(--serif); font-size: 13.5px; font-weight: 600;
+    background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--hairline);
+  }
+  .set-seg button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .set-note { font-size: 11.5px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+  .set-done {
+    display: block; width: 100%; margin-top: 16px; padding: 10px 0; cursor: pointer; border-radius: 8px;
+    font-family: var(--serif); font-size: 14px; font-weight: 600; border: none;
+    background: var(--surface-2); color: var(--ink);
+  }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -2330,6 +2351,7 @@
         <div class="eyebrow" id="subtitle">实时赛事板 · 足球</div>
       </div>
       <div class="head-actions">
+        <button class="icon-btn" id="setBtn" type="button" title="设置" aria-label="设置">⚙</button>
         <button class="icon-btn" id="themeBtn" type="button" title="外观">◐</button>
         <button class="icon-btn" id="refreshBtn" type="button" title="刷新"><span class="spin">↻</span></button>
         <button class="icon-btn" id="gearBtn" type="button">主队</button>
@@ -2519,6 +2541,7 @@
   var NATION_KEYS = Object.keys(NATION_CN).sort(function (a, b) { return b.length - a.length; });
   function nationCN(name, short) {
     if (!name) return short || '';
+    if (NAMES_EN) return name;
     var low = plain(name);
     if (NATION_CN[low]) return NATION_CN[low];
     for (var i = 0; i < NATION_KEYS.length; i++) {
@@ -2535,6 +2558,7 @@
   }
   function cn(name, short) {
     if (!name) return short || '';
+    if (NAMES_EN) return name;
     var low = plain(name);
     // A country name is matched whole, so "Spain" never picks up a club whose
     // name merely contains it; clubs keep their looser substring match.
@@ -2553,7 +2577,13 @@
   }
   var WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   // a fight from last December reads as this coming December without the year
+  var WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function fmtDay(d) {
+    if (LANG === 'en') {
+      return WD_EN[d.getDay()] + ' ' + d.getDate() + ' ' + MON_EN[d.getMonth()] +
+        (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+    }
     var year = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '年' : '';
     return year + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WD[d.getDay()];
   }
@@ -2598,6 +2628,147 @@
     s.style.height = img.style.height || '';
     if (img.parentNode) img.parentNode.replaceChild(s, img);
   };
+
+  /* ---------- language ----------
+     Three settings. 中文 is the board as it has always been. English turns
+     the whole page English. 中英混合 keeps the interface Chinese and gives
+     every name — clubs, players, drivers, teams, grands prix — in its own
+     language, the way many fans read a scoreline anyway.
+
+     Names switch at the source: every name already passes through one of
+     the *CN functions, which hand back the original when names are not
+     Chinese. The interface is Chinese in the markup, so English is laid over
+     the rendered page: a dictionary (i18n/en.json, fetched only by English
+     readers) is applied to each text node as it appears, whole sentences
+     first with their numbers lifted out, then phrase by phrase, longest
+     first. The name tables run backwards into that dictionary too, so a
+     Chinese name stored on the device (a follow, a call) still reads in
+     English. */
+  var LANG = lsGet('lang', 'zh');
+  if (['zh', 'en', 'mix'].indexOf(LANG) === -1) LANG = 'zh';
+  var NAMES_EN = LANG !== 'zh';
+  var I18N = null;
+
+  function titleCase(s) {
+    return String(s || '').replace(/(^|[\s\-'(])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); });
+  }
+
+  function i18nBuild(d) {
+    var frag = {};
+    Object.keys(d.frag || {}).forEach(function (k) { frag[k] = d.frag[k]; });
+    // the name tables, backwards: 利物浦 → Liverpool
+    function back(table, suffix, enSuffix) {
+      Object.keys(table || {}).forEach(function (k) {
+        var zh = table[k] + (suffix || '');
+        if (zh && !frag[zh] && !(d.exact || {})[zh]) frag[zh] = titleCase(k) + (enSuffix || '');
+      });
+    }
+    back(CN); back(NATION_CN); back(TEAM_CN); back(DRIVER_CN); back(NBA_CN); back(CBA_CN);
+    back(GP_CN, '大奖赛', ' Grand Prix'); back(GP_CN);
+    var keys = Object.keys(frag).filter(Boolean).sort(function (a, b) { return b.length - a.length; });
+    I18N = {
+      exact: d.exact || {}, frag: frag,
+      // sentences with a name or a place in the middle, reordered for English
+      pat: (d.pat || []).map(function (p) { return [new RegExp(p[0]), p[1]]; }),
+      // numbered phrases wherever they sit: 第 3 名, 第 12 圈
+      inline: (d.inline || []).map(function (p) { return [new RegExp(p[0], 'g'), p[1]]; }),
+      re: keys.length ? new RegExp(keys.map(function (k) {
+        return k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }).join('|'), 'g') : null
+    };
+  }
+
+  var CJK = /[一-鿿]/;
+  var PUNCT = { '，': ', ', '。': '. ', '：': ': ', '；': '; ', '！': '! ', '？': '? ', '、': ', ',
+    '（': ' (', '）': ') ', '「': '"', '」': '"', '《': '"', '》': '"', '～': '–' };
+
+  function trText(s) {
+    if (!I18N || !CJK.test(s)) return s;
+    var lead = s.match(/^\s*/)[0], trail = s.match(/\s*$/)[0], core = s.trim();
+    var hit = I18N.exact[core];
+    if (hit == null) {
+      // the same sentence with other numbers in it
+      var nums = [];
+      var key = core.replace(/\d+(?:\.\d+)?/g, function (m) { nums.push(m); return '{' + (nums.length - 1) + '}'; });
+      var tpl = nums.length ? I18N.exact[key] : null;
+      if (tpl != null) hit = tpl.replace(/\{(\d+)\}/g, function (m, i) { return nums[i] == null ? m : nums[i]; });
+    }
+    function phrases(t) { return t.replace(I18N.re, function (m) { return ' ' + I18N.frag[m] + ' '; }); }
+    var work = core;
+    if (hit == null) {
+      I18N.inline.forEach(function (r) { work = work.replace(r[0], r[1]); });
+      if (!CJK.test(work)) hit = work;
+    }
+    if (hit == null) {
+      for (var i = 0; i < I18N.pat.length; i++) {
+        if (!I18N.pat[i][0].test(work)) continue;
+        hit = work.replace(I18N.pat[i][0], I18N.pat[i][1]);
+        // a stored Chinese name the pattern carried through
+        if (I18N.re && CJK.test(hit)) hit = phrases(hit);
+        break;
+      }
+    }
+    if (hit == null && I18N.re) hit = phrases(work);
+    if (hit == null) return s;
+    hit = hit.replace(/[，。：；！？、（）「」《》～]/g, function (c) { return PUNCT[c]; })
+      .replace(/\s+/g, ' ').replace(/\s+([,.;:!?)%])/g, '$1').replace(/\(\s+/g, '(').trim();
+    return lead + hit + trail;
+  }
+
+  var trDone = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  function trTextNode(t) {
+    var v = t.nodeValue;
+    // a language's own name is never translated
+    if (t.parentNode && t.parentNode.closest && t.parentNode.closest('[translate="no"]')) return;
+    if (!CJK.test(v) || (trDone && trDone.get(t) === v)) return;
+    var out = trText(v);
+    if (trDone) trDone.set(t, out);
+    if (out !== v) t.nodeValue = out;
+  }
+  // only ever written when it changes, so the observer never feeds itself
+  function trAttrs(el) {
+    ['title', 'aria-label', 'placeholder', 'alt'].forEach(function (a) {
+      var v = el.getAttribute(a);
+      if (!v || !CJK.test(v)) return;
+      var out = trText(v);
+      if (out !== v) el.setAttribute(a, out);
+    });
+  }
+  function trNode(root) {
+    if (!I18N || !root) return;
+    if (root.nodeType === 3) { trTextNode(root); return; }
+    if (root.nodeType !== 1 || root.tagName === 'SCRIPT' || root.tagName === 'STYLE') return;
+    trAttrs(root);
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null), n;
+    while ((n = w.nextNode())) {
+      if (n.nodeType === 3) trTextNode(n);
+      else if (n.tagName !== 'SCRIPT' && n.tagName !== 'STYLE') trAttrs(n);
+    }
+  }
+
+  function i18nStart() {
+    document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+    if (LANG !== 'en') return;
+    fetch('i18n/en.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d) return;
+      i18nBuild(d);
+      document.title = trText(document.title);
+      // a dialog is not on the page either
+      var nativeAlert = window.alert;
+      window.alert = function (m) { nativeAlert.call(window, trText(String(m))); };
+      trNode(document.body);
+      new MutationObserver(function (ms) {
+        ms.forEach(function (m) {
+          if (m.type === 'characterData') trNode(m.target);
+          else if (m.type === 'attributes') trAttrs(m.target);
+          else [].forEach.call(m.addedNodes, trNode);
+        });
+      }).observe(document.body, {
+        childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ['title', 'aria-label', 'placeholder']
+      });
+    }).catch(function () {});
+  }
 
   /* ---------- state ---------- */
   var league = lsGet('lg', 'eng.1');
@@ -3550,6 +3721,7 @@
   }
 
   function comTr(text) {
+    if (LANG === 'en') return null;
     var t = String(text || '').trim(), m;
     var rules = [
       [/^Lineups are announced and players are warming up\.$/, function () { return '首发名单公布，球员正在热身。'; }],
@@ -4664,7 +4836,10 @@
   function gpName(name) {
     var low = plain(name || '');
     for (var i = 0; i < GP_KEYS.length; i++) {
-      if (low.indexOf(GP_KEYS[i]) !== -1) return GP_CN[GP_KEYS[i]] + '大奖赛';
+      if (low.indexOf(GP_KEYS[i]) === -1) continue;
+      // ESPN's title carries the sponsor; the key is the race's own name
+      if (NAMES_EN) return titleCase(GP_KEYS[i]) + (/grand prix/.test(GP_KEYS[i]) ? '' : ' Grand Prix');
+      return GP_CN[GP_KEYS[i]] + '大奖赛';
     }
     return (name || '').replace(/^[^ ]+ /, '');
   }
@@ -4720,7 +4895,14 @@
     'racing point': '赛点', 'hesketh': '赫斯基思', 'toro rosso': '红牛二队',
     'stewart': '斯图尔特', 'porsche': '保时捷', 'wolf': '沃尔夫'
   };
+  // names as the reader has chosen to see them
   function driverCN(name) {
+    return NAMES_EN ? String(name || '') : driverZh(name);
+  }
+  /* Always Chinese, whatever the setting: the driver's key. Calls, the
+     compare's picks and the podium slots are stored under it, so it must
+     not change when the language does. */
+  function driverZh(name) {
     var low = plain(name || '');
     /* Longest key first. The table now holds 'schumacher' and 'ralf schumacher',
        'rosberg' and 'keke rosberg' — taking the first match in insertion order
@@ -4731,6 +4913,7 @@
     return k ? DRIVER_CN[k] : (name || '');
   }
   function teamCN(name) {
+    if (NAMES_EN) return String(name || '');
     var low = plain(name || '');
     var keys = Object.keys(TEAM_CN).sort(function (a, b) { return b.length - a.length; });
     var k = keys.filter(function (x) { return low.indexOf(x) !== -1; })[0];
@@ -5042,6 +5225,7 @@
   }
 
   function histGpName(name) {
+    if (NAMES_EN) return String(name || '');
     // the one race in the record that was never a grand prix
     if (/indianapolis/i.test(name || '')) return '印第安纳波利斯 500';
     return gpName(name);
@@ -5546,7 +5730,7 @@
     ];
     var table = '<div class="cmp-stats">' +
       '<div class="cmp-st"><span>' + (A.in ? 'P' + (A.pos || '—') : '未参加') + '</span><span class="k">' +
-        (isRace ? '名次' : '排名') + '</span><span>' + (B.in ? 'P' + (B.pos || '—') : '未参加') + '</span></div>' +
+        '名次' + '</span><span>' + (B.in ? 'P' + (B.pos || '—') : '未参加') + '</span></div>' +
       rows.map(function (r) {
         return '<div class="cmp-st">' + cell(r[1], r[2], r[3], r[4]) + '<span class="k">' + r[0] + '</span>' +
           cell(r[2], r[1], r[3], r[4]) + '</div>';
@@ -6928,7 +7112,7 @@ O
      the old single-driver version silently settled every call as a miss.
      driverCN runs on both sides, so the two always agree. */
   function f1DriverKey(name) {
-    return String(driverCN(name) || name || '').replace(/~/g, '').trim();
+    return String(driverZh(name) || name || '').replace(/~/g, '').trim();
   }
   function f1Field() {
     var field = favDrivers.map(function (f) { return f1DriverKey(f.name); });
@@ -7355,6 +7539,7 @@ O
     [/\bAND\b/g, '与'], [/\bFOR\b/g, '原因：'], [/\bIN\b/g, '于'], [/\bAT\b/g, '于']
   ];
   function rcCN(msg) {
+    if (LANG === 'en') return String(msg || '').replace(/\s+/g, ' ').trim();
     var out = String(msg || '');
     RC_CN.forEach(function (r) { out = out.replace(r[0], r[1]); });
     return out.replace(/\s+/g, ' ').trim();
@@ -7550,6 +7735,7 @@ O
 
   /* ---------- head-to-head history and recent form ---------- */
   function seriesCN(text) {
+    if (LANG === 'en') return String(text || '');
     return String(text || '')
       .replace(/^(.+?) leads series ([\d-]+)/i, '$1 交锋领先 $2')
       .replace(/^series tied ([\d-]+)/i, '交锋战平 $1')
@@ -7674,6 +7860,7 @@ O
       '<span class="clip-title">搜索「' + esc(query) + '」</span></a>';
   }
   function dayCN(d) {
+    if (LANG === 'en') return dayEN(d);
     return isNaN(d) ? '' : (d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日');
   }
   function dayEN(d) {
@@ -7724,6 +7911,13 @@ O
 
   function countdown(when) {
     var ms = when - Date.now();
+    if (LANG === 'en') {
+      if (ms <= 0) return 'Starting soon';
+      var m = Math.floor(ms / 60000), h = Math.floor(m / 60);
+      if (m < 60) return 'In ' + m + ' min';
+      if (h < 24) return 'In ' + h + 'h ' + (m % 60) + 'm';
+      return 'In ' + Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+    }
     if (ms <= 0) return '即将开始';
     var mins = Math.floor(ms / 60000);
     if (mins < 60) return '还有 ' + mins + ' 分钟';
@@ -7892,6 +8086,7 @@ O
     x.fillStyle = color;
     x.textAlign = opt.align || 'left';
     var str = String(s == null ? '' : s);
+    if (LANG === 'en') str = trText(str);   // canvas text is not on the page, so the page's translation never sees it
     if (opt.max) {
       while (str.length > 1 && x.measureText(str).width > opt.max) str = str.slice(0, -1);
       if (str !== String(s)) str = str.slice(0, -1) + '…';
@@ -8543,6 +8738,7 @@ O
   };
   var NBA_KEYS = Object.keys(NBA_CN).sort(function (a, b) { return b.length - a.length; });
   function nbaCN(name, fallback) {
+    if (NAMES_EN) return name || fallback || '';
     var low = plain(name || '');
     for (var i = 0; i < NBA_KEYS.length; i++) {
       if (low.indexOf(NBA_KEYS[i]) !== -1) return NBA_CN[NBA_KEYS[i]];
@@ -9629,6 +9825,7 @@ O
     'sichuan blue whales': '四川', 'chongqing': '重庆'
   };
   function cbaCN(name) {
+    if (NAMES_EN && !CJK.test(name || '')) return String(name || '');
     var low = plain(name || '');
     var keys = Object.keys(CBA_CN).sort(function (a, b) { return b.length - a.length; });
     var hit = keys.filter(function (k) { return low.indexOf(k) !== -1; })[0];
@@ -9764,6 +9961,8 @@ O
   var MAX_LOL = 5;
 
   function lolGet(path) {
+    // the league publishes in both; an English reader gets its English
+    if (LANG === 'en') path = path.replace('hl=zh-CN', 'hl=en-US');
     if (lolCache[path]) return Promise.resolve(lolCache[path]);
     return fetch(LOL + path, LOL_HDR)
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -10222,6 +10421,7 @@ O
   // ESPN writes the women's divisions as "W Bantamweight", and spells the same
   // division either "Catchweight" or "Catch Weight"
   function weightCN(abbr) {
+    if (LANG === 'en') return String(abbr || '');
     var s = plain(abbr || '').trim();
     if (!s) return '';
     var women = /^w\s/.test(s);
@@ -12608,6 +12808,37 @@ O
       a.remove();
     }
   }, true);
+
+  $('setBtn').addEventListener('click', function () {
+    var s = $('setSheet');
+    if (!s) {
+      s = document.createElement('div');
+      s.id = 'setSheet';
+      s.className = 'sh-sheet';
+      s.innerHTML = '<div class="set-box">' +
+        '<div class="set-h">设置</div>' +
+        '<div class="set-k">语言 · Language</div>' +
+        '<div class="set-seg" translate="no">' + [['zh', '中文'], ['en', 'English'], ['mix', 'Mixed']].map(function (o) {
+          return '<button type="button" data-lang="' + o[0] + '"' + (o[0] === LANG ? ' class="on"' : '') + '>' + o[1] + '</button>';
+        }).join('') + '</div>' +
+        '<div class="set-note">Mixed：界面用中文，队名、人名和赛事名用原文。</div>' +
+        '<button type="button" class="set-done">完成</button></div>';
+      document.body.appendChild(s);
+      s.addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('[data-lang]');
+        if (b) {
+          if (b.dataset.lang === LANG) { s.hidden = true; return; }
+          lsSet('lang', b.dataset.lang);
+          location.reload();   // every board is drawn in one language from the start
+          return;
+        }
+        if (e.target === s || (e.target.closest && e.target.closest('.set-done'))) s.hidden = true;
+      });
+    }
+    s.hidden = false;
+  });
+
+  i18nStart();
 
   /* A paper's nameplate takes you to the front page. */
   $('mast').addEventListener('click', function () {

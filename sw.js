@@ -1,8 +1,16 @@
 /* Grandstand service worker — network first, cache as a fallback.
    The page is a live scoreboard, so a stale copy must never win over the
-   network; the cache only exists so the app still opens when offline. */
-var CACHE = 'grandstand-v12';
+   network; the cache only exists so the app still opens when offline, or
+   when the network is too slow to be worth waiting on. */
+var CACHE = 'grandstand-v14';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+
+/* How long the page waits on the network before opening from the cache.
+   On a train or a stadium's crowded signal the page used to sit blank until
+   the request gave up; now it opens on the last copy and the fresh one
+   still lands in the cache for next time. The scores inside are fetched
+   live either way — only the app itself comes from the cache. */
+var PAGE_WAIT = 2500;
 
 self.addEventListener('install', function (e) {
   e.waitUntil(
@@ -39,15 +47,37 @@ self.addEventListener('fetch', function (e) {
   var isPage = req.mode === 'navigate' ||
     url.pathname === '/' || /\.html$/.test(url.pathname);
 
-  e.respondWith(
-    fetch(isPage ? new Request(req, { cache: 'no-store' }) : req).then(function (res) {
+  var net = fetch(isPage ? new Request(req, { cache: 'no-store' }) : req).then(function (res) {
+    if (res.ok) {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(req, copy); }).catch(function () {});
-      return res;
-    }).catch(function () {
-      return caches.match(req).then(function (hit) {
-        return hit || caches.match('./index.html');
+    }
+    return res;
+  });
+  function fromCache() {
+    return caches.match(req).then(function (hit) {
+      return hit || caches.match('./index.html');
+    });
+  }
+
+  if (!isPage) {
+    e.respondWith(net.catch(fromCache));
+    return;
+  }
+
+  e.respondWith(new Promise(function (resolve) {
+    var settled = false;
+    function answer(res) { if (!settled && res) { settled = true; resolve(res); } }
+    var timer = setTimeout(function () {
+      caches.match(req).then(answer);    // nothing cached yet: keep waiting on the network
+    }, PAGE_WAIT);
+    net.then(function (res) { clearTimeout(timer); answer(res); })
+      .catch(function () {
+        clearTimeout(timer);
+        // offline with nothing cached: fail now rather than hang
+        fromCache().then(function (hit) { answer(hit || Response.error()); });
       });
-    })
-  );
+  }));
+  // let a slow response finish into the cache after the page has opened
+  e.waitUntil(net.catch(function () {}));
 });

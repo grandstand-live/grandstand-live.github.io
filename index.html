@@ -886,6 +886,40 @@
   .hist-body { font-size: 13px; color: var(--ink-2); line-height: 1.5; min-width: 0; }
   .hist-body b { font-family: var(--serif); font-weight: 600; color: var(--ink); }
   .hist-sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  /* ---- F1: this weekend's results ---- */
+  .f1-res { font-size: 13px; }
+  .f1-r {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 2px; border-bottom: 1px solid var(--hairline);
+  }
+  .f1-r:last-of-type { border-bottom: none; }
+  .f1-r.deep { display: none; }
+  .f1-res.all .f1-r.deep { display: flex; }
+  .f1-r-head {
+    font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
+    letter-spacing: .08em; color: var(--muted); padding-top: 2px;
+  }
+  .f1-r-p {
+    width: 22px; flex-shrink: 0; text-align: right;
+    font-family: var(--narrow); font-weight: 700; color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .f1-r-c { width: 3px; height: 16px; border-radius: 1px; flex-shrink: 0; background: var(--hairline); }
+  .f1-r-head .f1-r-c { background: none; }
+  .f1-r-n { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; overflow: hidden; }
+  .f1-r-n b { font-family: var(--serif); font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .f1-r-n span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .f1-r-t, .f1-r-g {
+    flex-shrink: 0; text-align: right;
+    font-family: var(--narrow); font-variant-numeric: tabular-nums; color: var(--ink-2);
+  }
+  .f1-r-t { width: 70px; }
+  .f1-r-g { width: 64px; color: var(--muted); }
+  .f1-r-more {
+    display: block; width: 100%; margin-top: 4px; padding: 8px 0;
+    background: none; border: none; cursor: pointer;
+    font-family: var(--serif); font-size: 12px; font-weight: 600; color: var(--accent);
+  }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -4066,6 +4100,15 @@
     if (f1Cache.season) return Promise.resolve(f1Cache.season);
     var year = new Date().getFullYear();
     return getJSON(API + 'site/v2/sports/racing/f1/scoreboard?dates=' + year).then(function (d) {
+      /* ESPN marks a grand prix Final as soon as its first practice ends —
+         Baku read as finished on Thursday with the race still on Saturday,
+         so the board skipped straight past it. The race session carries its
+         own status, which is the one that means the weekend is over; every
+         reader of ev.status gets that one instead. */
+      ((d && d.events) || []).forEach(function (ev) {
+        var r = raceOf(ev);
+        if (r && r.status && r.status.type) ev.status = r.status;
+      });
       f1Cache.season = d;
       return d;
     });
@@ -4223,7 +4266,7 @@
     }).join('');
 
     return '<div class="f1-hero" id="nextGp">' +
-      '<div class="f1-hero-k">下一站</div>' +
+      '<div class="f1-hero-k">' + (f1SessionsDone(ev).length ? '本站进行中' : '下一站') + '</div>' +
       '<div class="f1-hero-t">' + esc(gpName(ev.name)) + '</div>' +
       '<div class="f1-hero-p">' + esc(c.fullName || '') + (place ? ' · ' + esc(place) : '') + '</div>' +
       '<div class="f1-hero-cd">' + esc(countdown(when)) + '</div>' +
@@ -4232,6 +4275,9 @@
       }).join('') + '</div>' : '') +
       record +
       (sessions ? '<div class="f1-h">赛程</div><div class="f1-sess">' + sessions + '</div>' : '') +
+      '<div id="f1Res">' + f1WeekendHTML(f1SessionsDone(ev).map(function (c) {
+        return { comp: c, rows: null };
+      })) + '</div>' +
       '<div class="f1-h">比赛周天气</div><div id="f1Wx"><div class="f1-wx-none">正在获取预报…</div></div>' +
       '</div>';
   }
@@ -4250,8 +4296,7 @@
 
   function f1Radio() {
     if (f1Cache.radio !== undefined) return Promise.resolve(f1Cache.radio);
-    var O = 'https://api.openf1.org/v1/';
-    return getJSON(O + 'sessions?session_name=Race&year=' + new Date().getFullYear())
+    return of1('sessions?session_name=Race&year=' + new Date().getFullYear())
       .then(function (list) {
         var past = (list || []).filter(function (s) {
           return new Date(s.date_start).getTime() < Date.now();
@@ -4259,8 +4304,8 @@
         var last = past[0];
         if (!last) return null;
         return Promise.all([
-          getJSON(O + 'team_radio?session_key=' + last.session_key),
-          getJSON(O + 'drivers?session_key=' + last.session_key)
+          of1('team_radio?session_key=' + last.session_key),
+          of1('drivers?session_key=' + last.session_key)
         ]).then(function (r) {
           var byNum = {};
           (r[1] || []).forEach(function (d) { byNum[d.driver_number] = d; });
@@ -4396,6 +4441,113 @@
       '<div class="hist-card">' + rows + '</div>';
   }
 
+  /* ---------- this weekend's results ----------
+     Every session already run at the current grand prix, one tab each, the
+     latest open. ESPN gives the finishing order as names alone, so that is
+     drawn first; OpenF1 then fills in best lap, gap, laps and team, matched
+     to each session by its start time. */
+  function f1SessionsDone(ev) {
+    return (ev.competitions || []).filter(function (c) {
+      var st = (c.status && c.status.type && c.status.type.state) || '';
+      return st === 'post' && (c.competitors || []).length;
+    }).sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+  }
+
+  function f1Lap(sec) {
+    if (sec == null || isNaN(sec)) return '';
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = (sec % 60).toFixed(3);
+    if (s.length < 6) s = '0' + s;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + s;
+  }
+  // qualifying reports one value per part; the last one set is how far they got
+  function f1Last(v) {
+    if (!Array.isArray(v)) return v;
+    for (var i = v.length - 1; i >= 0; i--) if (v[i] != null) return v[i];
+    return null;
+  }
+
+  function f1WeekendResults(ev) {
+    var done = f1SessionsDone(ev);
+    if (!done.length) return Promise.resolve(null);
+    var year = new Date(done[0].date).getFullYear();
+    return of1('sessions?year=' + year).then(function (list) {
+      return Promise.all(done.map(function (c) {
+        var t = new Date(c.date).getTime();
+        var s = (list || []).filter(function (x) {
+          return Math.abs(new Date(x.date_start).getTime() - t) < 30 * 60000;
+        })[0];
+        if (!s) return null;
+        return Promise.all([
+          of1('session_result?session_key=' + s.session_key),
+          of1('drivers?session_key=' + s.session_key)
+        ]).then(function (r) {
+          // without the entry list the numbers mean nothing; ESPN's names stand in
+          if (!r[0] || !r[0].length || !r[1] || !r[1].length) return null;
+          var who = {};
+          (r[1] || []).forEach(function (d) { who[d.driver_number] = d; });
+          return r[0].slice().sort(function (a, b) {
+            return (a.position || 99) - (b.position || 99);
+          }).map(function (x) {
+            var d = who[x.driver_number] || {};
+            return {
+              pos: x.position, name: f1RadioName(d.full_name) || String(x.driver_number),
+              team: d.team_name || '', colour: d.team_colour || '',
+              time: f1Last(x.duration), gap: f1Last(x.gap_to_leader),
+              laps: x.number_of_laps,
+              out: x.dsq ? '取消成绩' : x.dns ? '未发车' : x.dnf ? '退赛' : ''
+            };
+          });
+        });
+      }));
+    }).then(function (rows) {
+      return done.map(function (c, i) { return { comp: c, rows: rows && rows[i] }; });
+    }).catch(function () {
+      return done.map(function (c) { return { comp: c, rows: null }; });
+    });
+  }
+
+  function f1ResultRow(r, isRace) {
+    var gap = r.out ? r.out
+      : r.pos === 1 ? (isRace ? f1Lap(r.time) : '')
+      : typeof r.gap === 'number' ? '+' + r.gap.toFixed(3)
+      : (r.gap || '');
+    return '<div class="f1-r' + (r.pos > 10 ? ' deep' : '') + '">' +
+      '<span class="f1-r-p">' + (r.pos || '—') + '</span>' +
+      '<span class="f1-r-c"' + (r.colour ? ' style="background:#' + esc(r.colour) + '"' : '') + '></span>' +
+      '<span class="f1-r-n"><b>' + esc(driverCN(r.name) || r.name) + '</b>' +
+        (r.team ? '<span>' + esc(teamCN(r.team) || r.team) + '</span>' : '') + '</span>' +
+      (isRace ? '' : '<span class="f1-r-t">' + esc(f1Lap(r.time)) + '</span>') +
+      '<span class="f1-r-g">' + esc(gap) + '</span>' +
+      '</div>';
+  }
+
+  function f1WeekendHTML(sets) {
+    if (!sets || !sets.length) return '';
+    var tabs = '', panels = '';
+    sets.forEach(function (s, i) {
+      var c = s.comp;
+      var t = (c.type && (c.type.abbreviation || c.type.text)) || '';
+      var on = i === sets.length - 1;
+      var isRace = t === 'Race' || t === 'Sprint' || t === 'SR';
+      // what ESPN alone has, if OpenF1 could not be matched
+      var rows = s.rows || (c.competitors || []).slice().sort(function (a, b) {
+        return (a.order || 99) - (b.order || 99);
+      }).map(function (x) { return { pos: x.order, name: (x.athlete || {}).displayName || '' }; });
+      tabs += '<button type="button" class="rnd-tab' + (on ? ' on' : '') + '" data-rnd="' + i + '">' +
+        esc(SESSION_CN[t] || t) + '</button>';
+      panels += '<div class="rnd-panel f1-res" data-rnd="' + i + '"' + (on ? '' : ' hidden') + '>' +
+        '<div class="f1-r f1-r-head"><span class="f1-r-p">#</span><span class="f1-r-c"></span>' +
+          '<span class="f1-r-n">车手</span>' +
+          (isRace ? '' : '<span class="f1-r-t">最快圈</span>') +
+          '<span class="f1-r-g">' + (isRace ? '时间/差距' : '差距') + '</span></div>' +
+        rows.map(function (r) { return f1ResultRow(r, isRace); }).join('') +
+        (rows.length > 10 ? '<button type="button" class="f1-r-more">展开全部 ' + rows.length + ' 人</button>' : '') +
+        '</div>';
+    });
+    return '<div class="f1-h">本站成绩</div><div class="rnd-wrap">' +
+      '<div class="rnd-tabs">' + tabs + '</div>' + panels + '</div>';
+  }
+
   function renderF1Fixtures() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在获取赛历…</div>';
@@ -4474,6 +4626,19 @@
         var slot = document.getElementById('f1Hist');
         if (slot && slot.isConnected) slot.innerHTML = f1HistoryHTML(days);
       });
+
+      if (next) {
+        f1WeekendResults(next).then(function (sets) {
+          var slot = document.getElementById('f1Res');
+          if (!slot || !slot.isConnected || !sets) return;
+          if (!sets.some(function (x) { return x.rows; })) return;
+          var on = slot.querySelector('.rnd-tab.on');
+          slot.innerHTML = f1WeekendHTML(sets);
+          // keep whichever session the reader had open
+          var keep = on && slot.querySelector('.rnd-tab[data-rnd="' + on.dataset.rnd + '"]');
+          if (keep && !keep.classList.contains('on')) keep.click();
+        });
+      }
 
       // the forecast arrives after the card, so it never holds the board up
       if (next) {
@@ -9268,6 +9433,14 @@
     [].forEach.call(wrap.querySelectorAll('.rnd-panel'), function (p) {
       p.hidden = p.dataset.rnd !== pick;
     });
+  }, true);
+
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.f1-r-more');
+    if (!b) return;
+    e.stopPropagation();
+    b.parentNode.classList.add('all');
+    b.remove();
   }, true);
 
   $('panel-fixtures').addEventListener('click', function (e) {

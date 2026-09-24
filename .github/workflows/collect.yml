@@ -48,6 +48,13 @@ jobs:
           # only invites conflicts — every file here is regenerated whole on
           # each run, so there is nothing to merge. Replay this commit on top
           # of whatever landed and let our freshly collected data win.
+          #
+          # A mixed reset, not --soft: --soft keeps this run's index, so the
+          # commit carried this checkout's index.html, sw.js and the rest
+          # along with the data and undid whatever code had landed meanwhile
+          # (de69966 reverted a whole feature that way). A mixed reset takes
+          # the index from origin/main and leaves the working tree alone, so
+          # only the data this run staged differs from what is already there.
           for attempt in 1 2 3 4 5; do
             if git push; then
               exit 0
@@ -55,7 +62,7 @@ jobs:
             echo "push rejected; replaying on top of origin/main (attempt $attempt)"
             git rebase --abort 2>/dev/null || true
             git fetch origin main
-            git reset --soft origin/main
+            git reset --mixed origin/main
             git add data
             git commit -m "Update data $(date -u '+%Y-%m-%d %H:%M UTC')" || true
             sleep $((attempt * 5))

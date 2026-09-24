@@ -1120,6 +1120,27 @@
   .ty-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 11.5px; color: var(--ink-2); }
   .ty-legend span { display: flex; align-items: center; gap: 5px; }
   .ty-pace .cmp-st em { font-style: normal; font-size: 10.5px; color: var(--muted); margin-left: 4px; }
+  /* ---- F1 compare: telemetry ---- */
+  .cmp-line.g { stroke: var(--ink-2); }
+  .cmp-dot.g { fill: var(--ink-2); }
+  .tm, .tl { display: block; width: 100%; height: auto; margin-top: 4px; }
+  .tm-base { fill: none; stroke: var(--hairline-strong); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
+  .tm-seg { fill: none; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+  .tm-seg.a { stroke: var(--ser-a); }
+  .tm-seg.b { stroke: var(--ser-b); }
+  .tm-start { fill: var(--ink); stroke: var(--surface); stroke-width: 2; }
+  .tl { background: var(--surface-2); border-radius: 4px; }
+  .tl-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; opacity: .85; }
+  .tl-line.a { stroke: var(--ser-a); }
+  .tl-line.b { stroke: var(--ser-b); }
+  .tl-fix.a { fill: var(--ser-a); }
+  .tl-fix.b { fill: var(--ser-b); }
+  .tl-apex { fill: none; stroke-width: 2; }
+  .tl-apex.a { stroke: var(--ser-a); }
+  .tl-apex.b { stroke: var(--ser-b); }
+  .tl-arr.a { fill: var(--ser-a); }
+  .tl-arr.b { fill: var(--ser-b); }
+  .tl-scale { stroke: var(--ink-2); stroke-width: 2; }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -4923,6 +4944,10 @@
         '" y2="' + y.toFixed(1) + '"/><text class="cmp-ax" x="' + (CPL - 5) + '" y="' + (y + 3).toFixed(1) +
         '" text-anchor="end">' + esc(fmt.y(v)) + '</text>';
     }
+    if (fmt.zeroLine && lo < 0 && hi > 0) {
+      grid += '<line class="cmp-grid zero" x1="' + CPL + '" x2="' + (CW - CPR) + '" y1="' + Y(0).toFixed(1) +
+        '" y2="' + Y(0).toFixed(1) + '"/>';
+    }
     // a handful of x labels, first and last always
     var step = Math.max(1, Math.ceil(n / 6)), xl = '';
     for (var i = 0; i < n; i += step) {
@@ -5129,7 +5154,7 @@
           tip: f1Lap, dots: true, label: nA + ' 与 ' + nB + ' 每圈用时'
         }, function (i) { return '第 ' + (i + 1) + ' 圈'; });
     }
-    return head + table + chart;
+    return head + table + '<div class="cmp-tele"></div>' + chart;
   }
 
   /* ---- the compare, laid out the way the fight card is ----
@@ -5679,6 +5704,332 @@
       '<div class="cmp-stats ty-pace">' + rows + '</div>';
   }
 
+  /* ---------- telemetry: the two fastest laps laid over each other ----------
+     OpenF1 has each car's speed about four times a second and its position
+     on track about as often, but no distance. Distance comes from
+     integrating speed over time, the way FastF1 does it, and each lap is
+     scaled to a common length so the two line up metre for metre. */
+  function cmpFastLaps(laps) {
+    return (laps || []).filter(function (l) {
+      return l.lap_duration && !l.is_pit_out_lap && l.date_start;
+    }).sort(function (a, b) { return a.lap_duration - b.lap_duration; });
+  }
+
+  // the largest hole in a time series, in seconds, over the lap itself
+  function teleHole(list, dur) {
+    var inLap = list.filter(function (p) { return p.t >= -0.3 && p.t <= dur + 0.3; }), hole = 0;
+    for (var i = 1; i < inLap.length; i++) hole = Math.max(hole, inLap[i].t - inLap[i - 1].t);
+    if (inLap.length) hole = Math.max(hole, inLap[0].t, dur - inLap[inLap.length - 1].t);
+    return hole;
+  }
+
+  // linear interpolation over an ascending array
+  function interp(xs, ys, x) {
+    var lo = 0, hi = xs.length - 1;
+    if (hi < 0) return null;
+    if (x <= xs[0]) return ys[0];
+    if (x >= xs[hi]) return ys[hi];
+    while (hi - lo > 1) {
+      var m = (lo + hi) >> 1;
+      if (xs[m] <= x) lo = m; else hi = m;
+    }
+    return ys[lo] + (ys[hi] - ys[lo]) * (x - xs[lo]) / ((xs[hi] - xs[lo]) || 1);
+  }
+
+  function teleLap(sk, num, lap) {
+    var t0 = new Date(lap.date_start).getTime(), dur = lap.lap_duration;
+    var q = '&date>=' + new Date(t0 - 1500).toISOString() + '&date<=' + new Date(t0 + dur * 1000 + 1500).toISOString();
+    return Promise.all([
+      of1('car_data?session_key=' + sk + '&driver_number=' + num + q),
+      of1('location?session_key=' + sk + '&driver_number=' + num + q)
+    ]).then(function (r) { return teleBuild(r[0], r[1], t0, dur); });
+  }
+
+  function teleBuild(car, loc, t0, dur) {
+    var cs = (car || []).map(function (c) {
+      return { t: (new Date(c.date).getTime() - t0) / 1000, v: c.speed || 0 };
+    }).sort(function (a, b) { return a.t - b.t; });
+    if (cs.length < 40) return null;
+    /* The feed drops out now and then — one FP1 lap in Baku had 28 seconds
+       missing. Integrated across a hole like that, distance and time stop
+       matching and the gap chart invents seconds, so such a lap is refused. */
+    if (teleHole(cs, dur) > 2) return { bad: true };
+    var d = 0;
+    cs[0].d = 0;
+    for (var i = 1; i < cs.length; i++) {
+      d += (cs[i - 1].v + cs[i].v) / 2 / 3.6 * (cs[i].t - cs[i - 1].t);
+      cs[i].d = d;
+    }
+    var ts = cs.map(function (c) { return c.t; }), ds = cs.map(function (c) { return c.d; });
+    var d0 = interp(ts, ds, 0), L = interp(ts, ds, dur) - d0;
+    var ps = (loc || []).map(function (p) {
+      var t = (new Date(p.date).getTime() - t0) / 1000;
+      return { t: t, x: p.x, y: p.y, d: interp(ts, ds, t) - d0 };
+    }).filter(function (p) {
+      return p.t >= -0.3 && p.t <= dur + 0.3 && (p.x || p.y);
+    }).sort(function (a, b) { return a.t - b.t; });
+    if (ps.length < 40 || !(L > 1000)) return null;
+    if (teleHole(ps, dur) > 2) return { bad: true };
+    return {
+      dur: dur, L: L, loc: ps,
+      car: cs.filter(function (c) { return c.t >= 0 && c.t <= dur; })
+        .map(function (c) { return { t: c.t, d: c.d - d0, v: c.v }; })
+    };
+  }
+
+  // speed and elapsed time every `step` metres, on the common length
+  function teleSeries(T, Lc, step) {
+    var k = Lc / T.L;
+    var ds = T.car.map(function (c) { return c.d * k; });
+    var vs = T.car.map(function (c) { return c.v; });
+    var dT = [0].concat(ds, [Lc]), tT = [0].concat(T.car.map(function (c) { return c.t; }), [T.dur]);
+    var px = T.loc.map(function (p) { return p.d * k; });
+    var out = { v: [], t: [], k: k, px: px, xs: T.loc.map(function (p) { return p.x; }), ys: T.loc.map(function (p) { return p.y; }) };
+    for (var x = 0; x <= Lc; x += step) {
+      out.v.push(interp(ds, vs, x));
+      out.t.push(interp(dT, tT, x));
+    }
+    out.at = function (dist) { return [interp(px, out.xs, dist), interp(px, out.ys, dist)]; };
+    out.tAt = function (dist) { return interp(dT, tT, dist); };
+    return out;
+  }
+
+  /* Corners are where this lap slows down: a speed low that is the lowest
+     for 250 m either way, reached after shedding at least 35 km/h. Numbered
+     in the order they come — not the circuit's official turn numbers. */
+  function teleCorners(v, step) {
+    var W = Math.round(250 / step), out = [];
+    for (var i = 1; i < v.length - 1; i++) {
+      var lo = Math.max(0, i - W), hi = Math.min(v.length - 1, i + W), low = true;
+      for (var j = lo; j <= hi && low; j++) if (v[j] < v[i]) low = false;
+      if (!low) continue;
+      var peak = 0;
+      for (j = Math.max(0, i - 2 * W); j < i; j++) peak = Math.max(peak, v[j]);
+      if (peak - v[i] < 35) continue;
+      if (out.length && (i - out[out.length - 1]) * step < 150) continue;
+      out.push(i);
+    }
+    return out;
+  }
+
+  // a projection that fits a set of track points into a box, north up
+  function teleFit(pts, W, Hmax, pad) {
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    pts.forEach(function (p) {
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+    });
+    var s = (W - 2 * pad) / ((x1 - x0) || 1);
+    if ((y1 - y0) * s + 2 * pad > Hmax) s = (Hmax - 2 * pad) / ((y1 - y0) || 1);
+    var w = (x1 - x0) * s, h = (y1 - y0) * s, ox = (W - w) / 2;
+    return {
+      s: s, H: h + 2 * pad,
+      p: function (q) { return [(ox + (q[0] - x0) * s).toFixed(1), (pad + (y1 - q[1]) * s).toFixed(1)]; }
+    };
+  }
+
+  function segDist(p, a, b) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+    var t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+    var x = a[0] + t * dx - p[0], y = a[1] + t * dy - p[1];
+    return Math.sqrt(x * x + y * y);
+  }
+
+  // a run of track between two distances, ends interpolated onto the boundary
+  function teleRun(S, from, to) {
+    var pts = [S.at(from)];
+    for (var i = 0; i < S.px.length; i++) {
+      if (S.px[i] > from && S.px[i] < to) pts.push([S.xs[i], S.ys[i]]);
+    }
+    pts.push(S.at(to));
+    return pts;
+  }
+  function telePath(pts, fit) {
+    return pts.map(function (q, i) { var p = fit.p(q); return (i ? 'L' : 'M') + p[0] + ' ' + p[1]; }).join('');
+  }
+
+  function cmpTeleHTML(TA, TB, A, B) {
+    var Lc = (TA.L + TB.L) / 2, step = 10;
+    var SA = teleSeries(TA, Lc, step), SB = teleSeries(TB, Lc, step);
+    var n = Math.min(SA.v.length, SB.v.length);
+    var DX = [];
+    for (var q = 0; q < n; q++) DX.push(q * step);
+
+    // ---- speed and the running gap, every 20 m ----
+    var xs = [], va = [], vb = [], dl = [];
+    for (var i = 0; i < n; i += 2) {
+      xs.push((i * step / 1000).toFixed(1));
+      va.push(Math.round(SA.v[i])); vb.push(Math.round(SB.v[i]));
+      dl.push(SB.t[i] - SA.t[i]);
+    }
+    function km(k) { return (k * 2 * step / 1000).toFixed(2) + ' km'; }
+    var speed = cmpChartHTML('spd', xs, [
+      { name: A.name, cls: 'a', vals: va }, { name: B.name, cls: 'b', vals: vb }
+    ], {
+      y: function (v) { return String(Math.round(v)); }, tip: function (v) { return v + ' km/h'; },
+      label: A.name + ' 与 ' + B.name + ' 最快圈车速'
+    }, km);
+    var m = Math.max(0.05, Math.max.apply(null, dl.map(Math.abs)) * 1.1);
+    var delta = cmpChartHTML('dlt', xs, [{ name: '差距', cls: 'g', vals: dl }], {
+      y: function (v) { return (v > 0 ? '+' : '') + v.toFixed(2); }, tip: function (v) { return v.toFixed(3); },
+      range: [-m, m], zeroLine: true, label: A.name + ' 与 ' + B.name + ' 累计差距'
+    }, km);
+    cmpCharts.dlt.rows = function (k) {
+      var v = dl[k];
+      return '<div>' + esc(v >= 0 ? A.name : B.name) + ' 领先<b>' + Math.abs(v).toFixed(3) + ' 秒</b></div>';
+    };
+
+    // ---- who is quicker where: 25 mini-sectors on the map ----
+    var N = 25, won = [0, 0], segs = '';
+    var track = teleRun(SA, 0, Lc);
+    var fit = teleFit(track, CW, 250, 14);
+    for (var k = 0; k < N; k++) {
+      var a0 = Lc * k / N, a1 = Lc * (k + 1) / N;
+      var ta = SA.tAt(a1) - SA.tAt(a0), tb = SB.tAt(a1) - SB.tAt(a0);
+      var w = ta <= tb ? 0 : 1;
+      won[w]++;
+      segs += '<path class="tm-seg ' + (w ? 'b' : 'a') + '" d="' + telePath(teleRun(SA, a0, a1), fit) + '">' +
+        '<title>第 ' + (k + 1) + ' 小段 · ' + esc(w ? B.name : A.name) + ' 快 ' + Math.abs(ta - tb).toFixed(3) + ' 秒</title></path>';
+    }
+    var start = fit.p(SA.at(0));
+    var map = '<svg class="tm" viewBox="0 0 ' + CW + ' ' + fit.H.toFixed(0) + '" role="img" aria-label="' +
+        esc('赛道优势图：' + A.name + ' ' + won[0] + ' 段，' + B.name + ' ' + won[1] + ' 段') + '">' +
+      '<path class="tm-base" d="' + telePath(track, fit) + '"/>' + segs +
+      '<circle class="tm-start" cx="' + start[0] + '" cy="' + start[1] + '" r="4"/>' +
+      '<text class="cmp-ax" x="' + (Number(start[0]) + 7) + '" y="' + (Number(start[1]) + 3) + '">起点</text>' +
+      '</svg>';
+
+    // ---- the racing line through each corner ----
+    var cs = teleCorners(SA.v, step);
+    var tabs = '', panels = '';
+    cs.forEach(function (ci, j) {
+      // 160 m around the apex: wide enough to show the corner, tight enough that
+      // a metre between the lines is a few pixels rather than none
+      var apex = ci * step, from = Math.max(0, apex - 90), to = Math.min(Lc, apex + 70);
+      var ra = teleRun(SA, from, to), rb = teleRun(SB, from, to);
+      var cf = teleFit(ra.concat(rb), CW, 210, 16);
+      // the actual fixes as dots, so the lines claim no more precision than the data has
+      function dots(S, cls) {
+        var out = '';
+        for (var i = 0; i < S.px.length; i++) {
+          if (S.px[i] < from || S.px[i] > to) continue;
+          var p = cf.p([S.xs[i], S.ys[i]]);
+          out += '<circle class="tl-fix ' + cls + '" cx="' + p[0] + '" cy="' + p[1] + '" r="2"/>';
+        }
+        return out;
+      }
+      function lowest(S) {
+        var lo = Infinity, at = apex;
+        for (var d = from; d <= to; d += step) {
+          var v = interp(DX, S.v, d);
+          if (v < lo) { lo = v; at = d; }
+        }
+        return { v: Math.round(lo), at: at, out: Math.round(interp(DX, S.v, to)) };
+      }
+      var la = lowest(SA), lb = lowest(SB);
+      var pa = cf.p(SA.at(la.at)), pb = cf.p(SB.at(lb.at));
+      var PA = SA.at(la.at), apart = Infinity;
+      for (var q2 = 1; q2 < rb.length; q2++) apart = Math.min(apart, segDist(PA, rb[q2 - 1], rb[q2]));
+      // ten metres, drawn to the same scale (positions are in tenths of a metre)
+      var bar = 100 * cf.s;
+      panels += '<div class="rnd-panel" data-rnd="' + j + '"' + (j ? ' hidden' : '') + '>' +
+        '<svg class="tl" viewBox="0 0 ' + CW + ' ' + cf.H.toFixed(0) + '" role="img" aria-label="' +
+          esc('弯角 ' + (j + 1) + ' 两人走线') + '">' +
+          '<path class="tl-line a" d="' + telePath(ra, cf) + '" marker-end="url(#tlArrA)"/>' +
+          '<path class="tl-line b" d="' + telePath(rb, cf) + '" marker-end="url(#tlArrB)"/>' +
+          dots(SA, 'a') + dots(SB, 'b') +
+          '<circle class="tl-apex a" cx="' + pa[0] + '" cy="' + pa[1] + '" r="5"/>' +
+          '<circle class="tl-apex b" cx="' + pb[0] + '" cy="' + pb[1] + '" r="5"/>' +
+          (bar > 8 && bar < CW - 40 ? '<line class="tl-scale" x1="12" x2="' + (12 + bar).toFixed(1) +
+            '" y1="' + (cf.H - 8).toFixed(0) + '" y2="' + (cf.H - 8).toFixed(0) + '"/>' +
+            '<text class="cmp-ax" x="' + (16 + bar).toFixed(1) + '" y="' + (cf.H - 5).toFixed(0) + '">10 米</text>' : '') +
+        '</svg>' +
+        /* F1's position feed is good to about a metre. Under that, two lines
+           cannot be told apart from the feed's own error, so it says so
+           rather than read a difference into it. Where each driver is
+           slowest is the sturdier read: an earlier or a later apex. */
+        (isFinite(apart) ? '<div class="cmp-gap" style="margin-top:6px">' + (apart < 10
+          ? '弯心处两条线相距不到 1 米，在定位精度以内，可以看作同一条线'
+          : '弯心处两条线相距约 <b>' + (apart / 10).toFixed(1) + '</b> 米') + '</div>' : '') +
+        '<div class="cmp-gap">' + (Math.abs(la.at - lb.at) < step
+          ? '两人车速最低的位置几乎一样'
+          : '<b>' + esc(la.at < lb.at ? A.name : B.name) + '</b> 的最低速点早约 <b>' +
+            Math.round(Math.abs(la.at - lb.at) / 5) * 5 + '</b> 米（弯心更早）') + '</div>' +
+        '<div class="cmp-stats">' +
+          '<div class="cmp-st"><span class="' + (la.v > lb.v ? 'lead' : '') + '">' + la.v + ' km/h</span>' +
+            '<span class="k">弯中最低车速</span><span class="' + (lb.v > la.v ? 'lead' : '') + '">' + lb.v + ' km/h</span></div>' +
+          '<div class="cmp-st"><span class="' + (la.out > lb.out ? 'lead' : '') + '">' + la.out + ' km/h</span>' +
+            '<span class="k">出弯 70 米处</span><span class="' + (lb.out > la.out ? 'lead' : '') + '">' + lb.out + ' km/h</span></div>' +
+        '</div></div>';
+      tabs += '<button type="button" class="rnd-tab' + (j ? '' : ' on') + '" data-rnd="' + j + '">弯角 ' + (j + 1) + '</button>';
+    });
+
+    var faster = TA.dur <= TB.dur ? A.name : B.name;
+    var RANK = ['', '第 2 快', '第 3 快'];
+    var subst = [[TA, A], [TB, B]].filter(function (x) { return x[0].rank; }).map(function (x) {
+      return esc(x[1].name) + '最快圈的遥测缺了一段，这里用的是' + RANK[x[0].rank] + '的一圈（第 ' + x[0].lapNo + ' 圈）';
+    }).join('；');
+    return '<div class="cmp-sub" style="margin-top:12px">最快圈对比 <span>' + esc(faster) + ' 快 ' +
+        Math.abs(TA.dur - TB.dur).toFixed(3) + ' 秒</span></div>' +
+      (subst ? '<div class="cmp-sub"><span>' + subst + '。</span></div>' : '') +
+      cmpLegend(A.name, B.name) +
+      '<div class="cmp-sub"><span>车速 km/h · 横轴是这一圈跑过的距离</span></div>' + speed +
+      '<div class="cmp-sub" style="margin-top:8px"><span>累计差距 · 线在 0 上方是' + esc(A.name) +
+        '领先，下方是' + esc(B.name) + '领先</span></div>' + delta +
+      '<div class="cmp-sub" style="margin-top:12px">赛道优势图 <span>一圈分成 ' + N + ' 段，每段涂成更快的人</span></div>' +
+      '<div class="cmp-gap"><b>' + esc(A.name) + '</b> ' + won[0] + ' 段 · <b>' + esc(B.name) + '</b> ' + won[1] + ' 段</div>' +
+      map +
+      (cs.length ? '<div class="cmp-sub" style="margin-top:12px">走线对比 <span>弯角按这一圈减速的先后编号，不是官方弯道号</span></div>' +
+        '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>' +
+          '<marker id="tlArrA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">' +
+            '<path d="M0 0L10 5L0 10z" class="tl-arr a"/></marker>' +
+          '<marker id="tlArrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">' +
+            '<path d="M0 0L10 5L0 10z" class="tl-arr b"/></marker>' +
+        '</defs></svg>' +
+        '<div class="rnd-wrap"><div class="rnd-tabs">' + tabs + '</div>' + panels + '</div>' +
+        '<div class="cmp-sub"><span>小点是实际定位点，约 0.24 秒一个；大圈是各自车速最低处。F1 官方定位精度大约 1 米，最低速点按 10 米一格估算。</span></div>'
+        : '');
+  }
+
+  function cmpTeleFill(session, A, B, seq) {
+    var sk = session.session_key;
+    function slot() { return document.querySelector('#cmpLapBody[data-sk="' + sk + '"] .cmp-tele'); }
+    if (!slot()) return;
+    slot().innerHTML = '<div class="cmp-none">正在读取两人最快圈的遥测…</div>';
+    of1('drivers?session_key=' + sk).then(function (list) {
+      var num = {};
+      (list || []).forEach(function (d) { num[f1DriverKey(f1RadioName(d.full_name))] = d.driver_number; });
+      var na = num[A.key], nb = num[B.key];
+      if (na == null || nb == null) return null;
+      return Promise.all([
+        of1('laps?session_key=' + sk + '&driver_number=' + na),
+        of1('laps?session_key=' + sk + '&driver_number=' + nb)
+      ]).then(function (r) {
+        // the fastest lap with the whole of its telemetry, trying the top three
+        function pick(num, laps) {
+          var list = cmpFastLaps(laps).slice(0, 3);
+          function at(i) {
+            if (i >= list.length) return Promise.resolve(null);
+            return teleLap(sk, num, list[i]).then(function (T) {
+              if (!T || T.bad) return at(i + 1);
+              T.rank = i;
+              T.lapNo = list[i].lap_number;
+              return T;
+            });
+          }
+          return at(0);
+        }
+        return Promise.all([pick(na, r[0]), pick(nb, r[1])]);
+      });
+O
+    }).then(function (T) {
+      if (seq !== cmpSeq || !slot()) return;
+      slot().innerHTML = T && T[0] && T[1] ? cmpTeleHTML(T[0], T[1], A, B)
+        : '<div class="cmp-none">这一节两人没有都完整的快圈遥测（数据有缺口），没法逐米对比。</div>';
+    }).catch(function () {
+      if (slot()) slot().innerHTML = '<div class="cmp-none">遥测没取到，稍后再试。</div>';
+    });
+  }
+
   /* ---- the block ---- */
   function cmpDriverList(standings) {
     var drv = ((standings && standings.children) || []).filter(function (c) {
@@ -5817,7 +6168,10 @@
     cmpLapPanel(session, A.key, B.key, A.name, B.name).then(function (html) {
       if (seq !== cmpSeq) return;
       var now = document.getElementById('cmpLapBody');
-      if (now && now.dataset.sk === String(session.session_key)) now.innerHTML = html;
+      if (now && now.dataset.sk === String(session.session_key)) {
+        now.innerHTML = html;
+        cmpTeleFill(session, A, B, seq);
+      }
     }).catch(function () {
       var now = document.getElementById('cmpLapBody');
       if (now) now.innerHTML = '<div class="cmp-none">圈速没取到，稍后再试。</div>';

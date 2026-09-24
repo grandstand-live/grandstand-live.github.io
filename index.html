@@ -1274,6 +1274,27 @@
   .mc-next span { display: block; font-family: var(--display); font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
   .mc-next.live { color: var(--live); }
   .mc-next.none { color: var(--muted); font-weight: 400; }
+  /* ---- share cards ---- */
+  .sh-btn {
+    display: block; margin: 12px auto 4px; padding: 7px 16px; cursor: pointer;
+    font-family: var(--serif); font-size: 12.5px; font-weight: 600; color: var(--accent);
+    background: none; border: 1px solid var(--hairline-strong); border-radius: 16px;
+  }
+  .sh-sheet {
+    position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+    background: rgba(12, 10, 6, .72); padding: calc(var(--safetop) + 16px) 16px calc(var(--safebottom) + 16px);
+  }
+  .sh-sheet[hidden] { display: none; }
+  .sh-box { width: 100%; max-width: 400px; max-height: 100%; display: flex; flex-direction: column; gap: 10px; }
+  .sh-box img { width: 100%; min-height: 0; flex: 1 1 auto; object-fit: contain; border-radius: 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, .4); }
+  .sh-acts { display: flex; gap: 8px; }
+  .sh-acts button {
+    flex: 1; padding: 10px 0; border-radius: 8px; cursor: pointer; border: none;
+    font-family: var(--serif); font-size: 14px; font-weight: 600;
+    background: var(--surface); color: var(--ink);
+  }
+  .sh-acts .sh-go { background: var(--accent); color: var(--on-accent); }
+  .sh-tip { text-align: center; font-size: 11.5px; color: rgba(255, 253, 247, .7); }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -4315,6 +4336,7 @@
       }
 
       if (!html) html = '<div class="kv"><span>这场比赛暂时没有更多资料。</span></div>';
+      html += '<button type="button" class="sh-btn" data-share="match" data-id="' + esc(id) + '">生成分享图</button>';
       summaryCache[id] = html;
       return html;
     });
@@ -6650,6 +6672,7 @@ O
         '<div class="cmp-pick"><span class="sw a"></span>' + sel('cmpA', a) +
           '<span class="cmp-vs">vs</span>' + sel('cmpB', b) + '<span class="sw b"></span></div>' +
         '<div id="cmpBody"></div>' +
+        '<button type="button" class="sh-btn" data-share="cmp">生成对比分享图</button>' +
       '</div>';
   }
 
@@ -6658,6 +6681,7 @@ O
     var body = document.getElementById('cmpBody');
     if (!body) return;
     var seq = ++cmpSeq;
+    cmpShareData = null;
     var list = cmpDriverList(standings);
     var ka = $('cmpA').value, kb = $('cmpB').value;
     var A = list.filter(function (d) { return d.key === ka; })[0];
@@ -6717,6 +6741,16 @@ O
       }
       var sa = cmpSeason(detail, ka), sb = cmpSeason(detail, kb);
       var q = cmpH2H(sa, sb, 'qual'), r = cmpH2H(sa, sb, 'race');
+      var gaps = cmpQualGaps(detail, ka, kb, evs).map(function (g) { return g.gap; }).sort(function (x, y) { return x - y; });
+      var gm = gaps.length >> 1;
+      var share = cmpShareData = {
+        A: A, B: B, sa: sa, sb: sb, q: q, r: r, ptsA: totalPts(A.entry), ptsB: totalPts(B.entry), qn: gaps.length,
+        med: gaps.length ? (gaps.length % 2 ? gaps[gm] : (gaps[gm - 1] + gaps[gm]) / 2) : null
+      };
+      f1Grid().then(function (grid) {
+        share.imgA = f1BodyURL(grid[A.key], 'left');
+        share.imgB = f1BodyURL(grid[B.key], 'right');
+      });
       h.innerHTML = cmpH2HRow('排位赛', q, q[0] + q[1]) + cmpH2HRow('正赛', r, r[0] + r[1]);
       var field = 0;
       (detail.results || []).forEach(function (x) { field = Math.max(field, (x.Results || []).length); });
@@ -7812,6 +7846,207 @@ O
     return '<div class="group-name">我的关注</div><div class="mc-row">' + cards.join('') + '</div>';
   }
 
+  /* ---------- share cards ----------
+     A match, a record of calls, a driver comparison, drawn onto a 1080 by
+     1350 canvas — 4:5, which WeChat Moments and Instagram both show whole —
+     in the page's own colours and type. The picture opens in a preview with
+     its own Share button: iOS only lets a share sheet open straight from a
+     tap, and drawing waits on crests and fonts long enough for the first tap
+     to have lapsed. */
+  var SH_W = 1080, SH_H = 1350;
+  var shLast = null;          // the picture on screen: { blob, url, name }
+  var cmpShareData = null;    // filled in by the driver compare once it has its numbers
+
+  function shTok(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function shImg(src) {
+    return new Promise(function (res) {
+      if (!src) { res(null); return; }
+      var i = new Image();
+      i.crossOrigin = 'anonymous';
+      i.onload = function () { res(i); };
+      i.onerror = function () { res(null); };
+      i.src = src;
+      setTimeout(function () { res(null); }, 6000);
+    });
+  }
+  // the web fonts have to be in before canvas can use them, glyphs included
+  function shFonts(text) {
+    if (!document.fonts || !document.fonts.load) return Promise.resolve();
+    return Promise.all(['--serif', '--narrow', '--display', '--mast'].map(function (f) {
+      return document.fonts.load('600 40px ' + shTok(f), text).catch(function () {});
+    }));
+  }
+
+  function shBoard() {
+    var c = document.createElement('canvas');
+    c.width = SH_W; c.height = SH_H;
+    var x = c.getContext('2d');
+    x.fillStyle = shTok('--ground');
+    x.fillRect(0, 0, SH_W, SH_H);
+    x.textBaseline = 'alphabetic';
+    return { c: c, x: x };
+  }
+  function shT(x, s, px, fam, color, left, top, opt) {
+    opt = opt || {};
+    x.font = (opt.weight || 600) + ' ' + px + 'px ' + shTok(fam);
+    x.fillStyle = color;
+    x.textAlign = opt.align || 'left';
+    var str = String(s == null ? '' : s);
+    if (opt.max) {
+      while (str.length > 1 && x.measureText(str).width > opt.max) str = str.slice(0, -1);
+      if (str !== String(s)) str = str.slice(0, -1) + '…';
+    }
+    x.fillText(str, left, top);
+  }
+  // the masthead and the footer every card shares
+  function shFrame(x, kicker) {
+    shT(x, 'Grandstand', 64, '--mast', shTok('--ink'), 72, 124, { weight: 400 });
+    if (kicker) shT(x, kicker, 32, '--display', shTok('--muted'), SH_W - 72, 118, { align: 'right', weight: 500 });
+    x.fillStyle = shTok('--hairline-strong');
+    x.fillRect(72, 156, SH_W - 144, 2);
+    x.fillRect(72, SH_H - 118, SH_W - 144, 2);
+    shT(x, 'grandstand-live.github.io', 28, '--narrow', shTok('--muted'), 72, SH_H - 64, { weight: 500 });
+    shT(x, fmtDay(new Date()), 28, '--display', shTok('--muted'), SH_W - 72, SH_H - 64, { align: 'right', weight: 500 });
+  }
+  function shFit(x, img, cx, bottom, maxW, maxH) {
+    if (!img) return;
+    var s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+    var w = img.naturalWidth * s, h = img.naturalHeight * s;
+    x.drawImage(img, cx - w / 2, bottom - h, w, h);
+  }
+
+  function shOpen(canvas, name) {
+    canvas.toBlob(function (blob) {
+      if (!blob) return;
+      if (shLast && shLast.url) URL.revokeObjectURL(shLast.url);
+      shLast = { blob: blob, url: URL.createObjectURL(blob), name: name };
+      var sheet = document.getElementById('shSheet');
+      if (!sheet) {
+        sheet = document.createElement('div');
+        sheet.id = 'shSheet';
+        sheet.className = 'sh-sheet';
+        sheet.innerHTML = '<div class="sh-box"><img alt="分享图预览">' +
+          '<div class="sh-acts"><button type="button" class="sh-go">分享</button>' +
+          '<button type="button" class="sh-save">保存图片</button>' +
+          '<button type="button" class="sh-close">关闭</button></div>' +
+          '<div class="sh-tip">也可以长按图片保存到相册</div></div>';
+        document.body.appendChild(sheet);
+      }
+      sheet.querySelector('img').src = shLast.url;
+      var file = new File([blob], name + '.png', { type: 'image/png' });
+      sheet.querySelector('.sh-go').hidden = !(navigator.canShare && navigator.canShare({ files: [file] }));
+      sheet.hidden = false;
+    }, 'image/png');
+  }
+
+  /* ---- a match ---- */
+  function shMatch(id) {
+    var ev = eventById[id];
+    if (!ev) return;
+    var t = teamsOf(ev);
+    var st = (t.comp.status && t.comp.status.type) || {};
+    var hName = cn(t.home.team && t.home.team.displayName, t.home.team && t.home.team.shortDisplayName);
+    var aName = cn(t.away.team && t.away.team.displayName, t.away.team && t.away.team.shortDisplayName);
+    var lg = (LEAGUES.filter(function (l) { return l.id === league; })[0] || {}).name || '';
+    var homeId = String((t.home.team && t.home.team.id) || '');
+    var goals = (t.comp.details || []).filter(function (d) { return d.scoringPlay; }).map(function (g) {
+      return {
+        home: String((g.team && g.team.id) || '') === homeId,
+        text: ((g.clock && g.clock.displayValue) || '') + ' ' +
+          ((g.athletesInvolved || []).map(function (a) { return a.displayName; }).join('、') || '进球') +
+          (g.ownGoal ? '（乌龙）' : g.penaltyKick ? '（点球）' : '')
+      };
+    });
+    var status = st.state === 'in' ? (st.shortDetail || '进行中') : st.state === 'post' ? '完场' : '未开始';
+    var all = hName + aName + lg + status + goals.map(function (g) { return g.text; }).join('') + '主客完场进行中未开始乌龙点球';
+    Promise.all([
+      shImg(t.home.team && (t.home.team.logo || (t.home.team.logos && t.home.team.logos[0] && t.home.team.logos[0].href))),
+      shImg(t.away.team && (t.away.team.logo || (t.away.team.logos && t.away.team.logos[0] && t.away.team.logos[0].href))),
+      shFonts(all)
+    ]).then(function (r) {
+      var b = shBoard(), x = b.x;
+      shFrame(x, lg);
+      shT(x, fmtDay(new Date(ev.date)) + ' ' + fmtTime(new Date(ev.date)), 34, '--display', shTok('--ink-2'), SH_W / 2, 240, { align: 'center', weight: 500 });
+      shFit(x, r[0], 270, 560, 260, 260);
+      shFit(x, r[1], 810, 560, 260, 260);
+      shT(x, hName, 52, '--serif', shTok('--ink'), 270, 650, { align: 'center', max: 400 });
+      shT(x, aName, 52, '--serif', shTok('--ink'), 810, 650, { align: 'center', max: 400 });
+      if (st.state !== 'pre') {
+        shT(x, scoreOf(t.home) + ' - ' + scoreOf(t.away), 200, '--narrow', shTok('--ink'), SH_W / 2, 860, { align: 'center', weight: 700 });
+      } else {
+        shT(x, fmtTime(new Date(ev.date)), 150, '--narrow', shTok('--ink'), SH_W / 2, 850, { align: 'center', weight: 700 });
+      }
+      shT(x, status, 36, '--display', st.state === 'in' ? shTok('--live') : shTok('--muted'), SH_W / 2, 930, { align: 'center' });
+      var hy = 1020, ay = 1020;
+      goals.slice(0, 10).forEach(function (g) {
+        if (g.home) { shT(x, g.text, 30, '--display', shTok('--ink-2'), 110, hy, { max: 425, weight: 500 }); hy += 46; }
+        else { shT(x, g.text, 30, '--display', shTok('--ink-2'), SH_W - 110, ay, { align: 'right', max: 425, weight: 500 }); ay += 46; }
+      });
+      shOpen(b.c, hName + 'vs' + aName);
+    });
+  }
+
+  /* ---- a record of calls ---- */
+  function shRecord() {
+    var s = pickStats();
+    var done = s.done.slice(0, 6);
+    var all = '我的预测战绩命中率场最长连中当前落空' + done.map(function (p) { return p.home + p.away + (p.score || ''); }).join('');
+    shFonts(all).then(function () {
+      var b = shBoard(), x = b.x;
+      shFrame(x, '预测战绩');
+      shT(x, '我的预测战绩', 60, '--serif', shTok('--ink'), SH_W / 2, 290, { align: 'center' });
+      shT(x, s.total ? s.rate + '%' : '—', 260, '--narrow', s.rate >= 60 ? shTok('--accent') : shTok('--ink'), SH_W / 2, 590, { align: 'center', weight: 700 });
+      shT(x, '命中率', 36, '--display', shTok('--muted'), SH_W / 2, 650, { align: 'center', weight: 500 });
+      [[s.hits + '/' + s.total, '命中'], [s.best || 0, '最长连中'], [s.current || 0, '当前连中']].forEach(function (c, i) {
+        var cx = 220 + i * 320;
+        shT(x, c[0], 84, '--narrow', shTok('--ink'), cx, 800, { align: 'center', weight: 700 });
+        shT(x, c[1], 32, '--display', shTok('--muted'), cx, 850, { align: 'center', weight: 500 });
+      });
+      var y = 960;
+      done.forEach(function (p) {
+        shT(x, p.home + ' vs ' + p.away, 34, '--serif', shTok('--ink-2'), 120, y, { max: 620 });
+        shT(x, (p.score || '') + '  ' + (p.hit ? '✓ 命中' : '✗ 落空'), 34, '--display', p.hit ? shTok('--win') : shTok('--loss'), SH_W - 120, y, { align: 'right' });
+        y += 52;
+      });
+      shOpen(b.c, '我的预测战绩');
+    });
+  }
+
+  /* ---- a driver comparison ---- */
+  function shCompare() {
+    var d = cmpShareData;
+    if (!d) { alert('对比数据还在读取，稍等几秒再试。'); return; }
+    var rows = [
+      ['积分', d.ptsA, d.ptsB], ['分站冠军', d.sa.wins, d.sb.wins], ['领奖台', d.sa.podiums, d.sb.podiums],
+      ['杆位', d.sa.poles, d.sb.poles], ['排位交锋', d.q[0], d.q[1]], ['正赛交锋', d.r[0], d.r[1]]
+    ];
+    var all = d.A.name + d.B.name + rows.map(function (r) { return r[0]; }).join('') + '车手对比赛季排位差距中位数快秒站';
+    Promise.all([shImg(d.imgA), shImg(d.imgB), shFonts(all)]).then(function (r) {
+      var b = shBoard(), x = b.x;
+      shFrame(x, '车手对比 · ' + new Date().getFullYear() + ' 赛季');
+      shFit(x, r[0], 220, 820, 300, 620);
+      shFit(x, r[1], SH_W - 220, 820, 300, 620);
+      shT(x, d.A.name, 54, '--serif', shTok('--ink'), 220, 890, { align: 'center', max: 380 });
+      shT(x, d.B.name, 54, '--serif', shTok('--ink'), SH_W - 220, 890, { align: 'center', max: 380 });
+      x.fillStyle = shTok('--ser-a'); x.fillRect(120, 910, 200, 8);
+      x.fillStyle = shTok('--ser-b'); x.fillRect(SH_W - 320, 910, 200, 8);
+      // the numbers down the middle, the better side in bold
+      var y = 262;
+      rows.forEach(function (row) {
+        var a = Number(row[1]) || 0, bb = Number(row[2]) || 0;
+        shT(x, row[0], 30, '--display', shTok('--muted'), SH_W / 2, y, { align: 'center', weight: 500 });
+        shT(x, row[1], 56, '--narrow', a > bb ? shTok('--ink') : shTok('--ink-2'), SH_W / 2 - 70, y + 62, { align: 'right', weight: a > bb ? 700 : 500 });
+        shT(x, row[2], 56, '--narrow', bb > a ? shTok('--ink') : shTok('--ink-2'), SH_W / 2 + 70, y + 62, { align: 'left', weight: bb > a ? 700 : 500 });
+        y += 120;
+      });
+      if (d.med != null) {
+        shT(x, '排位差距中位数：' + (d.med >= 0 ? d.A.name : d.B.name) + ' 快 ' + Math.abs(d.med).toFixed(3) + ' 秒 · ' + d.qn + ' 站',
+          34, '--display', shTok('--ink-2'), SH_W / 2, 1040, { align: 'center', weight: 500 });
+      }
+      shOpen(b.c, d.A.name + 'vs' + d.B.name);
+    });
+  }
+
   function renderToday() {
     var host = panelFor('panel-today');
     host.innerHTML = '<div class="skeleton">正在汇总…</div>';
@@ -8243,6 +8478,7 @@ O
 
     return '<div class="group-name">我的战绩</div>' +
       '<div class="card rec-card">' + body + '</div>' +
+      (s.total ? '<button type="button" class="sh-btn" data-share="record">分享我的战绩</button>' : '') +
       (pending ? '<div class="sec-label">未决</div><div class="card">' + pending + '</div>' : '') +
       (recent ? '<div class="sec-label">已对账</div><div class="card">' + recent + '</div>' : '');
   }
@@ -12347,6 +12583,32 @@ O
     setSport(c.dataset.go);
     window.scrollTo(0, 0);
   });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    var b = e.target.closest('.sh-btn');
+    if (b) {
+      e.stopPropagation();
+      if (b.dataset.share === 'match') shMatch(b.dataset.id);
+      else if (b.dataset.share === 'record') shRecord();
+      else if (b.dataset.share === 'cmp') shCompare();
+      return;
+    }
+    var sheet = document.getElementById('shSheet');
+    if (!sheet || sheet.hidden) return;
+    if (e.target === sheet || e.target.closest('.sh-close')) { sheet.hidden = true; return; }
+    if (!shLast) return;
+    if (e.target.closest('.sh-go')) {
+      navigator.share({ files: [new File([shLast.blob], shLast.name + '.png', { type: 'image/png' })] }).catch(function () {});
+    } else if (e.target.closest('.sh-save')) {
+      var a = document.createElement('a');
+      a.href = shLast.url;
+      a.download = shLast.name + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }, true);
+
   /* A paper's nameplate takes you to the front page. */
   $('mast').addEventListener('click', function () {
     if (sport !== 'today') setSport('today');

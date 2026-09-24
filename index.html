@@ -1006,6 +1006,69 @@
     margin-left: auto; padding-left: 10px; color: var(--ink);
     font-family: var(--narrow); font-variant-numeric: tabular-nums;
   }
+  /* ---- F1 compare: portraits, bars, rings, strips ---- */
+  .cmp-hero {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: end; gap: 6px; margin-top: 12px;
+  }
+  .ch-side { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+  /* a pool of team colour under each driver, so a pair from different teams
+     reads as two teams before a name is read */
+  .ch-body {
+    display: flex; align-items: flex-end; justify-content: center;
+    width: 100%; height: 190px;
+    background: radial-gradient(ellipse 62% 50% at 50% 70%,
+      color-mix(in srgb, var(--tc, var(--hairline)) 30%, transparent), transparent 72%);
+  }
+  .ch-body img { max-width: 100%; max-height: 100%; object-fit: contain; object-position: bottom; }
+  .ch-name {
+    display: flex; align-items: center; gap: 5px; max-width: 100%;
+    font-family: var(--serif); font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap;
+  }
+  .ch-name em {
+    font-style: normal; font-family: var(--narrow); font-size: 12px; font-weight: 700;
+    color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .ch-team { font-size: 11px; color: var(--muted); min-height: 1.3em; white-space: nowrap; }
+  .ch-mid { display: flex; align-items: baseline; gap: 6px; padding-bottom: 24px; }
+  .ch-mid b {
+    font-family: var(--narrow); font-size: 22px; font-weight: 700; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .ch-mid span { font-family: var(--narrow); font-size: 9.5px; letter-spacing: .08em; color: var(--muted); }
+  .ch-bar { display: flex; gap: 2px; height: 5px; margin: 8px 0 2px; }
+  .ch-bar i { display: block; min-width: 0; }
+  .ch-bar .a { background: var(--ser-a); border-radius: 3px 0 0 3px; }
+  .ch-bar .b { background: var(--ser-b); border-radius: 0 3px 3px 0; }
+
+  .cmp-card .sbar .lw i { background: var(--ser-a); }
+  .cmp-card .sbar .rw i { background: var(--ser-b); }
+  .cmp-card .acc-fg { stroke: var(--ser-a); }
+  .cmp-card .acc-fg.r { stroke: var(--ser-b); }
+
+  .cmp-strip { margin: 10px 0 12px; }
+  .cs-top {
+    display: grid; grid-template-columns: 46px 1fr 46px;
+    font-size: 12.5px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums;
+  }
+  .cs-top span:last-child { text-align: right; }
+  .cs-top .k { text-align: center; font-size: 11px; font-weight: 400; color: var(--muted); }
+  .cs-top .lead { color: var(--ink); font-weight: 700; }
+  .cs-axis { position: relative; height: 12px; margin: 5px 6px 0; }
+  .cs-axis::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 5px;
+    height: 2px; border-radius: 1px; background: var(--hairline);
+  }
+  .cs-axis i {
+    position: absolute; top: 0; width: 12px; height: 12px; margin-left: -6px;
+    border-radius: 50%; border: 2px solid var(--surface); box-sizing: border-box;
+  }
+  .cs-axis i.a { background: var(--ser-a); }
+  .cs-axis i.b { background: var(--ser-b); }
+  .cs-ends {
+    display: flex; justify-content: space-between; margin-top: 2px;
+    font-family: var(--narrow); font-size: 9.5px; color: var(--muted);
+  }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -4713,7 +4776,12 @@
       avgQ: mean(qs), avgF: mean(classified),
       best: classified.length ? Math.min.apply(null, classified) : null,
       fastest: rs.filter(function (x) { return x.FastestLap && x.FastestLap.rank === '1'; }).length,
-      dnf: rs.length - classified.length
+      dnf: rs.length - classified.length,
+      top10: rs.filter(function (x) { return Number(x.position) <= 10; }).length,
+      quals: qs.length, q3: qs.filter(function (p) { return p <= 10; }).length,
+      // places made from the grid, over the races they were classified in
+      gained: rs.filter(function (x) { return /^\d+$/.test(x.positionText) && Number(x.grid) > 0; })
+        .reduce(function (s, x) { return s + Number(x.grid) - Number(x.position); }, 0)
     };
   }
 
@@ -4763,9 +4831,11 @@
       lo -= padY;
       hi += padY;
     }
+    if (fmt.range) { lo = fmt.range[0]; hi = fmt.range[1]; }
     var n = xs.length;
     function X(i) { return CPL + (n < 2 ? 0 : i / (n - 1) * (CW - CPL - CPR)); }
-    function Y(v) { return CPT + (1 - (v - lo) / (hi - lo)) * (CH - CPT - CPB); }
+    // a position chart puts P1 at the top
+    function Y(v) { var t = (v - lo) / (hi - lo); return CPT + (fmt.invert ? t : 1 - t) * (CH - CPT - CPB); }
 
     var grid = '';
     for (var g = 0; g <= 3; g++) {
@@ -4866,32 +4936,6 @@
       '<div class="h2h-bar"><i class="a" style="flex:' + (w[0] || 0.0001) + '"></i>' +
         '<i class="b" style="flex:' + (w[1] || 0.0001) + '"></i></div>' +
       '<b class="' + (w[1] > w[0] ? 'lead' : '') + '">' + w[1] + '</b></div></div>';
-  }
-
-  function cmpStatsHTML(sa, sb, pa, pb) {
-    function f1(v) { return v == null ? '—' : v.toFixed(1); }
-    var rows = [
-      ['积分', pa, pb, 'high', String],
-      ['分站冠军', sa.wins, sb.wins, 'high', String],
-      ['领奖台', sa.podiums, sb.podiums, 'high', String],
-      ['杆位', sa.poles, sb.poles, 'high', String],
-      ['最快圈', sa.fastest, sb.fastest, 'high', String],
-      ['平均排位', sa.avgQ, sb.avgQ, 'low', f1],
-      ['平均完赛名次', sa.avgF, sb.avgF, 'low', f1],
-      ['最好名次', sa.best, sb.best, 'low', function (v) { return v == null ? '—' : 'P' + v; }],
-      ['退赛', sa.dnf, sb.dnf, 'low', String],
-      ['出赛', sa.starts, sb.starts, '', String]
-    ];
-    return '<div class="cmp-stats">' + rows.map(function (r) {
-      var a = r[1], b = r[2], wa = false, wb = false;
-      if (r[3] && a != null && b != null && a !== b) {
-        wa = r[3] === 'high' ? a > b : a < b;
-        wb = !wa;
-      }
-      return '<div class="cmp-st"><span class="' + (wa ? 'lead' : '') + '">' + esc(r[4](a)) + '</span>' +
-        '<span class="k">' + r[0] + '</span>' +
-        '<span class="' + (wb ? 'lead' : '') + '">' + esc(r[4](b)) + '</span></div>';
-    }).join('') + '</div>';
   }
 
   /* ---- this weekend's pace ----
@@ -4996,7 +5040,7 @@
         });
       });
       chart = '<div class="cmp-sub">每圈用时 <span>越低越快 · 已去掉进出站圈和慢圈</span></div>' +
-        cmpChartHTML('laps', xs, [
+        cmpLegend(nA, nB) + cmpChartHTML('laps', xs, [
           { name: nA, cls: 'a', vals: va }, { name: nB, cls: 'b', vals: vb }
         ], {
           y: function (v) { return f1Lap(v).replace(/(\.\d)\d+$/, '$1'); },
@@ -5004,6 +5048,145 @@
         }, function (i) { return '第 ' + (i + 1) + ' 圈'; });
     }
     return head + table + chart;
+  }
+
+  /* ---- the compare, laid out the way the fight card is ----
+     Full-length portraits from F1's own driver pages. Every driver is shot
+     turned both ways, so the left side takes the one facing right and the
+     pair stand facing each other with no mirrored, back-to-front sponsors.
+     A driver without a portrait gets F1's own silhouette, never a gap. */
+  var F1_IMG = 'https://media.formula1.com/image/upload/c_fill,w_320/q_auto/';
+
+  function f1Grid() {
+    return of1('drivers?session_key=latest').then(function (list) {
+      var by = {};
+      (list || []).forEach(function (d) {
+        var code = ((d.headshot_url || '').match(/\/([a-z]{6}\d\d)\.png/i) || [])[1];
+        by[f1DriverKey(f1RadioName(d.full_name))] = {
+          code: code ? code.toLowerCase() : '', team: d.team_name || '',
+          colour: d.team_colour || '', num: d.driver_number
+        };
+      });
+      return by;
+    });
+  }
+
+  function f1BodyURL(g, side) {
+    var y = new Date().getFullYear();
+    var base = F1_IMG + 'd_common:f1:' + y + ':fallback:driver:' + y + 'fallbackdriver' + side +
+      '.webp/v1740000000/common/f1/' + y + '/';
+    if (!g || !g.code) return base + 'none/none/none.webp';
+    // "Haas F1 Team" is haasf1team: the digit stays
+    var slug = g.team.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return base + slug + '/' + g.code + '/' + y + slug + g.code + side + '.webp';
+  }
+
+  function cmpHeroHTML(A, B, grid, ptsA, ptsB) {
+    function side(D, right) {
+      var g = grid && grid[D.key];
+      var tint = g && g.colour ? ' style="--tc:#' + esc(g.colour) + '"' : '';
+      return '<div class="ch-side' + (right ? ' r' : '') + '"' + tint + '>' +
+        '<span class="ch-body">' + (grid
+          ? '<img src="' + esc(f1BodyURL(g, right ? 'right' : 'left')) + '" alt="" loading="lazy"' +
+            ' onerror="this.style.visibility=\'hidden\'">' : '') + '</span>' +
+        '<span class="ch-name"><i class="sw ' + (right ? 'b' : 'a') + '"></i>' +
+          (g && g.num ? '<em>' + esc(g.num) + '</em>' : '') + esc(D.name) + '</span>' +
+        '<span class="ch-team">' + esc(g ? (teamCN(g.team) || g.team) : '') + '</span>' +
+        '</div>';
+    }
+    return '<div class="cmp-hero">' + side(A) +
+      '<div class="ch-mid"><b>' + ptsA + '</b><span>积分</span><b>' + ptsB + '</b></div>' +
+      side(B, true) + '</div>' +
+      '<div class="ch-bar"><i class="a" style="flex:' + (ptsA || 0.0001) + '"></i>' +
+        '<i class="b" style="flex:' + (ptsB || 0.0001) + '"></i></div>';
+  }
+
+  // the fight card's tug-of-war bar, each side's share of the two together
+  function cmpBar(label, av, bv, aText, bText) {
+    var sum = av + bv, aw = sum ? av / sum * 100 : 50;
+    return '<div class="stat"><span class="sv">' + esc(aText === undefined ? av : aText) + '</span>' +
+      '<span class="sl">' + esc(label) + '</span>' +
+      '<span class="sv r">' + esc(bText === undefined ? bv : bText) + '</span>' +
+      '<span class="sbar"><span class="lw"><i style="width:' + aw.toFixed(1) + '%"></i></span>' +
+      '<span class="rw"><i style="width:' + (100 - aw).toFixed(1) + '%"></i></span></span></div>';
+  }
+
+  /* An average position is not a quantity to split between two people — a
+     lower one is better — so it sits on the grid itself, P1 to the back. */
+  function cmpStrip(label, a, b, last) {
+    function x(v) { return (Math.max(0, Math.min(1, (v - 1) / (last - 1))) * 100).toFixed(1); }
+    function f(v) { return v == null ? '—' : v.toFixed(1); }
+    var la = a != null && b != null && a < b, lb = a != null && b != null && b < a;
+    return '<div class="cmp-strip">' +
+      '<div class="cs-top"><span class="' + (la ? 'lead' : '') + '">' + f(a) + '</span>' +
+        '<span class="k">' + esc(label) + '</span><span class="' + (lb ? 'lead' : '') + '">' + f(b) + '</span></div>' +
+      '<div class="cs-axis">' +
+        (a != null ? '<i class="a" style="left:' + x(a) + '%"></i>' : '') +
+        (b != null ? '<i class="b" style="left:' + x(b) + '%"></i>' : '') + '</div>' +
+      '<div class="cs-ends"><span>P1</span><span>P' + last + '</span></div></div>';
+  }
+
+  function cmpSeasonHTML(sa, sb, pa, pb, field) {
+    function sec(title, rows) {
+      rows = rows.filter(Boolean).join('');
+      return rows ? '<div class="stat-sec"><div class="stat-sec-t">' + title + '</div>' + rows + '</div>' : '';
+    }
+    function ring(label, a1, a2, b1, b2) {
+      if (!a2 && !b2) return '';
+      return '<div class="acc-row">' + accRing(a1, a2) + '<span class="acc-mid">' + label + '</span>' +
+        accRing(b1, b2, true) + '</div>';
+    }
+    function gained(v) { return v > 0 ? '+' + v : String(v); }
+    return sec('成绩', [
+      cmpBar('积分', pa, pb),
+      cmpBar('分站冠军', sa.wins, sb.wins),
+      cmpBar('领奖台', sa.podiums, sb.podiums),
+      cmpBar('进前十', sa.top10, sb.top10),
+      cmpBar('杆位', sa.poles, sb.poles),
+      cmpBar('最快圈', sa.fastest, sb.fastest)
+    ]) + sec('稳定性', [
+      ring('完赛率', sa.starts - sa.dnf, sa.starts, sb.starts - sb.dnf, sb.starts),
+      ring('进前十率', sa.top10, sa.starts, sb.top10, sb.starts),
+      ring('进 Q3 率', sa.q3, sa.quals, sb.q3, sb.quals)
+    ]) + sec('名次', [
+      cmpStrip('平均排位', sa.avgQ, sb.avgQ, field),
+      cmpStrip('平均完赛名次', sa.avgF, sb.avgF, field),
+      '<div class="cmp-stats">' +
+        '<div class="cmp-st"><span>' + (sa.best ? 'P' + sa.best : '—') + '</span><span class="k">最好名次</span>' +
+          '<span>' + (sb.best ? 'P' + sb.best : '—') + '</span></div>' +
+        '<div class="cmp-st"><span>' + gained(sa.gained) + '</span><span class="k">发车到完赛 净变化</span>' +
+          '<span>' + gained(sb.gained) + '</span></div>' +
+        '<div class="cmp-st"><span>' + sa.dnf + '</span><span class="k">退赛</span><span>' + sb.dnf + '</span></div>' +
+      '</div>'
+    ]);
+  }
+
+  // each round's finish, numbered the way the board numbers them
+  function cmpPositionsHTML(detail, sa, sb, evs, A, B) {
+    var xs = [], va = [], vb = [], names = [];
+    (detail.results || []).forEach(function (r) {
+      var t = new Date(r.date).getTime();
+      var idx = -1;
+      evs.forEach(function (e, i) {
+        var d = new Date((raceOf(e) || {}).date || e.date).getTime();
+        if (idx === -1 && Math.abs(d - t) < 2 * 86400000) idx = i;
+      });
+      function pos(x) { return x && /^\d+$/.test(x.positionText) ? Number(x.position) : null; }
+      xs.push(idx >= 0 ? 'R' + (idx + 1) : 'R?');
+      names.push(idx >= 0 ? gpName(evs[idx].name) : r.raceName);
+      va.push(pos(sa.race[r.round])); vb.push(pos(sb.race[r.round]));
+    });
+    if (xs.length < 2) return '';
+    var field = 0;
+    (detail.results || []).forEach(function (r) { field = Math.max(field, (r.Results || []).length); });
+    return cmpLegend(A.name, B.name) + cmpChartHTML('pos', xs, [
+      { name: A.name, cls: 'a', vals: va }, { name: B.name, cls: 'b', vals: vb }
+    ], {
+      y: function (v) { return 'P' + Math.round(v); }, tip: function (v) { return 'P' + v; },
+      range: [1, field || 22], invert: true, dots: true,
+      label: A.name + ' 与 ' + B.name + ' 逐站正赛名次'
+    }, function (i) { return xs[i] + ' · ' + names[i]; }) +
+      '<div class="cmp-sub"><span>缺口是退赛或未出赛</span></div>';
   }
 
   /* ---- the block ---- */
@@ -5070,24 +5253,40 @@
       return s ? Number(s.displayValue) || 0 : 0;
     }
 
-    body.innerHTML = cmpLegend(A.name, B.name) +
+    body.innerHTML = '<div id="cmpHero">' + cmpHeroHTML(A, B, null, totalPts(A.entry), totalPts(B.entry)) + '</div>' +
       '<div class="f1-h">当下圈速</div><div id="cmpLap"><div class="cmp-none">正在读取圈速…</div></div>' +
       '<div class="f1-h">本赛季正面交锋</div><div id="cmpH2H"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
       '<div class="f1-h">本赛季数据</div><div id="cmpStats"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
-      '<div class="f1-h">逐站积分走势</div>' + (ptsChart || '<div class="cmp-none">赛季还没开始。</div>');
+      '<div class="f1-h">逐站正赛名次</div><div id="cmpPos"><div class="cmp-none">正在读取本赛季成绩…</div></div>' +
+      '<div class="f1-h">逐站积分走势</div>' +
+      (ptsChart ? cmpLegend(A.name, B.name) + ptsChart : '<div class="cmp-none">赛季还没开始。</div>');
+
+    // the portraits need the entry list, which is one request away
+    f1Grid().then(function (grid) {
+      if (seq !== cmpSeq) return;
+      var slot = document.getElementById('cmpHero');
+      if (slot) slot.innerHTML = cmpHeroHTML(A, B, grid || {}, totalPts(A.entry), totalPts(B.entry));
+    });
 
     f1SeasonDetail().then(function (detail) {
       if (seq !== cmpSeq) return;
       var h = document.getElementById('cmpH2H'), st = document.getElementById('cmpStats');
       if (!h || !st) return;
       if (!detail) {
-        h.innerHTML = st.innerHTML = '<div class="cmp-none">本赛季成绩没取到，稍后再试。</div>';
+        var miss = '<div class="cmp-none">本赛季成绩没取到，稍后再试。</div>';
+        h.innerHTML = st.innerHTML = miss;
+        if (document.getElementById('cmpPos')) document.getElementById('cmpPos').innerHTML = miss;
         return;
       }
       var sa = cmpSeason(detail, ka), sb = cmpSeason(detail, kb);
       var q = cmpH2H(sa, sb, 'qual'), r = cmpH2H(sa, sb, 'race');
       h.innerHTML = cmpH2HRow('排位赛', q, q[0] + q[1]) + cmpH2HRow('正赛', r, r[0] + r[1]);
-      st.innerHTML = cmpStatsHTML(sa, sb, totalPts(A.entry), totalPts(B.entry));
+      var field = 0;
+      (detail.results || []).forEach(function (x) { field = Math.max(field, (x.Results || []).length); });
+      st.innerHTML = cmpSeasonHTML(sa, sb, totalPts(A.entry), totalPts(B.entry), field || 22);
+      var ps = document.getElementById('cmpPos');
+      if (ps) ps.innerHTML = cmpPositionsHTML(detail, sa, sb, evs, A, B) ||
+        '<div class="cmp-none">比赛还不够两站。</div>';
     });
 
     cmpMeeting().then(function (sessions) {

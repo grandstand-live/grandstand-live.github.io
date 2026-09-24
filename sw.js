@@ -1,7 +1,7 @@
 /* Grandstand service worker — network first, cache as a fallback.
    The page is a live scoreboard, so a stale copy must never win over the
    network; the cache only exists so the app still opens when offline. */
-var CACHE = 'grandstand-v10';
+var CACHE = 'grandstand-v11';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {

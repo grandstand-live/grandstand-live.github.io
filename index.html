@@ -1203,6 +1203,38 @@
     background: none; border: 1px solid var(--hairline); border-radius: 2px; padding: 3px 5px;
   }
   .rp-sp.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+  /* ---- F1: jumps ---- */
+  .f1-jump { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 10px 0 4px; }
+  .f1-jump::-webkit-scrollbar { display: none; }
+  .f1-jb {
+    flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+    font-family: var(--serif); font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 5px 12px;
+  }
+  /* ---- football: live commentary ---- */
+  .com { font-size: 13px; }
+  .com-row {
+    display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--hairline);
+    line-height: 1.5; color: var(--ink-2);
+  }
+  .com-row.deep { display: none; }
+  .com.all .com-row.deep { display: flex; }
+  .com-row .min {
+    width: 42px; flex-shrink: 0; font-family: var(--narrow); font-weight: 700;
+    color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .com-row .en { color: var(--muted); font-size: 12px; }
+  .com-row.goal { color: var(--ink); font-weight: 600; }
+  .com-row.goal .min { color: var(--accent); }
+  .com-row.yellow .min { color: var(--brass); }
+  .com-row.red .min { color: var(--loss); }
+  .com-more {
+    display: block; width: 100%; margin-top: 4px; padding: 8px 0; cursor: pointer;
+    background: none; border: none; font-family: var(--serif); font-size: 12px; font-weight: 600; color: var(--accent);
+  }
+  /* a score that just changed, once */
+  @keyframes scoreflash { 0%, 100% { background: transparent; } 20% { background: var(--live-soft); } }
+  .match.flash { animation: scoreflash 2.4s ease-out 1; }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -3360,10 +3392,268 @@
       return t.comp.status && t.comp.status.type && t.comp.status.type.state === 'in';
     });
     if (anyLive) {
-      timer = setInterval(function () {
-        summaryCache = {};
-        loadFixtures(true);
-      }, 60000);
+      timer = setInterval(liveTick, 20000);
+    }
+  }
+
+  /* ---------- live: commentary in Chinese ----------
+     ESPN carries Opta's minute-by-minute commentary. It is English, but it
+     is written from a small set of fixed sentences — a foul, a free kick
+     won, a corner, a change, a shot and where it went — so each sentence is
+     matched whole and rebuilt in Chinese. Anything not fully recognised is
+     left in the original English rather than shown half translated. */
+  var COM_HALF = {
+    'First Half': '上半场', 'Second Half': '下半场', 'First Half Extra Time': '加时赛上半场',
+    'Second Half Extra Time': '加时赛下半场', 'Match': '全场比赛', 'Penalty Shootout': '点球大战'
+  };
+  var COM_WHERE = {
+    'the centre of the box': '禁区中路', 'outside the box': '禁区外',
+    'the right side of the box': '禁区右侧', 'the left side of the box': '禁区左侧',
+    'the right side of the six yard box': '小禁区右侧', 'the left side of the six yard box': '小禁区左侧',
+    'the centre of the six yard box': '小禁区中路', 'very close range': '近距离',
+    'a difficult angle on the right': '右侧小角度', 'a difficult angle on the left': '左侧小角度',
+    'long range on the right': '右路远距离', 'long range on the left': '左路远距离',
+    'more than 35 yards': '35 码开外', 'the right side of the box following a corner': '禁区右侧'
+  };
+  var COM_SPOT = {
+    'bottom left corner': '左下角', 'bottom right corner': '右下角', 'top left corner': '左上角',
+    'top right corner': '右上角', 'centre of the goal': '球门中路', 'high centre of the goal': '球门正上方',
+    'top centre of the goal': '球门中路上方'
+  };
+  var COM_SIDE = { left: '左', right: '右' };
+  function comTeam(t) { return cn(t) || t; }
+  function comWho(p, t) { return p + '（' + comTeam(t) + '）'; }
+
+  // the shot itself: "right footed shot from outside the box is saved in the …"
+  function comShot(rest) {
+    var r = rest, out = { how: '', where: '', end: '', mods: [], assist: '' };
+    var m = r.match(/ Assisted by (.+?)(?: with (a cross|a headed pass|a through ball))?(?: following (a corner|a fast break|a set piece situation))?\.?$/);
+    if (m) {
+      out.assist = '助攻：' + m[1] + ({ 'a cross': '（传中）', 'a headed pass': '（头球摆渡）', 'a through ball': '（直塞）' }[m[2]] || '') +
+        ({ 'a corner': '（角球）', 'a fast break': '（快速反击）', 'a set piece situation': '（定位球）' }[m[3]] || '');
+      r = r.slice(0, m.index);
+    }
+    m = r.match(/^from a free kick with a (right|left) footed shot/);
+    if (m) { out.how = COM_SIDE[m[1]] + '脚任意球'; r = r.slice(m[0].length); }
+    else {
+      m = r.match(/^(right footed shot|left footed shot|header|with an attempt)/);
+      if (!m) return null;
+      out.how = { 'right footed shot': '右脚射门', 'left footed shot': '左脚射门', 'header': '头球', 'with an attempt': '射门' }[m[1]];
+      r = r.slice(m[0].length);
+      m = r.match(/^ from (.+?)(?= is | to the | misses | hits |\.|$)/);
+      if (m) {
+        var far = m[1].match(/^more than (\d+) yards(?: on the (left|right) wing)?$/);
+        if (!COM_WHERE[m[1]] && !far) return null;
+        out.where = far ? (far[2] ? COM_SIDE[far[2]] + '路' : '') + far[1] + ' 码开外' : COM_WHERE[m[1]];
+        r = r.slice(m[0].length);
+      }
+    }
+    var ends = [
+      [/^ to the (bottom left corner|bottom right corner|top left corner|top right corner|centre of the goal|high centre of the goal|top centre of the goal)/,
+        function (x) { return '打进' + COM_SPOT[x[1]]; }],
+      [/^ is blocked/, function () { return '被封堵'; }],
+      [/^ is saved in the (bottom left corner|bottom right corner|top left corner|top right corner|centre of the goal|top centre of the goal) by (.+?) \(([^)]+)\)/,
+        function (x) { return '被' + comWho(x[2], x[3]) + '扑出（' + COM_SPOT[x[1]] + '）'; }],
+      [/^ is saved in the (bottom left corner|bottom right corner|top left corner|top right corner|centre of the goal|top centre of the goal)/,
+        function (x) { return '被扑出（' + COM_SPOT[x[1]] + '）'; }],
+      [/^ is close, but misses to the (left|right)/, function (x) { return '稍稍偏出' + COM_SIDE[x[1]] + '侧'; }],
+      [/^ is close, but misses the (top left|top right) corner/, function (x) { return '擦着' + COM_SPOT[x[1] + ' corner'] + '偏出'; }],
+      [/^ misses to the (left|right)/, function (x) { return '偏出' + COM_SIDE[x[1]] + '侧'; }],
+      [/^ is high and wide to the (left|right)/, function (x) { return '高出并偏' + COM_SIDE[x[1]]; }],
+      [/^ is too high/, function () { return '高出横梁'; }],
+      [/^ is just a bit too high/, function () { return '稍稍高出横梁'; }],
+      [/^ hits the (left post|right post|bar)/, function (x) { return '击中' + { 'left post': '左门柱', 'right post': '右门柱', bar: '横梁' }[x[1]]; }]
+    ];
+    for (var i = 0; i < ends.length; i++) {
+      m = r.match(ends[i][0]);
+      if (m) { out.end = ends[i][1](m); r = r.slice(m[0].length); break; }
+    }
+    // what led to it, in any order
+    var mods = { ' from a direct free kick': '直接任意球', ' following a corner': '角球后', ' following a fast break': '快速反击',
+      ' following a set piece situation': '定位球后' };
+    var moved = true;
+    while (moved) {
+      moved = false;
+      Object.keys(mods).forEach(function (k) {
+        if (r.indexOf(k) === 0) { out.mods.push(mods[k]); r = r.slice(k.length); moved = true; }
+      });
+    }
+    if (r.replace(/\.$/, '').trim()) return null;   // something unrecognised: leave it in English
+    return out.where + out.how + (out.end ? '，' + out.end : '') +
+      (out.mods.length ? '（' + out.mods.join('，') + '）' : '') + '。' + (out.assist ? out.assist + '。' : '');
+  }
+
+  function comTr(text) {
+    var t = String(text || '').trim(), m;
+    var rules = [
+      [/^Lineups are announced and players are warming up\.$/, function () { return '首发名单公布，球员正在热身。'; }],
+      [/^(First Half|Second Half|First Half Extra Time|Second Half Extra Time) begins\.$/, function (x) { return COM_HALF[x[1]] + '开始。'; }],
+      [/^(First Half|Second Half|First Half Extra Time|Second Half Extra Time) begins,? (.+?) (\d+), (.+?) (\d+)\.$/,
+        function (x) { return COM_HALF[x[1]] + '开始，' + comTeam(x[2]) + ' ' + x[3] + '-' + x[5] + ' ' + comTeam(x[4]) + '。'; }],
+      [/^(First Half|Second Half|First Half Extra Time|Second Half Extra Time|Match|Penalty Shootout) ends,? (.+?) (\d+), (.+?) (\d+)\.$/,
+        function (x) { return COM_HALF[x[1]] + '结束，' + comTeam(x[2]) + ' ' + x[3] + '-' + x[5] + ' ' + comTeam(x[4]) + '。'; }],
+      [/^Foul by (.+?) \(([^)]+)\)\.$/, function (x) { return comWho(x[1], x[2]) + '犯规。'; }],
+      [/^Hand ?ball by (.+?) \(([^)]+)\)\.$/, function (x) { return comWho(x[1], x[2]) + '手球。'; }],
+      [/^Dangerous play by (.+?) \(([^)]+)\)\.$/, function (x) { return comWho(x[1], x[2]) + '动作危险。'; }],
+      [/^(.+?) \(([^)]+)\) has gone down, but the referee deems it simulation\.$/,
+        function (x) { return comWho(x[1], x[2]) + '倒地，但裁判认定是假摔。'; }],
+      // the woodwork comes first in these: "X hits the left post with a right footed shot from …"
+      [/^(.+?) \(([^)]+)\) hits the (left post|right post|bar) with a (right footed shot|left footed shot|header)(.*)$/, function (x) {
+        var tail = x[5].match(/^( from .+?)?\.( Assisted by .*)?$/);
+        if (!tail) return null;
+        var shot = comShot(x[4] + (tail[1] || '') + ' hits the ' + x[3] + '.' + (tail[2] || ''));
+        return shot === null ? null : '中柱！' + comWho(x[1], x[2]) + shot;
+      }],
+      [/^(.+?) \(([^)]+)\) wins a free kick (in the defensive half|in the attacking half|on the right wing|on the left wing)\.$/,
+        function (x) {
+          return comWho(x[1], x[2]) + { 'in the defensive half': '在后场', 'in the attacking half': '在前场',
+            'on the right wing': '在右路', 'on the left wing': '在左路' }[x[3]] + '赢得任意球。';
+        }],
+      [/^Corner,\s+(.+?)\. Conceded by (.+?)\.?$/, function (x) { return comTeam(x[1]) + '获得角球，' + x[2] + '送出。'; }],
+      [/^Offside, (.+?)\. (.+?) tries a through ball, but (.+?) is caught offside\.$/,
+        function (x) { return comTeam(x[1]) + '越位：' + x[2] + '直塞，' + x[3] + '越位。'; }],
+      [/^Offside, (.+?)\. (.+?) is caught offside\.$/, function (x) { return comTeam(x[1]) + '越位：' + x[2] + '越位在先。'; }],
+      [/^Substitution, (.+?)\. (.+?) replaces (.+?)( because of an injury)?\.?$/,
+        function (x) { return '换人，' + comTeam(x[1]) + '：' + x[2] + '换下' + x[3] + (x[4] ? '（因伤）' : '') + '。'; }],
+      [/^(.+?) \(([^)]+)\) is shown the (yellow|red|second yellow) card(?: for (a bad foul|excessive celebration|time wasting|dangerous play|hand ball|unsporting behaviour|simulation|dissent|violent conduct|a professional foul))?\.$/,
+        function (x) {
+          var why = { 'a bad foul': '恶意犯规', 'excessive celebration': '庆祝过度', 'time wasting': '拖延时间',
+            'dangerous play': '危险动作', 'hand ball': '手球', 'unsporting behaviour': '违反体育道德', simulation: '假摔',
+            dissent: '不满判罚', 'violent conduct': '暴力行为', 'a professional foul': '战术犯规' }[x[4]];
+          var card = { yellow: '黄牌', red: '红牌', 'second yellow': '第二张黄牌，两黄变一红' }[x[3]];
+          return comWho(x[1], x[2]) + '吃到' + card + (why ? '（' + why + '）' : '') + '。';
+        }],
+      [/^Second yellow card to (.+?) \(([^)]+)\)\.$/, function (x) { return comWho(x[1], x[2]) + '吃到第二张黄牌，两黄变一红。'; }],
+      [/^Penalty (saved|missed)\. (.+?) \(([^)]+)\) (.+)$/, function (x) {
+        // penalties drop the "is": "right footed shot saved in the bottom right corner"
+        var shot = comShot(x[4].replace(/ (saved in|misses|is saved in)/, function (w, v) { return v === 'saved in' ? ' is saved in' : w; }));
+        return shot === null ? null : { saved: '点球被扑出', missed: '点球罚失' }[x[1]] + '：' + comWho(x[2], x[3]) + shot;
+      }],
+      [/^Fourth official has announced (\d+) minutes? of added time\.$/, function (x) { return '第四官员示意补时 ' + x[1] + ' 分钟。'; }],
+      [/^Delay over\. They are ready to continue\.$/, function () { return '比赛恢复。'; }],
+      [/^Delay in match because of an injury (.+?) \(([^)]+)\)\.$/, function (x) { return comWho(x[1], x[2]) + '受伤，比赛暂停。'; }],
+      [/^Delay in match for a drinks break\.$/, function () { return '补水暂停。'; }],
+      [/^Delay in match \(([^)]+)\)\.$/, function (x) { return '比赛暂停（' + comTeam(x[1]) + '）。'; }],
+      [/^Penalty conceded by (.+?) \(([^)]+)\) after a foul in the penalty area\.$/, function (x) { return comWho(x[1], x[2]) + '禁区内犯规，送出点球。'; }],
+      [/^Penalty (.+?)\. (.+?) draws a foul in the penalty area\.$/, function (x) { return comTeam(x[1]) + '获得点球，' + x[2] + '在禁区内造成犯规。'; }],
+      [/^(.+?) \(([^)]+)\) scores but the goal is ruled out after a VAR review\.$/, function (x) { return comWho(x[1], x[2]) + '破门，但 VAR 复核后进球无效。'; }],
+      [/^VAR Decision: (Goal|No Goal|Penalty|No Penalty|Red Card|No Red Card) (.+?)\.?$/, function (x) {
+        return 'VAR 判定：' + { Goal: '进球有效', 'No Goal': '进球无效', Penalty: '判罚点球', 'No Penalty': '不判点球',
+          'Red Card': '出示红牌', 'No Red Card': '不出示红牌' }[x[1]] + '。';
+      }],
+      [/^Own Goal by (.+?), (.+?)\. (.+?) (\d+), (.+?) (\d+)\.$/, function (x) {
+        return '乌龙球！' + x[1] + '（' + comTeam(x[2]) + '）自摆乌龙，' + comTeam(x[3]) + ' ' + x[4] + '-' + x[6] + ' ' + comTeam(x[5]) + '。';
+      }],
+      [/^Goal! (.+?) (\d+), (.+?) (\d+)\. (.+?) \(([^)]+)\) (.+)$/, function (x) {
+        var shot = comShot(x[7]);
+        return shot === null ? null : '进球！' + comTeam(x[1]) + ' ' + x[2] + '-' + x[4] + ' ' + comTeam(x[3]) + '。' + comWho(x[5], x[6]) + shot;
+      }],
+      [/^Attempt (missed|saved|blocked)\. (.+?) \(([^)]+)\) (.+)$/, function (x) {
+        var shot = comShot(x[4]);
+        return shot === null ? null : { missed: '射门偏出', saved: '射门被扑', blocked: '射门被封堵' }[x[1]] + '：' + comWho(x[2], x[3]) + shot;
+      }]
+    ];
+    for (var i = 0; i < rules.length; i++) {
+      m = t.match(rules[i][0]);
+      if (!m) continue;
+      var zh = rules[i][1](m);
+      return zh && zh.replace(/([一-鿿])([A-Za-zÀ-ɏ])/g, '$1 $2')
+        .replace(/([A-Za-zÀ-ɏ.])([一-鿿])/g, '$1 $2');
+    }
+    return null;
+  }
+
+  function commentaryHTML(list, id) {
+    var rows = (list || []).filter(function (c) { return c && c.text; })
+      .sort(function (a, b) { return (b.sequence || 0) - (a.sequence || 0); });
+    if (!rows.length) return '';
+    return '<h4>文字直播</h4><div class="com" data-com="' + esc(id) + '">' + rows.map(function (c, i) {
+      var zh = comTr(c.text);
+      var kind = /^Goal!|^Own Goal/.test(c.text) ? ' goal' : /red card|second yellow/.test(c.text) ? ' red'
+        : /yellow card/.test(c.text) ? ' yellow' : '';
+      return '<div class="com-row' + kind + (i >= 12 ? ' deep' : '') + '"><span class="min">' +
+        esc((c.time && c.time.displayValue) || '') + '</span><span class="' + (zh ? '' : 'en') + '">' +
+        esc(zh || c.text) + '</span></div>';
+    }).join('') + (rows.length > 12 ? '<button type="button" class="com-more">展开全部 ' + rows.length + ' 条</button>' : '') +
+      '</div>';
+  }
+
+  /* ---------- live: a scoreboard that keeps up ----------
+     Every twenty seconds while a match is on, and only the day's page
+     rather than the fortnight. The board is redrawn with whatever was open
+     still open and the page where it was, so reading a live match is no
+     longer interrupted by the refresh that was meant to serve it. A score
+     that changed flashes once. */
+  var comAll = {};   // which commentaries the reader has expanded
+
+  function scoreKeyOf(ev) {
+    var t = teamsOf(ev);
+    return scoreOf(t.home) + '-' + scoreOf(t.away);
+  }
+
+  function liveTick() {
+    var tk = viewSeq;
+    Promise.all([ymd(0), ymd(-1)].map(function (d) {
+      return getJSON(API + 'site/v2/sports/soccer/' + league + '/scoreboard?dates=' + d);
+    })).then(function (parts) {
+      if (viewStale(tk) || sport !== 'football') return;
+      var before = {};
+      events.forEach(function (ev) { before[ev.id] = scoreKeyOf(ev); });
+      parts.forEach(function (p) {
+        ((p && p.events) || []).forEach(function (ev) {
+          for (var i = 0; i < events.length; i++) {
+            if (events[i].id === ev.id) { events[i] = ev; break; }
+          }
+          eventById[ev.id] = ev;
+        });
+      });
+      var changed = events.filter(function (ev) {
+        return before[ev.id] !== undefined && before[ev.id] !== scoreKeyOf(ev);
+      }).map(function (ev) { return ev.id; });
+      renderFixturesKeep(changed);
+      scheduleAutoRefresh();
+    });
+  }
+
+  function renderFixturesKeep(changed) {
+    var host = $('panel-fixtures');
+    var open = [].map.call(host.querySelectorAll('.detail'), function (d) {
+      var b = d.previousElementSibling;
+      return b && b.dataset && b.dataset.ev ? { id: b.dataset.ev, html: d.innerHTML } : null;
+    }).filter(Boolean);
+    var y = window.pageYOffset;
+    renderFixtures();
+    open.forEach(function (o) {
+      var btn = host.querySelector('.match[data-ev="' + o.id + '"]');
+      if (!btn) return;
+      var box = document.createElement('div');
+      box.className = 'detail';
+      box.innerHTML = o.html;              // the old view stays until the new one lands
+      btn.parentNode.insertBefore(box, btn.nextSibling);
+      var ev = eventById[o.id];
+      var st = ev && ((teamsOf(ev).comp.status || {}).type || {}).state;
+      if (st !== 'in' && changed.indexOf(o.id) === -1) return;
+      delete summaryCache[o.id];
+      loadSummary(o.id).then(function (html) {
+        if (!box.isConnected) return;
+        box.innerHTML = html;
+        fillPhotos(box);
+        comKeep(box, o.id);
+      });
+    });
+    window.scrollTo(0, y);
+    changed.forEach(function (id) {
+      var row = host.querySelector('.match[data-ev="' + id + '"]');
+      if (row) row.classList.add('flash');
+    });
+  }
+
+  function comKeep(box, id) {
+    var c = box.querySelector('.com');
+    if (c && comAll[id]) {
+      c.classList.add('all');
+      var more = c.querySelector('.com-more');
+      if (more) more.remove();
     }
   }
 
@@ -3380,6 +3670,7 @@
       if (!box.isConnected) return;
       box.innerHTML = html;
       fillPhotos(box);
+      comKeep(box, id);
     });
   }
 
@@ -3871,6 +4162,7 @@
 
       // goals and cards, then the full match stats — only populated once it kicks off
       html += timelineHTML(data.keyEvents, homeId);
+      html += commentaryHTML(data.commentary, id);
       html += statsHTML(data.boxscore && data.boxscore.teams, homeId,
         t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
 
@@ -6308,7 +6600,7 @@ O
           esc(d.name) + '</option>';
       }).join('') + '</select>';
     }
-    return '<div class="group-name">车手对比</div>' +
+    return '<div class="group-name" id="f1Cmp">车手对比</div>' +
       '<div class="cmp-card">' +
         '<div class="cmp-pick"><span class="sw a"></span>' + sel('cmpA', a) +
           '<span class="cmp-vs">vs</span>' + sel('cmpB', b) + '<span class="sw b"></span></div>' +
@@ -6485,11 +6777,18 @@ O
           '</button>';
       }).join('') + '</div>';
 
+      /* The board runs six sections deep; a row of jumps under the season
+         line gets to any of them without a long scroll on a phone. */
+      var jumps = [['nextGp', next && f1SessionsDone(next).length ? '本站' : '下一站'], ['f1Radio', '无线电'],
+        ['f1Hist', '历史'], ['f1Cmp', '车手对比'], ['f1Cal', '赛历']];
       host.innerHTML = f1ProgressHTML(evs, doneCount, standings) +
+        '<div class="f1-jump">' + jumps.filter(function (j) { return j[0] !== 'nextGp' || next; }).map(function (j) {
+          return '<button type="button" class="f1-jb" data-jump="' + j[0] + '">' + j[1] + '</button>';
+        }).join('') + '</div>' +
         (next ? f1HeroHTML(next, nextCircuit) : '') +
         '<div id="f1Radio"></div><div id="f1Hist"></div>' +
         f1CompareHTML(standings) +
-        '<div class="group-name">全年赛历</div>' + list;
+        '<div class="group-name" id="f1Cal">全年赛历</div>' + list;
 
       f1Cache.cmpCtx = { evs: evs, standings: standings };
       if (document.getElementById('cmpA')) f1CompareFill(evs, standings);
@@ -11382,6 +11681,44 @@ O
     cmpRp.last = 0;
     cmpRp.snap = true;
     rpDraw();
+  });
+
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.com-more');
+    if (!b) return;
+    var c = b.closest('.com');
+    c.classList.add('all');
+    comAll[c.dataset.com] = 1;
+    b.remove();
+  });
+
+  $('panel-fixtures').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.f1-jb');
+    if (!b) return;
+    var id = b.dataset.jump;
+    /* The nav tucks away on the way down and comes back on the way up, so a
+       jump upward leaves room for it. Sections below still fill in as they
+       arrive and can push the target on mid-scroll, so the landing is
+       checked once and corrected. */
+    function aim(first) {
+      var el = document.getElementById(id);
+      if (!el) return null;
+      var r = el.getBoundingClientRect().top;
+      var bar = document.querySelector('.stickybar');
+      var safe = (document.querySelector('.safetop') || {}).offsetHeight || 0;
+      // before the scroll, guess where the nav will be; after it, ask
+      var room = first ? safe + (r < 0 && bar ? bar.offsetHeight : 0)
+        : Math.max(safe, bar ? bar.getBoundingClientRect().bottom : 0);
+      room += 8;
+      return { y: Math.max(0, r + window.pageYOffset - room), off: r - room };
+    }
+    var a = aim(true);
+    if (!a) return;
+    window.scrollTo({ top: a.y, behavior: 'smooth' });
+    setTimeout(function () {
+      var again = aim();
+      if (again && Math.abs(again.off) > 40) window.scrollTo({ top: again.y, behavior: 'smooth' });
+    }, 900);
   });
 
   $('panel-fixtures').addEventListener('click', function (e) {

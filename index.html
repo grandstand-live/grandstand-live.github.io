@@ -1160,6 +1160,14 @@
   .rp-mode.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
   .rp-note { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
   .rp-car { stroke: var(--surface); stroke-width: 2; }
+  /* the chequered line: a white stroke with black dashes over it */
+  .rp-sf-w { stroke: #FFFFFF; stroke-width: 7; vector-effect: non-scaling-stroke; }
+  .rp-sf-k { stroke: #111214; stroke-width: 7; stroke-dasharray: 3.5 3.5; vector-effect: non-scaling-stroke; }
+  .rp-sf-arr { fill: var(--ink-2); }
+  .rp-sf-t {
+    font-family: var(--narrow); font-weight: 700; fill: var(--ink-2);
+    paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round;
+  }
   .rp-lab {
     font-family: var(--serif); font-size: 11px; font-weight: 600; fill: var(--ink);
     paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round;
@@ -6688,6 +6696,13 @@
       t: 0, playing: false, speed: 1, last: 0,
       // the follow camera: centre and width in the map's own units, eased
       mode: 'follow', cam: null, H: fit.H,
+      /* A flying lap starts and ends on the same line. Its place, and the way
+         the cars cross it, from the first 40 m of the lap. */
+      sf: (function () {
+        var a = fit.p(SA.at(0)).map(Number), b = fit.p(SA.at(40)).map(Number);
+        var dx = b[0] - a[0], dy = b[1] - a[1], l = Math.sqrt(dx * dx + dy * dy) || 1;
+        return { x: a[0], y: a[1], dx: dx / l, dy: dy / l };
+      })(),
       // per-driver time→distance, on the common length, for the live gap
       tdA: TA.car.map(function (c) { return c.t; }), ddA: TA.car.map(function (c) { return c.d * SA.k; }),
       tdB: TB.car.map(function (c) { return c.t; }), ddB: TB.car.map(function (c) { return c.d * SB.k; })
@@ -6708,6 +6723,8 @@
         '<svg class="tm" viewBox="0 0 ' + CW + ' ' + fit.H.toFixed(0) + '" role="img" aria-label="' +
           esc(A.name + ' 与 ' + B.name + ' 最快圈回放') + '">' +
           '<path class="tm-base" d="' + telePath(track, fit) + '"/>' +
+          '<line class="rp-sf-w" data-f="sfW"/><line class="rp-sf-k" data-f="sfK"/>' +
+          '<path class="rp-sf-arr" data-f="sfArr"/><text class="rp-sf-t" data-f="sfT">起点 / 终点</text>' +
           '<path class="rp-trail a" data-f="trailA"/><path class="rp-trail b" data-f="trailB"/>' +
           '<circle class="rp-car b" r="6" data-f="carB"/><circle class="rp-car a" r="6" data-f="carA"/>' +
           // names ride with the dots, one above and one below, so two cars a
@@ -6757,6 +6774,27 @@
       z = C.w / CW;
     }
     svg.setAttribute('viewBox', vb.map(function (v) { return v.toFixed(2); }).join(' '));
+    // the start/finish line: right across the track band, with room to spare
+    var sf = R.sf, nx = -sf.dy, ny = sf.dx, half = (follow ? 16 : 9) * z;
+    ['sfW', 'sfK'].forEach(function (k) {
+      var el = f(k);
+      el.setAttribute('x1', sf.x - nx * half); el.setAttribute('y1', sf.y - ny * half);
+      el.setAttribute('x2', sf.x + nx * half); el.setAttribute('y2', sf.y + ny * half);
+    });
+    // a small arrow just past the line, pointing the way the lap runs
+    var ax = sf.x + sf.dx * 18 * z, ay = sf.y + sf.dy * 18 * z, al = 7 * z;
+    f('sfArr').setAttribute('d', 'M' + (ax + sf.dx * al) + ' ' + (ay + sf.dy * al) +
+      'L' + (ax - sf.dx * al + nx * al * .8) + ' ' + (ay - sf.dy * al + ny * al * .8) +
+      'L' + (ax - sf.dx * al - nx * al * .8) + ' ' + (ay - sf.dy * al - ny * al * .8) + 'Z');
+    // the label goes on the track's left-hand side of the screen, away from
+    // the drivers' names, which sit to the right of their dots
+    var side = nx > 0 ? -1 : 1;
+    var sfT = f('sfT');
+    sfT.setAttribute('x', sf.x + side * nx * (half + 5 * z));
+    sfT.setAttribute('y', sf.y + side * ny * (half + 5 * z) + 4 * z);
+    sfT.setAttribute('text-anchor', 'end');
+    sfT.style.fontSize = (10 * z) + 'px';
+
     var bar = f('bar'), barT = f('barT');
     bar.style.display = barT.style.display = follow ? '' : 'none';
     if (follow) {

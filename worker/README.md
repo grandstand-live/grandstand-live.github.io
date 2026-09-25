@@ -29,9 +29,10 @@
 
 7. **自检**
    浏览器打开 `https://grandstand-api.<你的子域名>.workers.dev/api/health`，
-   会看到类似 `{"ok":true,"espn":"200 ok","users":0,"subs":0}`。
-   - `espn` 是 `200 ok`：比分推送和服务器结算都能用。
-   - 不是 200：ESPN 拒绝了 Cloudflare 的请求。账号、排行榜、评分照常可用，推送和足球/NBA 的服务器结算会停着。
+   会看到类似 `{"ok":true,"espn":{"site":"403","siteWeb":"200 ok",...},"users":0,"subs":0}`。
+   `espn` 列出 ESPN 的四个地址在 Cloudflare 上能不能用。Worker 用的是 `siteWeb`
+   （`site.web.api.espn.com`），它是 `200 ok`，比分推送和服务器结算就能用。
+   `site`（`site.api.espn.com`）会拒绝 Cloudflare 的请求，返回 403 是正常的。
 
 把这个地址发给我，我填进 app 里（`index.html` 的 `API_BASE`），这些功能就会出现在 app 上。
 

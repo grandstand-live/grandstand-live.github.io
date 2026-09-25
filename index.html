@@ -12872,7 +12872,7 @@ O
      A Cloudflare Worker (worker/ in this repo). Until API_BASE is set every
      one of these stays out of sight and the app is exactly what it was. */
   // a stored override points a test build at another Worker
-  var API_BASE = lsGet('apiBase', '') || '';
+  var API_BASE = lsGet('apiBase', '') || 'https://grandstand-api.lucashuang081014.workers.dev';
   var acct = lsGet('acct', null);   // { token, nick }
 
   function api(method, path, data) {

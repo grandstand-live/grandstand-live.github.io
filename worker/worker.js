@@ -11,7 +11,8 @@
    and server-side settling stand down and the rest keeps working. */
 
 const ORIGINS = ['https://grandstand-live.github.io', 'http://localhost:8099'];
-const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/';
+// site.api.espn.com turns Cloudflare away (403); site.web.api serves the same API and answers
+const ESPN = 'https://site.web.api.espn.com/apis/site/v2/sports/';
 const DAY = 86400000;
 
 // Password hashing has to fit the free plan's 10 ms of CPU per request, so

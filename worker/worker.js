@@ -577,14 +577,28 @@ async function verifyPicks(env) {
 
 /* --------------------------------------------------------------- router */
 
+/* ESPN serves the same scoreboards from several hosts, and turned the first
+   one away from Cloudflare (403). Each is tried here, so the one that
+   answers can be seen and used. */
+const ESPN_PROBES = {
+  site: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard',
+  siteWeb: 'https://site.web.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard',
+  core: 'https://sports.core.api.espn.com/v2/sports/soccer/leagues/eng.1/events?limit=1',
+  cdn: 'https://cdn.espn.com/core/soccer/scoreboard?xhr=1&league=eng.1'
+};
 async function health(req, env) {
-  let espnStatus = 'unreachable';
-  try {
-    const r = await fetch(ESPN + 'soccer/eng.1/scoreboard', { headers: { 'User-Agent': 'Mozilla/5.0 (grandstand-live)' } });
-    espnStatus = r.status + (r.ok ? ' ok' : '');
-  } catch (e) { espnStatus = 'error: ' + e.message; }
+  const espn = {};
+  await Promise.all(Object.keys(ESPN_PROBES).map(async (k) => {
+    try {
+      const r = await fetch(ESPN_PROBES[k], {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36',
+          'Accept': 'application/json' }
+      });
+      espn[k] = r.status + (r.ok ? ' ok' : '');
+    } catch (e) { espn[k] = 'error: ' + e.message; }
+  }));
   const n = await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users) AS users, (SELECT COUNT(*) FROM subs) AS subs').first();
-  return { ok: true, espn: espnStatus, users: n.users, subs: n.subs };
+  return { ok: true, espn, users: n.users, subs: n.subs };
 }
 
 const ROUTES = {

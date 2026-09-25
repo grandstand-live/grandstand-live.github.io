@@ -1420,6 +1420,7 @@
     padding: 16px 16px 14px; margin-bottom: 4px;
     box-shadow: inset 3px 0 0 var(--accent);
   }
+  .f1-last { box-shadow: inset 3px 0 0 var(--hairline-strong); margin-top: 10px; }
   .f1-hero-k {
     font-family: var(--narrow); font-size: 10.5px; font-weight: 700;
     letter-spacing: .16em; color: var(--accent);
@@ -5388,7 +5389,7 @@
       : r.pos === 1 ? (isRace ? f1Lap(r.time) : '')
       : typeof r.gap === 'number' ? '+' + r.gap.toFixed(3)
       : (r.gap || '');
-    return '<div class="f1-r' + (r.pos > 10 ? ' deep' : '') + '">' +
+    return '<div class="f1-r' + (r.pos > 10 || !r.pos ? ' deep' : '') + '">' +   // a retirement has no place, and waits with the rest
       '<span class="f1-r-p">' + (r.pos || '—') + '</span>' +
       '<span class="f1-r-c"' + (r.colour ? ' style="background:#' + esc(r.colour) + '"' : '') + '></span>' +
       '<span class="f1-r-n"><b>' + esc(driverCN(r.name) || r.name) + '</b>' +
@@ -5398,7 +5399,7 @@
       '</div>';
   }
 
-  function f1WeekendHTML(sets) {
+  function f1WeekendHTML(sets, title) {
     if (!sets || !sets.length) return '';
     var tabs = '', panels = '';
     sets.forEach(function (s, i) {
@@ -5421,7 +5422,7 @@
         (rows.length > 10 ? '<button type="button" class="f1-r-more">展开全部 ' + rows.length + ' 人</button>' : '') +
         '</div>';
     });
-    return '<div class="f1-h">本站成绩</div><div class="rnd-wrap">' +
+    return '<div class="f1-h">' + (title || '本站成绩') + '</div><div class="rnd-wrap">' +
       '<div class="rnd-tabs">' + tabs + '</div>' + panels + '</div>';
   }
 
@@ -7091,15 +7092,42 @@ O
           '</button>';
       }).join('') + '</div>';
 
+      /* Between race weekends the board used to jump straight to the next
+         countdown, and the last race's results were a tap into the calendar.
+         Until the next weekend's first session they stay on the board: in
+         front of the countdown for four days after the flag, when they are
+         what people come for, and behind it after that. During a weekend the
+         weekend's own card carries its results, so this stands aside. */
+      var weekendOn = next && f1SessionsDone(next).length;
+      var prev = null;
+      if (!weekendOn) {
+        for (var p = (nextIdx >= 0 ? nextIdx : evs.length) - 1; p >= 0; p--) {
+          if (f1SessionsDone(evs[p]).length) { prev = evs[p]; break; }
+        }
+      }
+      var prevRace = prev && new Date((raceOf(prev) || {}).date || prev.date);
+      var prevFirst = prev && Date.now() - prevRace.getTime() < 4 * 86400000;
+      var lastCard = prev ? '<div class="f1-hero f1-last" id="f1Last">' +
+        '<div class="f1-hero-k">上一站</div>' +
+        '<div class="f1-hero-t">' + esc(gpName(prev.name)) + '</div>' +
+        '<div class="f1-hero-p">' + esc((prev.circuit && prev.circuit.fullName) || '') +
+          (isNaN(prevRace) ? '' : ' · ' + esc(fmtDay(prevRace))) + '</div>' +
+        '<div id="f1LastRes">' + f1WeekendHTML(f1SessionsDone(prev).map(function (c) {
+          return { comp: c, rows: null };
+        }), '成绩') + '</div></div>' : '';
+
       /* The board runs six sections deep; a row of jumps under the season
          line gets to any of them without a long scroll on a phone. */
-      var jumps = [['nextGp', next && f1SessionsDone(next).length ? '本站' : '下一站'], ['f1Radio', '无线电'],
+      var jumps = [['nextGp', weekendOn ? '本站' : '下一站'], ['f1Radio', '无线电'],
         ['f1Hist', '历史'], ['f1Cmp', '车手对比'], ['f1Cal', '赛历']];
+      if (prev) jumps.splice(prevFirst ? 0 : 1, 0, ['f1Last', '上一站']);
       host.innerHTML = f1ProgressHTML(evs, doneCount, standings) +
         '<div class="f1-jump">' + jumps.filter(function (j) { return j[0] !== 'nextGp' || next; }).map(function (j) {
           return '<button type="button" class="f1-jb" data-jump="' + j[0] + '">' + j[1] + '</button>';
         }).join('') + '</div>' +
+        (prevFirst ? lastCard : '') +
         (next ? f1HeroHTML(next, nextCircuit) : '') +
+        (prevFirst ? '' : lastCard) +
         '<div id="f1Radio"></div><div id="f1Hist"></div>' +
         f1CompareHTML(standings) +
         '<div class="group-name" id="f1Cal">全年赛历</div>' + list;
@@ -7137,6 +7165,17 @@ O
           var on = slot.querySelector('.rnd-tab.on');
           slot.innerHTML = f1WeekendHTML(sets);
           // keep whichever session the reader had open
+          var keep = on && slot.querySelector('.rnd-tab[data-rnd="' + on.dataset.rnd + '"]');
+          if (keep && !keep.classList.contains('on')) keep.click();
+        });
+      }
+
+      if (prev) {
+        f1WeekendResults(prev).then(function (sets) {
+          var slot = document.getElementById('f1LastRes');
+          if (!slot || !slot.isConnected || !sets || !sets.some(function (x) { return x.rows; })) return;
+          var on = slot.querySelector('.rnd-tab.on');
+          slot.innerHTML = f1WeekendHTML(sets, '成绩');
           var keep = on && slot.querySelector('.rnd-tab[data-rnd="' + on.dataset.rnd + '"]');
           if (keep && !keep.classList.contains('on')) keep.click();
         });

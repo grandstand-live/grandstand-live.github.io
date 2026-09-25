@@ -1316,6 +1316,44 @@
     font-family: var(--serif); font-size: 14px; font-weight: 600; border: none;
     background: var(--surface-2); color: var(--ink);
   }
+  /* ---- settings: account and push; leaderboard; ratings ---- */
+  .set-box { max-height: calc(100vh - 60px); overflow-y: auto; }
+  .set-tabs { margin-bottom: 8px; }
+  .set-form { display: flex; flex-direction: column; gap: 6px; }
+  .set-form input {
+    font: inherit; font-size: 15px; padding: 9px 10px; border-radius: 6px;
+    border: 1px solid var(--hairline-strong); background: var(--surface-2); color: var(--ink);
+  }
+  .set-go {
+    padding: 10px 0; border: none; border-radius: 8px; cursor: pointer;
+    font-family: var(--serif); font-size: 14px; font-weight: 600; background: var(--accent); color: var(--on-accent);
+  }
+  .set-err { font-size: 12px; color: var(--loss); }
+  .set-me { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--ink); }
+  .set-me b { font-family: var(--serif); font-weight: 600; }
+  .set-link {
+    background: none; border: none; padding: 4px 0; cursor: pointer;
+    font-family: var(--serif); font-size: 13px; font-weight: 600; color: var(--accent);
+  }
+  .lb { margin-top: 6px; }
+  .lb-row {
+    display: grid; grid-template-columns: 28px 1fr auto 44px; gap: 8px; align-items: baseline;
+    padding: 7px 2px; border-bottom: 1px solid var(--hairline); font-size: 13.5px;
+  }
+  .lb-row.me { background: var(--accent-soft); }
+  .lb-rk { font-family: var(--narrow); font-weight: 700; color: var(--muted); text-align: right; }
+  .lb-n { font-family: var(--serif); font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-h, .lb-p { font-family: var(--narrow); font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; }
+  .rt { margin-top: 14px; }
+  .rt summary { cursor: pointer; font-family: var(--serif); font-size: 14px; font-weight: 600; color: var(--ink); padding: 6px 0; }
+  .rt summary span { font-family: var(--display); font-size: 11.5px; font-weight: 400; color: var(--muted); }
+  .rt-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+  .rt-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  .rt-avg { font-family: var(--narrow); font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+  .rt-sel {
+    font: inherit; font-size: 13px; padding: 3px 4px; border-radius: 4px;
+    border: 1px solid var(--hairline-strong); background: var(--surface-2); color: var(--ink);
+  }
   /* ---- F1 team radio ---- */
   .radio-card {
     background: var(--surface); border: 1px solid var(--hairline);
@@ -2439,7 +2477,11 @@
     try { var v = localStorage.getItem(k); return v === null ? fallback : JSON.parse(v); }
     catch (e) { return fallback; }
   }
-  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function lsSet(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
+    // a changed follow list is what the push server watches
+    if (/^fav/.test(k) && typeof pushSync === 'function') setTimeout(pushSync, 300);
+  }
 
   /* ---------- Chinese club names ---------- */
   var CN = {
@@ -2801,6 +2843,8 @@
   if (!SPORTS.some(function (s) { return s.id === sport; })) sport = 'football';
   // back after a while, a fan wants today first rather than wherever they left off
   if (Date.now() - lsGet('lastSeen', 0) > 6 * 3600000) sport = 'today';
+  var goParam = (location.search.match(/[?&]go=([a-z0-9]+)/) || [])[1];
+  if (goParam && SPORTS.some(function (x) { return x.id === goParam; })) sport = goParam;
   lsSet('lastSeen', Date.now());
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) lsSet('lastSeen', Date.now());
@@ -3234,10 +3278,13 @@
       side: side, at: Date.now(), sport: sport,
       home: meta.home || '', away: meta.away || '',
       when: meta.when || '', tag: meta.tag || '',
-      pickName: meta.pickName || ''
+      pickName: meta.pickName || '',
+      // the server settles football from ESPN and needs to know where to look
+      league: meta.league || (sport === 'football' ? league : '')
     };
     prunePicks();
     lsSet('picks', picks);
+    pickSync(sport, id);
   }
   function prunePicks() {
     var keys = Object.keys(picks);
@@ -3266,6 +3313,7 @@
     }
     row.settledAt = Date.now();
     lsSet('picks', picks);
+    settleSync(sport, id);
   }
 
   /* ---------- F1 podium calls ----------
@@ -3887,6 +3935,7 @@
   }
 
   function comKeep(box, id) {
+    ratingsFill(box);
     var c = box.querySelector('.com');
     if (c && comAll[id]) {
       c.classList.add('all');
@@ -4508,6 +4557,7 @@
       }
 
       if (!html) html = '<div class="kv"><span>这场比赛暂时没有更多资料。</span></div>';
+      html += ratingsHTML(data, id, league);
       html += '<button type="button" class="sh-btn" data-share="match" data-id="' + esc(id) + '">生成分享图</button>';
       summaryCache[id] = html;
       return html;
@@ -7162,7 +7212,7 @@ O
       '<div class="pd-line muted" style="padding:0 0 8px">' +
       '按顺序点出前三名。三个人都站上台就算命中，位置对了几个另外记。</div>' +
       '<div class="podium" data-podium-for="f1|' + esc(ev.id) + '"' +
-      ' data-when="' + esc(ev.date || '') + '"' +
+      ' data-when="' + esc((raceOf(ev) || {}).date || ev.date || '') + '"' +   // the race, not the weekend's first session
       ' data-tag="' + esc(ev.shortName || ev.name || '') + '">' +
       '<div class="pod-slots">' + chosen.map(function (idv, i) {
         return '<button type="button" class="pod-slot' + (idv ? ' on' : '') +
@@ -8637,7 +8687,9 @@ O
     if (!s.total && !s.open.length) {
       return '<div class="group-name">我的战绩</div><div class="card">' +
         '<div class="fix"><span>在赛程里点「主胜 / 平 / 客胜」就是落下一个预判，' +
-        '赛后自动对账。</span></div></div>';
+        '赛后自动对账。</span></div></div>' +
+        // the board is worth a look before making a first call
+        (API_BASE ? '<button type="button" class="sh-btn lb-btn">预测排行榜</button>' : '');
     }
     var line = '';
     if (s.total >= 3) {
@@ -8658,10 +8710,11 @@ O
 
     var pending = s.open.slice(0, 4).map(function (p) {
       var d = new Date(p.when || '');
-      var label = p.side === 'home' ? p.home : (p.side === 'away' ? p.away : '平局');
+      // a podium or a driver call names its pick; a match call names a side
+      var label = p.pickName || (p.side === 'home' ? p.home : (p.side === 'away' ? p.away : '平局'));
       return '<div class="fix"><span class="when">' +
         esc(isNaN(d) ? '待定' : fmtDay(d)) + '</span>' +
-        '<span class="vs">' + esc(p.home) + ' <span class="vs-mid">vs</span> ' + esc(p.away) + '</span>' +
+        '<span class="vs">' + (p.home || p.away ? esc(p.home) + ' <span class="vs-mid">vs</span> ' + esc(p.away) : esc(p.sport === 'f1' ? gpName(p.tag) : (p.tag || ''))) + '</span>' +
         '<span class="res" style="color:var(--accent);font-weight:700">判 ' + esc(label) + '</span></div>';
     }).join('');
 
@@ -8674,6 +8727,7 @@ O
     return '<div class="group-name">我的战绩</div>' +
       '<div class="card rec-card">' + body + '</div>' +
       (s.total ? '<button type="button" class="sh-btn" data-share="record">分享我的战绩</button>' : '') +
+      (API_BASE ? '<button type="button" class="sh-btn lb-btn">预测排行榜</button>' : '') +
       (pending ? '<div class="sec-label">未决</div><div class="card">' + pending + '</div>' : '') +
       (recent ? '<div class="sec-label">已对账</div><div class="card">' + recent + '</div>' : '');
   }
@@ -12785,7 +12839,8 @@ O
   });
   document.addEventListener('click', function (e) {
     if (!e.target.closest) return;
-    var b = e.target.closest('.sh-btn');
+    // only buttons that name a card: the leaderboard borrows the look, not the click
+    var b = e.target.closest('.sh-btn[data-share]');
     if (b) {
       e.stopPropagation();
       if (b.dataset.share === 'match') shMatch(b.dataset.id);
@@ -12809,36 +12864,329 @@ O
     }
   }, true);
 
-  $('setBtn').addEventListener('click', function () {
+  $('setBtn').addEventListener('click', openSettings);
+
+  i18nStart();
+
+  /* ---------- the backend: account, push, leaderboard, ratings ----------
+     A Cloudflare Worker (worker/ in this repo). Until API_BASE is set every
+     one of these stays out of sight and the app is exactly what it was. */
+  // a stored override points a test build at another Worker
+  var API_BASE = lsGet('apiBase', '') || '';
+  var acct = lsGet('acct', null);   // { token, nick }
+
+  function api(method, path, data) {
+    if (!API_BASE) return Promise.reject(new Error('no backend'));
+    var h = { 'Content-Type': 'application/json' };
+    if (acct && acct.token) h.Authorization = 'Bearer ' + acct.token;
+    return fetch(API_BASE + path, { method: method, headers: h, body: data ? JSON.stringify(data) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (r.status === 401 && acct && path !== '/api/login') { acct = null; lsSet('acct', null); }
+          if (!r.ok) { var e = new Error(d.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+          return d;
+        });
+      });
+  }
+  function unb64u(s) {
+    var b = atob(String(s).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
+    var out = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) out[i] = b.charCodeAt(i);
+    return out;
+  }
+
+  /* ---- calls follow the account to the server ----
+     Sent when made and when settled. The server keeps the time it received
+     a call and refuses one after the start; football and NBA it settles
+     itself from ESPN, whatever the app says. */
+  function pickSync(sport, id) {
+    if (!API_BASE || !acct) return;
+    var p = picks[pickKey(sport, id)];
+    if (!p) return;
+    api('POST', '/api/picks', {
+      sport: sport, id: id, side: p.side, when: p.when, home: p.home, away: p.away, league: p.league || ''
+    }).catch(function () {});
+  }
+  function settleSync(sport, id) {
+    if (!API_BASE || !acct) return;
+    var p = picks[pickKey(sport, id)];
+    if (!p || !p.result) return;
+    api('POST', '/api/picks/settle', { sport: sport, id: id, outcome: p.result, score: p.score, hit: !!p.hit }).catch(function () {});
+  }
+
+  /* ---- push ----
+     iOS only lets a web app take pushes once it is on the home screen, so
+     the switch says so rather than failing quietly. */
+  function pushSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  }
+  function followsForPush() {
+    return {
+      football: favorites.map(function (f) { return { league: f.league, id: String(f.id), name: f.name }; }),
+      nba: favNba.map(function (f) { return { id: String(f.id), name: f.name }; }),
+      f1: favDrivers.length > 0
+    };
+  }
+  /* serviceWorker.ready never settles while no worker is installed — the
+     first moments of a first visit — so nothing waits on it for long */
+  function pushSub() {
+    if (!pushSupported()) return Promise.resolve(null);
+    return Promise.race([
+      navigator.serviceWorker.ready.then(function (r) { return r.pushManager.getSubscription(); }),
+      new Promise(function (res) { setTimeout(function () { res(null); }, 1500); })
+    ]);
+  }
+  function pushOn() {
+    return Notification.requestPermission().then(function (p) {
+      if (p !== 'granted') throw new Error('denied');
+      return Promise.all([Promise.race([navigator.serviceWorker.ready, new Promise(function (res, rej) {
+        setTimeout(function () { rej(new Error('no worker')); }, 5000);
+      })]), api('GET', '/api/vapid')]);
+    }).then(function (r) {
+      return r[0].pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(r[1].key) });
+    }).then(function (sub) {
+      return api('POST', '/api/push/subscribe', { sub: sub.toJSON(), follows: followsForPush(), lang: LANG })
+        .then(function () { return sub; });
+    });
+  }
+  function pushOff() {
+    return pushSub().then(function (sub) {
+      if (!sub) return;
+      var ep = sub.endpoint;
+      return sub.unsubscribe().then(function () { return api('POST', '/api/push/unsubscribe', { endpoint: ep }).catch(function () {}); });
+    });
+  }
+  // what the server follows for this phone keeps up with the follows
+  function pushSync() {
+    if (!API_BASE) return;
+    pushSub().then(function (sub) {
+      if (sub) api('POST', '/api/push/subscribe', { sub: sub.toJSON(), follows: followsForPush(), lang: LANG }).catch(function () {});
+    }).catch(function () {});
+  }
+
+  /* ---- the settings sheet: language, account, push ---- */
+  var setMode = 'login';
+  function settingsHTML(pushState) {
+    var html = '<div class="set-box">' +
+      '<div class="set-h">设置</div>' +
+      '<div class="set-k">语言 · Language</div>' +
+      '<div class="set-seg" translate="no">' + [['zh', '中文'], ['en', 'English'], ['mix', 'Mixed']].map(function (o) {
+        return '<button type="button" data-lang="' + o[0] + '"' + (o[0] === LANG ? ' class="on"' : '') + '>' + o[1] + '</button>';
+      }).join('') + '</div>' +
+      '<div class="set-note">Mixed：界面用中文，队名、人名和赛事名用原文。</div>';
+    if (API_BASE) {
+      html += '<div class="set-k" style="margin-top:18px">账号</div>';
+      if (acct) {
+        html += '<div class="set-me"><b>' + esc(acct.nick) + '</b><button type="button" class="set-link" data-act="logout">退出登录</button></div>' +
+          '<div class="set-note">你的预测会同步到排行榜。</div>';
+      } else {
+        html += '<div class="set-seg set-tabs"><button type="button" data-mode="login"' + (setMode === 'login' ? ' class="on"' : '') + '>登录</button>' +
+          '<button type="button" data-mode="register"' + (setMode === 'register' ? ' class="on"' : '') + '>注册</button></div>' +
+          '<form class="set-form" autocomplete="on">' +
+          '<input type="email" name="email" placeholder="邮箱" autocomplete="email" required>' +
+          '<input type="password" name="password" placeholder="密码（至少 8 位）" autocomplete="' + (setMode === 'login' ? 'current-password' : 'new-password') + '" required>' +
+          (setMode === 'register' ? '<input type="text" name="nick" placeholder="昵称（2–16 个字）" maxlength="16" required>' : '') +
+          '<button type="submit" class="set-go">' + (setMode === 'login' ? '登录' : '注册') + '</button>' +
+          '<div class="set-err" hidden></div></form>' +
+          '<div class="set-note">登录后，预测会进排行榜，赛后可以给球员打分。</div>';
+      }
+      html += '<div class="set-k" style="margin-top:18px">推送通知</div>';
+      if (!pushSupported()) {
+        html += '<div class="set-note">这个浏览器收不到推送。iPhone 上要先用 Safari 的「分享 → 添加到主屏幕」，再从主屏幕打开。</div>';
+      } else {
+        html += '<div class="set-me"><span>' + (pushState ? '已开启' : '未开启') + '</span>' +
+          '<button type="button" class="set-link" data-act="' + (pushState ? 'push-off' : 'push-on') + '">' + (pushState ? '关闭' : '开启') + '</button>' +
+          (pushState ? '<button type="button" class="set-link" data-act="push-test">发一条试试</button>' : '') + '</div>' +
+          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果。</div>';
+      }
+    }
+    return html + '<button type="button" class="set-done">完成</button></div>';
+  }
+  function openSettings() {
     var s = $('setSheet');
     if (!s) {
       s = document.createElement('div');
       s.id = 'setSheet';
       s.className = 'sh-sheet';
-      s.innerHTML = '<div class="set-box">' +
-        '<div class="set-h">设置</div>' +
-        '<div class="set-k">语言 · Language</div>' +
-        '<div class="set-seg" translate="no">' + [['zh', '中文'], ['en', 'English'], ['mix', 'Mixed']].map(function (o) {
-          return '<button type="button" data-lang="' + o[0] + '"' + (o[0] === LANG ? ' class="on"' : '') + '>' + o[1] + '</button>';
-        }).join('') + '</div>' +
-        '<div class="set-note">Mixed：界面用中文，队名、人名和赛事名用原文。</div>' +
-        '<button type="button" class="set-done">完成</button></div>';
+      document.body.appendChild(s);
+      s.addEventListener('click', settingsClick);
+      s.addEventListener('submit', settingsSubmit);
+    }
+    pushSub().catch(function () { return null; }).then(function (sub) {
+      s.innerHTML = settingsHTML(!!sub);
+      s.hidden = false;
+    });
+  }
+  function settingsClick(e) {
+    var s = $('setSheet');
+    var t = e.target.closest ? e.target : null;
+    if (!t) return;
+    var b = t.closest('[data-lang]');
+    if (b) {
+      if (b.dataset.lang === LANG) return;
+      lsSet('lang', b.dataset.lang);
+      pushSync();          // pushes arrive in the new language
+      location.reload();   // every board is drawn in one language from the start
+      return;
+    }
+    var m = t.closest('[data-mode]');
+    if (m) { setMode = m.dataset.mode; openSettings(); return; }
+    var a = t.closest('[data-act]');
+    if (a) {
+      var act = a.dataset.act;
+      a.disabled = true;
+      var done = function () { openSettings(); };
+      if (act === 'logout') {
+        api('POST', '/api/logout').catch(function () {}).then(function () { acct = null; lsSet('acct', null); done(); });
+      } else if (act === 'push-on') {
+        pushOn().then(done, function (err) {
+          alert(err && err.message === 'denied' ? '通知权限没有打开，可以在系统设置里给这个 app 打开通知。' : '推送没开成功，稍后再试。');
+          done();
+        });
+      } else if (act === 'push-off') {
+        pushOff().then(done, done);
+      } else if (act === 'push-test') {
+        pushSub().then(function (sub) {
+          return sub && api('POST', '/api/push/test', { endpoint: sub.endpoint });
+        }).catch(function () { alert('测试推送没发出去，稍后再试。'); }).then(function () { a.disabled = false; });
+      }
+      return;
+    }
+    if (t === s || t.closest('.set-done')) s.hidden = true;
+  }
+  function settingsSubmit(e) {
+    e.preventDefault();
+    var f = e.target;
+    var err = f.querySelector('.set-err');
+    var data = { email: f.email.value, password: f.password.value };
+    if (f.nick) data.nick = f.nick.value;
+    f.querySelector('.set-go').disabled = true;
+    api('POST', setMode === 'login' ? '/api/login' : '/api/register', data).then(function (d) {
+      acct = { token: d.token, nick: d.nick };
+      lsSet('acct', acct);
+      pushSync();
+      // calls made on this phone before the start join the account now
+      Object.keys(picks).forEach(function (k) {
+        var p = picks[k];
+        if (!p.result && Date.parse(p.when) > Date.now()) pickSync(p.sport, k.slice(p.sport.length + 1));
+      });
+      openSettings();
+    }).catch(function (x) {
+      var msg = {
+        'wrong email or password': '邮箱或密码不对。', 'email taken': '这个邮箱已经注册过了，直接登录就行。',
+        'nick taken': '这个昵称有人用了，换一个。', email: '邮箱格式不对。', nick: '昵称要 2 到 16 个字。',
+        password: '密码至少 8 位。'
+      }[x.message] || '没连上服务器，稍后再试。';
+      err.textContent = msg;
+      err.hidden = false;
+      f.querySelector('.set-go').disabled = false;
+    });
+  }
+
+  /* ---- the leaderboard ---- */
+  var lbPeriod = 'all';
+  function openLeaderboard() {
+    var s = $('lbSheet');
+    if (!s) {
+      s = document.createElement('div');
+      s.id = 'lbSheet';
+      s.className = 'sh-sheet';
       document.body.appendChild(s);
       s.addEventListener('click', function (e) {
-        var b = e.target.closest && e.target.closest('[data-lang]');
-        if (b) {
-          if (b.dataset.lang === LANG) { s.hidden = true; return; }
-          lsSet('lang', b.dataset.lang);
-          location.reload();   // every board is drawn in one language from the start
-          return;
-        }
+        var p = e.target.closest && e.target.closest('[data-period]');
+        if (p) { lbPeriod = p.dataset.period; openLeaderboard(); return; }
         if (e.target === s || (e.target.closest && e.target.closest('.set-done'))) s.hidden = true;
       });
     }
+    s.innerHTML = '<div class="set-box lb-box"><div class="set-h">预测排行榜</div><div class="cmp-none">正在读取…</div></div>';
     s.hidden = false;
-  });
+    api('GET', '/api/leaderboard?period=' + lbPeriod).then(function (d) {
+      var rows = d.rows || [];
+      var me = d.me;
+      s.innerHTML = '<div class="set-box lb-box"><div class="set-h">预测排行榜</div>' +
+        '<div class="set-seg set-tabs">' + [['all', '全部'], ['month', '近 30 天']].map(function (o) {
+          return '<button type="button" data-period="' + o[0] + '"' + (o[0] === lbPeriod ? ' class="on"' : '') + '>' + o[1] + '</button>';
+        }).join('') + '</div>' +
+        (rows.length ? '<div class="lb">' + rows.map(function (r, i) {
+          var mine = me && r.nick === me.nick;
+          return '<div class="lb-row' + (mine ? ' me' : '') + '"><span class="lb-rk">' + (i + 1) + '</span>' +
+            '<span class="lb-n">' + esc(r.nick) + '</span><span class="lb-h">' + r.hits + ' / ' + r.total + '</span>' +
+            '<span class="lb-p">' + Math.round(r.hits / r.total * 100) + '%</span></div>';
+        }).join('') + '</div>' : '<div class="cmp-none">还没有人进榜：至少结算 3 个预测才上榜。</div>') +
+        (me ? '<div class="set-note">你：' + (me.total ? me.hits + ' / ' + me.total + ' 命中' : '还没有结算的预测') + '</div>'
+          : '<div class="set-note">登录后你的预测也会进榜：右上角 ⚙ → 账号。</div>') +
+        '<div class="set-note">足球和 NBA 由服务器按 ESPN 赛果核对，其他项目按 app 结算。</div>' +
+        '<button type="button" class="set-done">关闭</button></div>';
+    }).catch(function () {
+      s.innerHTML = '<div class="set-box lb-box"><div class="set-h">预测排行榜</div><div class="cmp-none">排行榜没取到，稍后再试。</div>' +
+        '<button type="button" class="set-done">关闭</button></div>';
+    });
+  }
 
-  i18nStart();
+  /* ---- post-match ratings ----
+     Everyone who played, 1 to 10, for three days after the whistle; the
+     average of all fans beside each name. */
+  function ratingsHTML(data, id, lg) {
+    if (!API_BASE) return '';
+    var comp = (((data.header || {}).competitions) || [])[0] || {};
+    var st = (comp.status && comp.status.type) || {};
+    if (st.state !== 'post') return '';
+    if (Date.now() - Date.parse(comp.date || 0) > 3 * 86400000) return '';
+    var teams = (data.rosters || []).map(function (r) {
+      var played = (r.roster || []).filter(function (p) { return p.starter || p.subbedIn; });
+      return { name: cn((r.team || {}).displayName, (r.team || {}).shortDisplayName), raw: (r.team || {}).displayName || '', players: played };
+    }).filter(function (t) { return t.players.length; });
+    if (!teams.length) return '';
+    var opts = '<option value="">打分</option>' + [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(function (n) {
+      return '<option value="' + n + '">' + n + '</option>';
+    }).join('');
+    return '<details class="rt" data-event="' + esc(id) + '" data-league="' + esc(lg) + '"><summary>赛后评分 <span class="rt-count"></span></summary>' +
+      teams.map(function (t) {
+        return '<div class="sec-label">' + esc(t.name) + '</div>' + t.players.map(function (p) {
+          var a = p.athlete || {};
+          return '<div class="rt-row" data-player="' + esc(a.id || '') + '" data-name="' + esc(a.displayName || '') + '" data-team="' + esc(t.raw) + '">' +
+            '<span class="rt-n">' + esc(a.displayName || '') + '</span>' +
+            '<span class="rt-avg">—</span><select class="rt-sel" aria-label="给这名球员打分">' + opts + '</select></div>';
+        }).join('');
+      }).join('') + '<div class="set-note">1–10 分，比赛结束后 3 天内可以打分和修改；右边是所有球迷的平均分。</div></details>';
+  }
+  function ratingsFill(box) {
+    var r = box && box.querySelector('.rt');
+    if (!r || !API_BASE) return;
+    api('GET', '/api/ratings?event=' + encodeURIComponent(r.dataset.event)).then(function (d) {
+      var by = {}, total = 0;
+      (d.players || []).forEach(function (p) { by[p.player] = p; total = Math.max(total, p.n); });
+      [].forEach.call(r.querySelectorAll('.rt-row'), function (row) {
+        var p = by[row.dataset.player];
+        row.querySelector('.rt-avg').textContent = p ? p.avg.toFixed(1) + ' · ' + p.n + ' 人' : '—';
+        var mine = (d.mine || {})[row.dataset.player];
+        if (mine) row.querySelector('.rt-sel').value = String(mine);
+      });
+      r.querySelector('.rt-count').textContent = total ? '· 最多 ' + total + ' 人打分' : '';
+    }).catch(function () {});
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('.lb-btn')) openLeaderboard();
+  });
+  document.addEventListener('change', function (e) {
+    var sel = e.target.closest && e.target.closest('.rt-sel');
+    if (!sel || !sel.value) return;
+    if (!acct) {
+      alert('登录后才能打分：右上角 ⚙ → 账号。');
+      sel.value = '';
+      return;
+    }
+    var row = sel.closest('.rt-row'), box = sel.closest('.rt');
+    api('POST', '/api/ratings', {
+      event: box.dataset.event, league: box.dataset.league, player: row.dataset.player,
+      name: row.dataset.name, team: row.dataset.team, score: Number(sel.value)
+    }).then(function () { ratingsFill(box.closest('.detail') || box.parentNode); }).catch(function (x) {
+      sel.value = '';
+      ratingsFill(box.closest('.detail') || box.parentNode);   // back to what was really saved
+      alert(x.message === 'closed' ? '这场的打分已经截止了。' : '分数没存上，稍后再试。');
+    });
+  });
 
   /* A paper's nameplate takes you to the front page. */
   $('mast').addEventListener('click', function () {

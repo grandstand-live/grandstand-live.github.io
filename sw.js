@@ -2,7 +2,7 @@
    The page is a live scoreboard, so a stale copy must never win over the
    network; the cache only exists so the app still opens when offline, or
    when the network is too slow to be worth waiting on. */
-var CACHE = 'grandstand-v14';
+var CACHE = 'grandstand-v15';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 /* How long the page waits on the network before opening from the cache.
@@ -80,4 +80,29 @@ self.addEventListener('fetch', function (e) {
   }));
   // let a slow response finish into the cache after the page has opened
   e.waitUntil(net.catch(function () {}));
+});
+
+/* Pushes from the Worker (worker/worker.js): the payload is the whole
+   notification, and a tap opens the board it was about. */
+self.addEventListener('push', function (e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) {}
+  e.waitUntil(self.registration.showNotification(d.title || 'Grandstand', {
+    body: d.body || '', tag: d.tag || undefined, renotify: !!d.tag,
+    icon: './icon-192.png', badge: './icon-192.png', data: { url: d.url || './' }
+  }));
+});
+
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      if ('focus' in list[i]) {
+        if ('navigate' in list[i]) list[i].navigate(url);
+        return list[i].focus();
+      }
+    }
+    return self.clients.openWindow(url);
+  }));
 });

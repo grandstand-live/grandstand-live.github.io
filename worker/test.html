@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worker tests</title>
+<style>
+  :root { --ground: #F5F2EA; --ink: #17150F; --muted: #8B8271; --win: #1D6B4C; --loss: #A83F42; }
+  @media (prefers-color-scheme: dark) { :root { --ground: #16130E; --ink: #F0EBDF; --muted: #877E6D; --win: #5FA97F; --loss: #D4696B; } }
+  body { background: var(--ground); color: var(--ink); font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 16px; }
+  .ok { color: var(--win); } .no { color: var(--loss); } .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<h1 style="font-size:16px">Grandstand worker — tests</h1>
+<p class="muted">Runs worker.js in this page against an in-memory SQLite (sql.js) standing in for D1, with ESPN and the push services faked. Nothing leaves the page but the sql.js download.</p>
+<pre id="out"></pre>
+<script type="module">
+const out = document.getElementById('out');
+const results = [];
+function log(ok, name, extra) {
+  results.push(ok);
+  out.insertAdjacentHTML('beforeend', `<span class="${ok ? 'ok' : 'no'}">${ok ? 'PASS' : 'FAIL'}</span> ${name}${extra ? ' <span class="muted">' + extra + '</span>' : ''}\n`);
+}
+function check(cond, name, extra) { log(!!cond, name, extra); }
+
+// ---- sql.js as D1
+// sql.js ships as a classic script that sets a global
+await new Promise((res, rej) => {
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js';
+  s.onload = res; s.onerror = rej;
+  document.head.appendChild(s);
+});
+const SQL = await window.initSqlJs({ locateFile: (f) => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/' + f });
+const db = new SQL.Database();
+function D1() {
+  function exec(sql, args) {
+    const st = db.prepare(sql);
+    st.bind(args.map((a) => (a === undefined ? null : a)));
+    const rows = [];
+    while (st.step()) rows.push(st.getAsObject());
+    st.free();
+    return rows;
+  }
+  return {
+    prepare(sql) {
+      const s = { args: [] };
+      s.bind = (...a) => { s.args = a; return s; };
+      s.all = async () => ({ results: exec(sql, s.args) });
+      s.first = async () => exec(sql, s.args)[0] || null;
+      s.run = async () => { exec(sql, s.args); return { meta: { last_row_id: db.exec('SELECT last_insert_rowid()')[0].values[0][0] } }; };
+      return s;
+    },
+    async batch(stmts) { const r = []; for (const s of stmts) r.push(await s.run()); return r; }
+  };
+}
+const env = { DB: D1(), PBKDF2_ITER: '10000' };
+
+// ---- fake ESPN and push services
+const pushes = [];
+let fakeBoard = null;
+const realFetch = window.fetch.bind(window);
+window.fetch = async (url, opts) => {
+  const u = String(url);
+  if (u.startsWith('https://push.example/')) {
+    pushes.push({ endpoint: u, headers: opts.headers, body: opts.body });
+    return new Response(null, { status: 201 });
+  }
+  if (u.includes('/soccer/eng.1/scoreboard') && fakeBoard) {
+    return new Response(JSON.stringify(u.endsWith(fakeBoard.day) ? { events: [fakeBoard.ev] } : { events: [] }), { status: 200 });
+  }
+  if (u.includes('/soccer/eng.1/summary') && fakeBoard) {
+    return new Response(JSON.stringify({ header: { competitions: [{ date: fakeBoard.ev.date, status: fakeBoard.ev.competitions[0].status,
+      competitors: fakeBoard.ev.competitions[0].competitors }] } }), { status: 200 });
+  }
+  if (u.includes('site.api.espn.com')) return new Response('{"events":[]}', { status: 200 });
+  return realFetch(url, opts);
+};
+
+const src = await (await realFetch('./worker.js?' + Date.now())).text();
+const W = (await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })))).default;
+const ORIGIN = 'https://grandstand-live.github.io';
+async function call(method, path, bodyObj, token) {
+  const headers = { Origin: ORIGIN, 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const r = await W.fetch(new Request('https://api.test' + path, { method, headers, body: bodyObj ? JSON.stringify(bodyObj) : undefined }), env, { waitUntil() {} });
+  return { status: r.status, data: await r.json(), cors: r.headers.get('Access-Control-Allow-Origin') };
+}
+
+// ---- accounts
+let t0 = performance.now();
+let r = await call('POST', '/api/register', { email: 'Fan@Example.com', password: 'correct horse', nick: '红军' });
+check(r.status === 200 && r.data.token && r.data.nick === '红军', 'register', `${Math.round(performance.now() - t0)} ms incl. PBKDF2`);
+check(r.cors === ORIGIN, 'CORS allows the site');
+const tok = r.data.token;
+r = await call('POST', '/api/register', { email: 'fan@example.com', password: 'another one', nick: 'x2' });
+check(r.status === 409 && r.data.error === 'email taken', 'same email refused (case-insensitive)');
+r = await call('POST', '/api/register', { email: 'b@example.com', password: 'another one', nick: '红军' });
+check(r.status === 409 && r.data.error === 'nick taken', 'same nickname refused');
+r = await call('POST', '/api/register', { email: 'c@example.com', password: 'short', nick: 'ccc' });
+check(r.status === 400, 'short password refused');
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'wrong password' });
+check(r.status === 401, 'wrong password refused');
+r = await call('POST', '/api/login', { email: 'nobody@example.com', password: 'whatever1' });
+check(r.status === 401 && r.data.error === 'wrong email or password', 'unknown email gives the same answer');
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'correct horse' });
+check(r.status === 200 && r.data.nick === '红军', 'login');
+r = await call('GET', '/api/me', null, tok);
+check(r.status === 200 && r.data.nick === '红军', 'session works');
+r = await call('GET', '/api/me', null, 'nope');
+check(r.status === 401, 'bad token refused');
+const hashRow = db.exec("SELECT hash FROM users")[0].values[0][0];
+check(!/correct horse/.test(hashRow) && hashRow.length > 30, 'password stored hashed');
+
+// ---- picks and the leaderboard
+const soon = Date.now() + 3600000;
+r = await call('POST', '/api/picks', { sport: 'esports', id: 'e1', side: 'home', when: soon, home: 'T1', away: 'GEN' }, tok);
+check(r.status === 200, 'pick before the start accepted');
+r = await call('POST', '/api/picks', { sport: 'esports', id: 'e0', side: 'home', when: Date.now() - 1000 }, tok);
+check(r.status === 409, 'pick after the start refused');
+r = await call('POST', '/api/picks/settle', { sport: 'esports', id: 'e1', outcome: 'home', hit: true }, tok);
+check(r.status === 409, 'settling before the start refused');
+for (let i = 2; i <= 4; i++) await call('POST', '/api/picks', { sport: 'esports', id: 'e' + i, side: 'home', when: soon }, tok);
+db.run("UPDATE picks SET starts = ?", [Date.now() - 60000]);
+for (let i = 1; i <= 4; i++) await call('POST', '/api/picks/settle', { sport: 'esports', id: 'e' + i, outcome: i < 4 ? 'home' : 'away', hit: i < 4 }, tok);
+r = await call('GET', '/api/leaderboard', null, tok);
+check(r.data.rows.length === 1 && r.data.rows[0].hits === 3 && r.data.rows[0].total === 4, 'leaderboard counts hits', JSON.stringify(r.data.rows[0]));
+check(r.data.me && r.data.me.hits === 3, 'leaderboard shows me');
+r = await call('POST', '/api/picks/settle', { sport: 'esports', id: 'e4', outcome: 'home', hit: true }, tok);
+r = await call('GET', '/api/leaderboard', null, tok);
+check(r.data.rows[0].hits === 3, 'a settled call cannot be re-settled');
+
+// ---- ratings
+r = await call('POST', '/api/ratings', { event: 'm1', player: 'p9', name: 'Salah', team: 'Liverpool', score: 8 }, tok);
+check(r.status === 200, 'rating saved');
+r = await call('POST', '/api/ratings', { event: 'm1', player: 'p9', score: 11 }, tok);
+check(r.status === 400, 'rating out of range refused');
+r = await call('POST', '/api/ratings', { event: 'm1', player: 'p9', score: 6 }, tok);
+r = await call('GET', '/api/ratings?event=m1', null, tok);
+check(r.data.players.length === 1 && r.data.players[0].avg === 6 && r.data.mine.p9 === 6, 'rating re-rated, not doubled', JSON.stringify(r.data.players[0]));
+r = await call('POST', '/api/ratings', { event: 'm1', player: 'p9', score: 7 });
+check(r.status === 401, 'rating needs login');
+
+// ---- push: keys, encryption, the JWT
+r = await call('GET', '/api/vapid');
+const pub = r.data.key;
+check(pub && W._test.unb64u(pub).length === 65, 'VAPID public key made and kept');
+check((await call('GET', '/api/vapid')).data.key === pub, 'same key on the next request');
+
+const ua = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+const uaPub = W._test.b64u(await crypto.subtle.exportKey('raw', ua.publicKey));
+const auth = W._test.b64u(crypto.getRandomValues(new Uint8Array(16)));
+const msg = JSON.stringify({ title: '进球！利物浦 1-0 曼城', body: 'Salah 67\'' });
+const cipher = await W._test.encryptPayload(uaPub, auth, msg);
+// decrypt as a browser would (RFC 8291), to prove the other end can read it
+async function hk(salt, ikm, info, len) {
+  const k = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, k, len * 8));
+}
+const te = new TextEncoder();
+const salt = cipher.slice(0, 16), idlen = cipher[20], asPub = cipher.slice(21, 21 + idlen), ct = cipher.slice(21 + idlen);
+const asKey = await crypto.subtle.importKey('raw', asPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+const secret = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: asKey }, ua.privateKey, 256));
+const uaRaw = W._test.unb64u(uaPub);
+const info = new Uint8Array([...te.encode('WebPush: info\0'), ...uaRaw, ...asPub]);
+const ikm = await hk(W._test.unb64u(auth), secret, info, 32);
+const cek = await hk(salt, ikm, te.encode('Content-Encoding: aes128gcm\0'), 16);
+const nonce = await hk(salt, ikm, te.encode('Content-Encoding: nonce\0'), 12);
+const plain = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce },
+  await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['decrypt']), ct));
+check(new TextDecoder().decode(plain.slice(0, -1)) === msg && plain[plain.length - 1] === 2, 'push payload decrypts to the message');
+
+r = await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/abc', keys: { p256dh: uaPub, auth } },
+  follows: { football: [{ league: 'eng.1', id: '364', name: '利物浦' }] }, lang: 'zh'
+}, tok);
+check(r.status === 200, 'subscribe');
+r = await call('POST', '/api/push/test', { endpoint: 'https://push.example/abc' });
+check(r.data.status === 201 && pushes.length === 1, 'test push sent');
+const authz = pushes[0].headers.Authorization;
+const m = /^vapid t=([^.]+)\.([^.]+)\.([^,]+), k=(\S+)$/.exec(authz);
+const vk = await crypto.subtle.importKey('raw', W._test.unb64u(m[4]), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+const okSig = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, vk, W._test.unb64u(m[3]), te.encode(m[1] + '.' + m[2]));
+const claims = JSON.parse(new TextDecoder().decode(W._test.unb64u(m[2])));
+check(okSig && claims.aud === 'https://push.example' && claims.exp > Date.now() / 1000, 'VAPID JWT verifies', JSON.stringify(claims));
+check(pushes[0].headers['Content-Encoding'] === 'aes128gcm', 'aes128gcm content encoding');
+
+// ---- the minute tick: soon, kick-off, goal, full time
+function ymd(t) { const d = new Date(t); return '' + d.getUTCFullYear() + String(d.getUTCMonth() + 1).padStart(2, '0') + String(d.getUTCDate()).padStart(2, '0'); }
+function match(state, h, a, startIn) {
+  return { day: ymd(Date.now()), ev: { id: '9001', date: new Date(Date.now() + startIn).toISOString(),
+    competitions: [{ status: { type: { state } }, details: h + a > 0 ? [{ scoringPlay: true, athletesInvolved: [{ displayName: 'Mohamed Salah' }], clock: { displayValue: "67'" } }] : [],
+      competitors: [
+        { homeAway: 'home', team: { id: '364', displayName: 'Liverpool', shortDisplayName: 'Liverpool' }, score: String(h), winner: h > a },
+        { homeAway: 'away', team: { id: '382', displayName: 'Manchester City', shortDisplayName: 'Man City' }, score: String(a), winner: a > h }] }] } };
+}
+async function tickAndRead() {
+  const before = pushes.length;
+  await W._test.tick(env);
+  const got = [];
+  for (const p of pushes.slice(before)) {
+    // decrypt each with the test subscription's key
+    const c = p.body, s2 = c.slice(0, 16), l2 = c[20], ap = c.slice(21, 21 + l2), body2 = c.slice(21 + l2);
+    const k2 = await crypto.subtle.importKey('raw', ap, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+    const sec2 = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: k2 }, ua.privateKey, 256));
+    const ikm2 = await hk(W._test.unb64u(auth), sec2, new Uint8Array([...te.encode('WebPush: info\0'), ...uaRaw, ...ap]), 32);
+    const cek2 = await hk(s2, ikm2, te.encode('Content-Encoding: aes128gcm\0'), 16);
+    const n2 = await hk(s2, ikm2, te.encode('Content-Encoding: nonce\0'), 12);
+    const pl = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: n2 }, await crypto.subtle.importKey('raw', cek2, 'AES-GCM', false, ['decrypt']), body2));
+    got.push(JSON.parse(new TextDecoder().decode(pl.slice(0, -1))));
+  }
+  return got;
+}
+fakeBoard = match('pre', 0, 0, 10 * 60000);
+let got = await tickAndRead();
+check(got.length === 1 && /还有 15 分钟开赛/.test(got[0].title) && /利物浦/.test(got[0].title), '15 minutes before', got[0] && got[0].title);
+got = await tickAndRead();
+check(got.length === 0, 'no repeat on the next minute');
+fakeBoard = match('in', 0, 0, -60000);
+got = await tickAndRead();
+check(got.length === 1 && /^开赛/.test(got[0].title), 'kick-off', got[0] && got[0].title);
+fakeBoard = match('in', 1, 0, -60000);
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === '进球！利物浦 1-0 Man City' && /Salah 67'/.test(got[0].body), 'goal', got[0] && (got[0].title + ' / ' + got[0].body));
+got = await tickAndRead();
+check(got.length === 0, 'same score, no push');
+fakeBoard = match('post', 2, 0, -2 * 3600000);
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === '完场：利物浦 2-0 Man City', 'full time', got[0] && got[0].title);
+got = await tickAndRead();
+check(got.length === 0, 'full time only once');
+
+// ---- server-side settling of a football call
+await call('POST', '/api/picks', { sport: 'football', id: '9001', side: 'home', when: Date.now() + 3600000, league: 'eng.1', home: '利物浦', away: '曼城' }, tok);
+db.run("UPDATE picks SET starts = ? WHERE pkey = 'football:9001'", [Date.now() - 3 * 3600000]);
+fakeBoard = match('post', 2, 0, -3 * 3600000);
+fakeBoard.ev.date = new Date(Date.now() - 3 * 3600000).toISOString();
+db.run("UPDATE picks SET made = ? WHERE pkey = 'football:9001'", [Date.now() - 4 * 3600000]);
+await W._test.verifyPicks(env);
+const row = db.exec("SELECT result, hit, verified FROM picks WHERE pkey = 'football:9001'")[0].values[0];
+check(row[0] === 'home' && row[1] === 1 && row[2] === 1, 'football call settled from ESPN', JSON.stringify(row));
+
+out.insertAdjacentHTML('beforeend', `\n${results.filter(Boolean).length} / ${results.length} passed\n`);
+document.title = results.every(Boolean) ? 'PASS' : 'FAIL';
+</script>
+</body>
+</html>

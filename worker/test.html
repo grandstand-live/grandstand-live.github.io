@@ -74,17 +74,31 @@ window.fetch = async (url, opts) => {
     return new Response(JSON.stringify({ header: { competitions: [{ date: fakeBoard.ev.date, status: fakeBoard.ev.competitions[0].status,
       competitors: fakeBoard.ev.competitions[0].competitors }] } }), { status: 200 });
   }
-  if (u.includes('site.api.espn.com')) return new Response('{"events":[]}', { status: 200 });
+  if (u.includes('/racing/f1/scoreboard?dates=') && fakeF1) return new Response(JSON.stringify(fakeF1), { status: 200 });
+  if (u.includes('esports-api.lolesports.com/persisted/gw/getEventDetails')) {
+    const id = new URL(u).searchParams.get('id');
+    return fakeLol[id] ? new Response(JSON.stringify(fakeLol[id]), { status: 200 }) : new Response('{}', { status: 404 });
+  }
+  if (u === 'https://grandstand-live.github.io/data/cs2.json' && fakeCs2) return new Response(JSON.stringify(fakeCs2), { status: 200 });
+  if (u.startsWith('https://api.resend.com/')) {
+    mails.push(JSON.parse(opts.body));
+    return new Response('{"id":"m1"}', { status: 200 });
+  }
+  if (u.includes('espn.com') || u.includes('lolesports.com') || u.includes('github.io')) return new Response('{"events":[]}', { status: 200 });
   return realFetch(url, opts);
 };
+let fakeF1 = null, fakeCs2 = null;
+const fakeLol = {}, mails = [];
 
 const src = await (await realFetch('./worker.js?' + Date.now())).text();
 const W = (await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })))).default;
 const ORIGIN = 'https://grandstand-live.github.io';
-async function call(method, path, bodyObj, token) {
-  const headers = { Origin: ORIGIN, 'Content-Type': 'application/json' };
+async function call(method, path, bodyObj, token, ip) {
+  const headers = { Origin: ORIGIN, 'Content-Type': 'application/json', 'CF-Connecting-IP': ip || '198.51.100.1' };
   if (token) headers.Authorization = 'Bearer ' + token;
-  const r = await W.fetch(new Request('https://api.test' + path, { method, headers, body: bodyObj ? JSON.stringify(bodyObj) : undefined }), env, { waitUntil() {} });
+  const later = [];
+  const r = await W.fetch(new Request('https://api.test' + path, { method, headers, body: bodyObj ? JSON.stringify(bodyObj) : undefined }), env, { waitUntil(p) { later.push(p); } });
+  await Promise.all(later);
   return { status: r.status, data: await r.json(), cors: r.headers.get('Access-Control-Allow-Origin') };
 }
 
@@ -240,6 +254,127 @@ db.run("UPDATE picks SET made = ? WHERE pkey = 'football:9001'", [Date.now() - 4
 await W._test.verifyPicks(env);
 const row = db.exec("SELECT result, hit, verified FROM picks WHERE pkey = 'football:9001'")[0].values[0];
 check(row[0] === 'home' && row[1] === 1 && row[2] === 1, 'football call settled from ESPN', JSON.stringify(row));
+
+// ---- server-side settling: F1, LoL, CS2
+function pickRow(pkey) {
+  const x = db.exec("SELECT result, hit, verified, score FROM picks WHERE pkey = ?", [pkey]);
+  return x.length ? x[0].values[0] : null;
+}
+const raceAt = Date.now() - 4 * 3600000;
+fakeF1 = { events: [{ id: '600057442', competitions: [
+  { type: { abbreviation: 'FP1' }, status: { type: { state: 'post' } }, competitors: [] },
+  { type: { abbreviation: 'Race' }, date: new Date(raceAt).toISOString(), status: { type: { state: 'post' } }, competitors: [
+    { order: 2, athlete: { displayName: 'George Russell' } }, { order: 1, athlete: { displayName: 'Kimi Antonelli' } },
+    { order: 3, athlete: { displayName: 'Nico Hülkenberg' } }, { order: 4, athlete: { displayName: 'Max Verstappen' } }] }] }] };
+await call('POST', '/api/picks', { sport: 'f1', id: '600057442', side: 'p:安东内利~拉塞尔~霍肯伯格', when: Date.now() + 3600000,
+  ref: 'p:Andrea Kimi ANTONELLI~Nico HULKENBERG~George RUSSELL' }, tok);
+await call('POST', '/api/picks', { sport: 'f1', id: '600057443', side: 'p:维斯塔潘~拉塞尔~诺里斯', when: Date.now() + 3600000 }, tok);
+fakeF1.events.push({ id: '600057443', competitions: JSON.parse(JSON.stringify(fakeF1.events[0].competitions)) });
+fakeLol['111'] = { data: { event: { match: { strategy: { count: 3 }, teams: [{ result: { gameWins: 2 } }, { result: { gameWins: 1 } }] } } } };
+fakeLol['112'] = { data: { event: { match: { strategy: { count: 3 }, teams: [{ result: { gameWins: 1 } }, { result: { gameWins: 1 } }] } } } };
+await call('POST', '/api/picks', { sport: 'esports', id: '111', side: 'away', when: Date.now() + 3600000 }, tok);
+await call('POST', '/api/picks', { sport: 'esports', id: '112', side: 'away', when: Date.now() + 3600000 }, tok);
+fakeCs2 = { recent: [{ id: 1702590, status: 'finished', start: new Date(raceAt).toISOString(), teams: [{ score: 0 }, { score: 2 }] }], upcoming: [] };
+await call('POST', '/api/picks', { sport: 'cs2', id: '1702590', side: 'away', when: Date.now() + 3600000 }, tok);
+db.run("UPDATE picks SET starts = ?, made = ? WHERE pkey IN ('f1:600057442', 'f1:600057443', 'esports:111', 'esports:112', 'cs2:1702590')",
+  [raceAt, raceAt - 3600000]);
+await W._test.verifyPicks(env);
+let pr = pickRow('f1:600057442');
+check(pr[1] === 1 && pr[2] === 1 && pr[3] === '1/3' && /^p:Kimi Antonelli~George Russell~Nico Hülkenberg$/.test(pr[0]),
+  'F1 podium settled by surname, accents and case aside', JSON.stringify(pr));
+pr = pickRow('f1:600057443');
+check(pr[2] === 2 && pr[0] === null, 'F1 call without names stands as the app settles it', JSON.stringify(pr));
+pr = pickRow('esports:111');
+check(pr[0] === 'home' && pr[1] === 0 && pr[3] === '2-1' && pr[2] === 1, 'LoL call settled from the esports API', JSON.stringify(pr));
+pr = pickRow('esports:112');
+check(pr[2] === 0 && pr[0] === null, 'LoL series still going is left open', JSON.stringify(pr));
+pr = pickRow('cs2:1702590');
+check(pr[0] === 'away' && pr[1] === 1 && pr[2] === 1, 'CS2 call settled from the site data', JSON.stringify(pr));
+check(W._test.surname('Nico HÜLKENBERG') === 'hulkenberg' && W._test.surname('Sergio Pérez') === 'perez', 'surnames compare plain');
+
+// ---- the cron's heartbeat
+await W._test.tick(env);
+r = await call('GET', '/api/health');
+check(r.data.cron && r.data.cron.ok === true && r.data.cron.agoSec < 5 && typeof r.data.cron.ms === 'number',
+  'health reports the last cron run', JSON.stringify(r.data.cron));
+check(r.data.mail && r.data.mail.via === 'off', 'health says mail is off without a key');
+
+// ---- login lockout
+db.run('DELETE FROM attempts');
+for (let i = 0; i < 5; i++) r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'wrong ' + i });
+check(r.status === 401, 'five wrong passwords answered as wrong');
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'correct horse' });
+check(r.status === 429 && r.data.error === 'too many attempts' && r.data.retry === 15, 'sixth try shut out, right password or not', JSON.stringify(r.data));
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'correct horse' }, null, '203.0.113.9');
+check(r.status === 429, 'shut out from anywhere, for that address');
+db.run("UPDATE attempts SET until = ? WHERE k = 'login:fan@example.com'", [Date.now() - 1]);
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'correct horse' });
+check(r.status === 200, 'open again once the lock runs out');
+check(!db.exec("SELECT * FROM attempts WHERE k = 'login:fan@example.com'").length, 'a good login clears the count');
+db.run('DELETE FROM attempts');
+for (let i = 0; i < 30; i++) await call('POST', '/api/login', { email: 'x' + i + '@example.com', password: 'guess guess' }, null, '192.0.2.7');
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'correct horse' }, null, '192.0.2.7');
+check(r.status === 429, 'one place trying many addresses is shut out');
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'correct horse' });
+check(r.status === 200, 'others are not');
+db.run('DELETE FROM attempts');
+for (let i = 0; i < 5; i++) await call('POST', '/api/register', { email: 'r' + i + '@example.com', password: 'longenough', nick: 'reg' + i }, null, '192.0.2.8');
+r = await call('POST', '/api/register', { email: 'r9@example.com', password: 'longenough', nick: 'reg9' }, null, '192.0.2.8');
+check(r.status === 429, 'registrations from one place are limited');
+
+// ---- logins that go unused expire
+r = await call('POST', '/api/login', { email: 'fan@example.com', password: 'correct horse' });
+const tok2 = r.data.token;
+db.run('UPDATE sessions SET seen = ? WHERE token = ?', [Date.now() - 2 * 86400000, tok2]);
+r = await call('GET', '/api/me', null, tok2);
+const seenNow = db.exec('SELECT seen FROM sessions WHERE token = ?', [tok2])[0].values[0][0];
+check(r.status === 200 && Date.now() - seenNow < 5000, 'a login in use is kept alive');
+db.run('UPDATE sessions SET seen = ? WHERE token = ?', [Date.now() - W._test.SESSION_IDLE - 1000, tok2]);
+r = await call('GET', '/api/me', null, tok2);
+check(r.status === 401 && !db.exec('SELECT * FROM sessions WHERE token = ?', [tok2]).length, 'a login unused for 30 days is gone');
+db.run("INSERT INTO sessions (token, user_id, created, seen) VALUES ('stale', 1, 0, NULL)");
+await W._test.sweep(env);
+check(!db.exec("SELECT * FROM sessions WHERE token = 'stale'").length, 'the hourly sweep clears old logins');
+
+// ---- password reset
+db.run('DELETE FROM attempts');
+r = await call('GET', '/api/features');
+check(r.data.mail === false, 'no reset offered without mail');
+r = await call('POST', '/api/reset/request', { email: 'fan@example.com' });
+check(r.status === 503, 'reset refused without mail');
+env.RESEND_KEY = 're_test';
+env.MAIL_FROM = 'noreply@example.org';
+check((await call('GET', '/api/features')).data.mail === true, 'reset offered once a mail key is set');
+r = await call('POST', '/api/register', { email: 'Reset@Example.com', password: 'old password', nick: '重设' });
+const oldTok = r.data.token;
+r = await call('POST', '/api/reset/request', { email: 'nobody@example.com' });
+check(r.status === 200 && mails.length === 0, 'unknown address: same answer, no mail');
+r = await call('POST', '/api/reset/request', { email: 'reset@example.com', lang: 'zh' });
+const mail = mails[0] || {};
+const link = /https:\/\/grandstand-live\.github\.io\/\?reset=([\w-]+)/.exec(mail.text || '');
+check(r.status === 200 && link && mail.to[0] === 'reset@example.com' && /重设密码/.test(mail.subject) && mail.from === 'Grandstand <noreply@example.org>',
+  'reset mail sent with a link', mail.subject);
+check(!db.exec('SELECT token FROM resets')[0].values.some((v) => v[0] === link[1]), 'only a hash of the link is kept');
+r = await call('POST', '/api/reset/confirm', { token: 'not-it', password: 'new password' });
+check(r.status === 400 && r.data.error === 'reset expired', 'a wrong link is refused');
+r = await call('POST', '/api/reset/confirm', { token: link[1], password: 'short' });
+check(r.status === 400 && r.data.error === 'password', 'the new password still needs 8 characters');
+r = await call('POST', '/api/reset/confirm', { token: link[1], password: 'new password' });
+check(r.status === 200 && r.data.token && r.data.nick === '重设', 'reset sets the password and logs in');
+check((await call('GET', '/api/me', null, oldTok)).status === 401, 'logins from before the reset are ended');
+check((await call('POST', '/api/login', { email: 'reset@example.com', password: 'old password' })).status === 401, 'old password no longer works');
+check((await call('POST', '/api/login', { email: 'reset@example.com', password: 'new password' })).status === 200, 'new password works');
+r = await call('POST', '/api/reset/confirm', { token: link[1], password: 'third password' });
+check(r.status === 400, 'a link works once');
+await call('POST', '/api/reset/request', { email: 'reset@example.com' });
+db.run('UPDATE resets SET expires = ?', [Date.now() - 1]);
+const link2 = /\?reset=([\w-]+)/.exec(mails[mails.length - 1].text)[1];
+check((await call('POST', '/api/reset/confirm', { token: link2, password: 'third password' })).status === 400, 'a link expires');
+await call('POST', '/api/reset/request', { email: 'reset@example.com', lang: 'en' });
+check(/^Reset your Grandstand password$/.test(mails[mails.length - 1].subject), 'mail in English when asked');
+r = await call('POST', '/api/reset/request', { email: 'reset@example.com' });
+check(r.status === 429, 'three reset mails an hour per address');
+delete env.RESEND_KEY; delete env.MAIL_FROM;
 
 out.insertAdjacentHTML('beforeend', `\n${results.filter(Boolean).length} / ${results.length} passed\n`);
 document.title = results.every(Boolean) ? 'PASS' : 'FAIL';

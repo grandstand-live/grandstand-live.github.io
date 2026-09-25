@@ -2,7 +2,7 @@
    The page is a live scoreboard, so a stale copy must never win over the
    network; the cache only exists so the app still opens when offline, or
    when the network is too slow to be worth waiting on. */
-var CACHE = 'grandstand-v18';
+var CACHE = 'grandstand-v19';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 /* How long the page waits on the network before opening from the cache.

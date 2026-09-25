@@ -6,14 +6,23 @@
    first use, so deploying is: paste this file, bind the database, add a
    cron trigger. See README.md next to it.
 
-   The Worker only talks to ESPN's public scoreboards. Whether ESPN answers
-   a Cloudflare request is checked at /api/health — if it doesn't, pushes
-   and server-side settling stand down and the rest keeps working. */
+   The Worker reads ESPN's public scoreboards, the LoL esports API, and the
+   CS2 and Valorant files the site itself publishes. Whether each answers a
+   Cloudflare request is checked at /api/health — if one doesn't, what
+   depends on it stands down and the rest keeps working. Password-reset
+   mail goes out through Brevo or Resend when a key for one is set. */
 
 const ORIGINS = ['https://grandstand-live.github.io', 'http://localhost:8099'];
 // site.api.espn.com turns Cloudflare away (403); site.web.api serves the same API and answers
 const ESPN = 'https://site.web.api.espn.com/apis/site/v2/sports/';
+const LOL = 'https://esports-api.lolesports.com/persisted/gw/';
+// the public key the lolesports site itself sends
+const LOL_KEY = '0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z';
 const DAY = 86400000;
+const MIN = 60000;
+// a login lasts as long as it keeps being used, and ends after this long unused
+const SESSION_IDLE = 30 * DAY;
+const RESET_TTL = 30 * MIN;
 
 // Password hashing has to fit the free plan's 10 ms of CPU per request, so
 // the iteration count is modest and can be raised with a PBKDF2_ITER
@@ -60,7 +69,9 @@ function json(req, data, status = 200) {
     status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors(req) }
   });
 }
-class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+class HttpError extends Error {
+  constructor(status, msg, extra) { super(msg); this.status = status; this.extra = extra; }
+}
 const bad = (msg) => new HttpError(400, msg);
 
 async function body(req) {
@@ -76,10 +87,13 @@ async function ensureSchema(env) {
     `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE NOT NULL,
        nick TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, iter INTEGER NOT NULL,
        created INTEGER NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created INTEGER NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created INTEGER NOT NULL,
+       seen INTEGER)`,
     `CREATE TABLE IF NOT EXISTS picks (user_id INTEGER NOT NULL, pkey TEXT NOT NULL, sport TEXT, event TEXT,
        league TEXT, side TEXT, starts INTEGER, made INTEGER, home TEXT, away TEXT, result TEXT, score TEXT,
-       hit INTEGER, settled INTEGER, verified INTEGER DEFAULT 0, PRIMARY KEY (user_id, pkey))`,
+       hit INTEGER, settled INTEGER, verified INTEGER DEFAULT 0, ref TEXT, PRIMARY KEY (user_id, pkey))`,
+    `CREATE TABLE IF NOT EXISTS attempts (k TEXT PRIMARY KEY, n INTEGER NOT NULL, since INTEGER NOT NULL, until INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS resets (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires INTEGER NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS ratings (user_id INTEGER NOT NULL, event TEXT NOT NULL, player TEXT NOT NULL,
        name TEXT, team TEXT, score INTEGER NOT NULL, at INTEGER, PRIMARY KEY (user_id, event, player))`,
     `CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, p256dh TEXT NOT NULL, auth TEXT NOT NULL,
@@ -90,7 +104,54 @@ async function ensureSchema(env) {
     `CREATE INDEX IF NOT EXISTS picks_open ON picks(verified, starts)`,
     `CREATE INDEX IF NOT EXISTS ratings_event ON ratings(event)`
   ].map((s) => env.DB.prepare(s)));
+  // columns added since the first release, to a database made before them
+  const v = await env.DB.prepare("SELECT v FROM config WHERE k = 'schema'").first();
+  if (!v || Number(v.v) < 2) {
+    for (const s of ['ALTER TABLE sessions ADD COLUMN seen INTEGER', 'ALTER TABLE picks ADD COLUMN ref TEXT']) {
+      try { await env.DB.prepare(s).run(); } catch (e) { /* already there */ }
+    }
+    await env.DB.prepare("INSERT OR REPLACE INTO config (k, v) VALUES ('schema', '2')").run();
+  }
   schemaReady = true;
+}
+
+/* ----------------------------------------------------------- rate limits
+   Counted per key — an address, or where the request came from — in a
+   window. Past the limit the key is shut until the window has run out
+   again; the check comes before any password is hashed, so a flood costs
+   next to nothing. */
+
+const LIMITS = {
+  login: [5, 15 * MIN],       // wrong passwords for one address
+  loginIp: [30, 15 * MIN],    // wrong passwords from one place, any address
+  register: [5, 60 * MIN],
+  reset: [3, 60 * MIN],       // reset mails to one address
+  resetIp: [10, 60 * MIN],
+  resetUse: [10, 15 * MIN]    // bad reset links from one place
+};
+function ipOf(req) { return req.headers.get('CF-Connecting-IP') || 'local'; }
+
+async function shut(env, keys) {
+  const now = Date.now();
+  for (const k of keys) {
+    const row = await env.DB.prepare('SELECT until FROM attempts WHERE k = ?1').bind(k).first();
+    if (row && row.until && row.until > now) {
+      throw new HttpError(429, 'too many attempts', { retry: Math.ceil((row.until - now) / MIN) });
+    }
+  }
+}
+async function strike(env, k, kind) {
+  const [max, win] = LIMITS[kind];
+  const now = Date.now();
+  const row = await env.DB.prepare('SELECT * FROM attempts WHERE k = ?1').bind(k).first();
+  const fresh = !row || row.since < now - win;
+  const n = fresh ? 1 : row.n + 1;
+  await env.DB.prepare(`INSERT INTO attempts (k, n, since, until) VALUES (?1, ?2, ?3, ?4)
+      ON CONFLICT (k) DO UPDATE SET n = excluded.n, since = excluded.since, until = excluded.until`)
+    .bind(k, n, fresh ? now : row.since, n >= max ? now + win : null).run();
+}
+async function forgive(env, k) {
+  await env.DB.prepare('DELETE FROM attempts WHERE k = ?1').bind(k).run();
 }
 
 /* ------------------------------------------------------------- accounts */
@@ -109,16 +170,29 @@ function sameString(a, b) {
 }
 async function session(env, userId) {
   const token = randomToken();
-  await env.DB.prepare('INSERT INTO sessions (token, user_id, created) VALUES (?1, ?2, ?3)')
-    .bind(token, userId, Date.now()).run();
+  const now = Date.now();
+  await env.DB.prepare('INSERT INTO sessions (token, user_id, created, seen) VALUES (?1, ?2, ?3, ?3)')
+    .bind(token, userId, now).run();
   return token;
 }
 async function whoIs(req, env) {
   const m = /^Bearer (\S+)$/.exec(req.headers.get('Authorization') || '');
   if (!m) return null;
-  return await env.DB.prepare(
-    'SELECT u.id, u.nick, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?1'
+  const u = await env.DB.prepare(
+    'SELECT u.id, u.nick, u.email, COALESCE(s.seen, s.created) AS seen FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?1'
   ).bind(m[1]).first();
+  if (!u) return null;
+  const now = Date.now();
+  if (u.seen < now - SESSION_IDLE) {
+    await env.DB.prepare('DELETE FROM sessions WHERE token = ?1').bind(m[1]).run();
+    return null;
+  }
+  // kept alive by use; written at most once a day
+  if (u.seen < now - DAY) await env.DB.prepare('UPDATE sessions SET seen = ?2 WHERE token = ?1').bind(m[1], now).run();
+  return u;
+}
+async function sha256(text) {
+  return b64u(await crypto.subtle.digest('SHA-256', enc.encode(text)));
 }
 async function mustBe(req, env) {
   const u = await whoIs(req, env);
@@ -134,6 +208,9 @@ async function register(req, env) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 120) throw bad('email');
   if (nick.length < 2 || nick.length > 16) throw bad('nick');
   if (password.length < 8 || password.length > 200) throw bad('password');
+  const ip = 'register:' + ipOf(req);
+  await shut(env, [ip]);
+  await strike(env, ip, 'register');
   const iter = Number(env.PBKDF2_ITER) || DEFAULT_ITER;
   const salt = randomToken(16);
   const hash = await hashPassword(password, salt, iter);
@@ -154,10 +231,108 @@ async function register(req, env) {
 async function login(req, env) {
   const b = await body(req);
   const email = String(b.email || '').trim().toLowerCase();
+  const byMail = 'login:' + email, byIp = 'login-ip:' + ipOf(req);
+  await shut(env, [byMail, byIp]);
   const u = await env.DB.prepare('SELECT * FROM users WHERE email = ?1').bind(email).first();
   // the same work and the same answer whether or not the address exists
   const hash = await hashPassword(String(b.password || ''), u ? u.salt : 'AAAAAAAAAAAAAAAAAAAAAA', u ? u.iter : DEFAULT_ITER);
-  if (!u || !sameString(hash, u.hash)) throw new HttpError(401, 'wrong email or password');
+  if (!u || !sameString(hash, u.hash)) {
+    await strike(env, byMail, 'login');
+    await strike(env, byIp, 'loginIp');
+    throw new HttpError(401, 'wrong email or password');
+  }
+  await forgive(env, byMail);
+  return { token: await session(env, u.id), nick: u.nick };
+}
+
+/* ------------------------------------------------------- password reset
+   A link by mail, good for half an hour and for one use. The request
+   answers the same whether or not the address has an account, and the
+   mail goes out after the answer, so neither the words nor the timing
+   says which. Only a hash of the link's token is kept. */
+
+function mailer(env) {
+  if (env.BREVO_KEY && env.MAIL_FROM) return 'brevo';
+  if (env.RESEND_KEY) return 'resend';
+  return null;
+}
+async function sendMail(env, to, subject, text) {
+  const html = '<div style="font:15px/1.6 -apple-system,Segoe UI,sans-serif;color:#17150F">' +
+    text.split('\n').map((l) => /^https:\/\//.test(l)
+      ? '<p><a href="' + l + '" style="color:#1D6B4C">' + l + '</a></p>'
+      : '<p>' + l.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p>').join('') + '</div>';
+  let r;
+  if (mailer(env) === 'brevo') {
+    r = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': env.BREVO_KEY, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ sender: { name: 'Grandstand', email: env.MAIL_FROM }, to: [{ email: to }],
+        subject, textContent: text, htmlContent: html })
+    });
+  } else {
+    r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + env.RESEND_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'Grandstand <' + (env.MAIL_FROM || 'onboarding@resend.dev') + '>', to: [to],
+        subject, text, html })
+    });
+  }
+  if (!r.ok) throw new Error('mail ' + r.status + ' ' + (await r.text()).slice(0, 200));
+}
+
+async function resetRequest(req, env, ctx) {
+  if (!mailer(env)) throw new HttpError(503, 'mail off');
+  const b = await body(req);
+  const email = String(b.email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw bad('email');
+  const byMail = 'reset:' + email, byIp = 'reset-ip:' + ipOf(req);
+  await shut(env, [byMail, byIp]);
+  await strike(env, byMail, 'reset');
+  await strike(env, byIp, 'resetIp');
+  const u = await env.DB.prepare('SELECT id, nick FROM users WHERE email = ?1').bind(email).first();
+  if (u) {
+    const token = randomToken(24);
+    await env.DB.prepare('DELETE FROM resets WHERE user_id = ?1').bind(u.id).run();
+    await env.DB.prepare('INSERT INTO resets (token, user_id, expires) VALUES (?1, ?2, ?3)')
+      .bind(await sha256(token), u.id, Date.now() + RESET_TTL).run();
+    const o = req.headers.get('Origin') || '';
+    const link = (ORIGINS.includes(o) ? o : ORIGINS[0]) + '/?reset=' + token;
+    const en = b.lang === 'en';
+    const text = en
+      ? `Hi ${u.nick},\nOpen this link to set a new password for Grandstand. It works once, for the next 30 minutes:\n${link}\nIf you didn't ask for this, ignore this mail — your password stays as it is.`
+      : `${u.nick}，你好：\n点下面的链接给 Grandstand 设一个新密码，30 分钟内有效，只能用一次：\n${link}\n如果不是你本人操作，忽略这封邮件就行，密码不会变。`;
+    const send = sendMail(env, email, en ? 'Reset your Grandstand password' : 'Grandstand 重设密码', text)
+      .catch((e) => env.DB.prepare("INSERT OR REPLACE INTO config (k, v) VALUES ('mailError', ?1)")
+        .bind(JSON.stringify({ at: Date.now(), error: String(e.message).replace(/\S+@\S+/g, '…').slice(0, 300) })).run());   // health is public: no addresses in it
+    if (ctx && ctx.waitUntil) ctx.waitUntil(send); else await send;
+  }
+  return { ok: true };
+}
+
+async function resetConfirm(req, env) {
+  const b = await body(req);
+  const password = String(b.password || '');
+  if (password.length < 8 || password.length > 200) throw bad('password');
+  const byIp = 'reset-use:' + ipOf(req);
+  await shut(env, [byIp]);
+  const key = await sha256(String(b.token || ''));
+  const row = await env.DB.prepare('SELECT * FROM resets WHERE token = ?1').bind(key).first();
+  if (!row || row.expires < Date.now()) {
+    await strike(env, byIp, 'resetUse');
+    throw new HttpError(400, 'reset expired');
+  }
+  const u = await env.DB.prepare('SELECT id, nick, email FROM users WHERE id = ?1').bind(row.user_id).first();
+  if (!u) throw new HttpError(400, 'reset expired');
+  const iter = Number(env.PBKDF2_ITER) || DEFAULT_ITER;
+  const salt = randomToken(16);
+  const hash = await hashPassword(password, salt, iter);
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET salt = ?2, hash = ?3, iter = ?4 WHERE id = ?1').bind(u.id, salt, hash, iter),
+    env.DB.prepare('DELETE FROM resets WHERE user_id = ?1').bind(u.id),
+    // every phone logged in with the old password is logged out
+    env.DB.prepare('DELETE FROM sessions WHERE user_id = ?1').bind(u.id),
+    env.DB.prepare('DELETE FROM attempts WHERE k = ?1').bind('login:' + u.email)
+  ]);
   return { token: await session(env, u.id), nick: u.nick };
 }
 
@@ -197,17 +372,19 @@ async function putPick(req, env) {
   const pkey = sport + ':' + event;
   const cur = await env.DB.prepare('SELECT result FROM picks WHERE user_id = ?1 AND pkey = ?2').bind(u.id, pkey).first();
   if (cur && cur.result) throw new HttpError(409, 'settled');
-  await env.DB.prepare(`INSERT INTO picks (user_id, pkey, sport, event, league, side, starts, made, home, away)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-      ON CONFLICT (user_id, pkey) DO UPDATE SET side = excluded.side, made = excluded.made`)
+  // `ref` is what the server checks against where `side` alone can't be:
+  // an F1 podium's drivers by their ESPN names, since `side` holds the app's own
+  await env.DB.prepare(`INSERT INTO picks (user_id, pkey, sport, event, league, side, starts, made, home, away, ref)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+      ON CONFLICT (user_id, pkey) DO UPDATE SET side = excluded.side, made = excluded.made, ref = excluded.ref`)
     .bind(u.id, pkey, sport, event, String(b.league || ''), String(b.side).slice(0, 200), starts, Date.now(),
-      String(b.home || '').slice(0, 60), String(b.away || '').slice(0, 60)).run();
+      String(b.home || '').slice(0, 60), String(b.away || '').slice(0, 60), b.ref ? String(b.ref).slice(0, 200) : null).run();
   return { ok: true };
 }
 
-// Settlement the app reports. Football and NBA are checked against ESPN by
-// the cron afterwards and corrected if they disagree; other sports stand
-// as reported.
+// Settlement the app reports. Football, NBA, F1 and esports are checked
+// against the source by the cron afterwards and corrected if they
+// disagree; other sports stand as reported.
 async function settlePick(req, env) {
   const u = await mustBe(req, env);
   const b = await body(req);
@@ -409,8 +586,37 @@ function teamName(team, followed, lang) {
   return (team && (team.shortDisplayName || team.displayName)) || '';
 }
 
+/* Every run leaves a note of when it ran, how long it took and what it
+   did, which /api/health reads back: a cron that has stopped shows as a
+   stale time there rather than as silence. */
 async function tick(env) {
-  await ensureSchema(env);
+  const t0 = Date.now();
+  const note = { at: t0 };
+  try {
+    await ensureSchema(env);
+    note.pushes = await watch(env);
+    note.settled = await verifyPicks(env);
+    if (new Date(t0).getUTCMinutes() === 0) await sweep(env);
+  } catch (e) {
+    note.error = String((e && e.message) || e).slice(0, 300);
+  }
+  note.ms = Date.now() - t0;
+  try {
+    await env.DB.prepare("INSERT OR REPLACE INTO config (k, v) VALUES ('tick', ?1)").bind(JSON.stringify(note)).run();
+  } catch (e) {}
+}
+
+// once an hour: logins gone unused, spent reset links, old attempt counts
+async function sweep(env) {
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM sessions WHERE COALESCE(seen, created) < ?1').bind(now - SESSION_IDLE),
+    env.DB.prepare('DELETE FROM resets WHERE expires < ?1').bind(now),
+    env.DB.prepare('DELETE FROM attempts WHERE since < ?1 AND (until IS NULL OR until < ?2)').bind(now - DAY, now)
+  ]);
+}
+
+async function watch(env) {
   const subs = (await env.DB.prepare('SELECT * FROM subs WHERE fails < 20').all()).results || [];
   const out = [];   // [sub, message]
   const leagues = {}, nba = {};
@@ -541,39 +747,114 @@ async function tick(env) {
       await Promise.all(out.slice(i, i + 6).map(([s, m]) => sendPush(env, keys, s, m).catch(() => 0)));
     }
   }
-
-  await verifyPicks(env);
+  return out.length;
 }
 
-/* Football and NBA calls are settled from ESPN's own result, whatever the
-   app reported, and a call ESPN dates after kick-off is voided. A few per
-   minute, oldest first. */
+/* Calls are settled from the source's own result, whatever the app
+   reported, and a call the source dates after the start is voided. Each
+   reader answers null while the result isn't in yet. */
+
+// ESPN's summary for one football or NBA match
+async function espnResult(p) {
+  const path = p.sport === 'football' ? 'soccer/' + (p.league || 'all') : 'basketball/nba';
+  const s = await espn(path + '/summary?event=' + encodeURIComponent(p.event));
+  const comp = (((s.header || {}).competitions) || [])[0] || {};
+  if (((comp.status || {}).type || {}).state !== 'post') return null;
+  const cs = comp.competitors || [];
+  const home = cs.find((x) => x.homeAway === 'home') || {}, away = cs.find((x) => x.homeAway === 'away') || {};
+  return {
+    outcome: home.winner ? 'home' : away.winner ? 'away' : 'draw',
+    score: (home.score || '') + '-' + (away.score || ''),
+    started: Date.parse(comp.date || '')
+  };
+}
+
+// a driver's surname without accents or case: "Nico HÜLKENBERG" and "Nico Hulkenberg" agree
+function surname(name) {
+  return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z ]/g, ' ').trim().split(/\s+/).pop() || '';
+}
+
+/* An F1 podium: the race's top three from the scoreboard of its week. The
+   app's call is three of its own driver keys; `ref` carries the same three
+   by name, which is what can be matched here. Calls made before `ref` was
+   sent stand as the app settled them (hit: null). */
+async function f1Result(p, cache) {
+  const range = ymdUTC(p.starts - 3 * DAY) + '-' + ymdUTC(p.starts + DAY);
+  const sb = cache['f1' + range] || (cache['f1' + range] = await espn('racing/f1/scoreboard?dates=' + range));
+  const ev = (sb.events || []).find((e) => String(e.id) === String(p.event));
+  const race = ev && (ev.competitions || []).find((c) => ((c.type || {}).abbreviation) === 'Race');
+  if (!race || ((race.status || {}).type || {}).state !== 'post') return null;
+  const top = (race.competitors || []).slice().sort((a, b) => (a.order || 99) - (b.order || 99)).slice(0, 3)
+    .map((x) => (x.athlete || {}).displayName || '');
+  if (top.filter(Boolean).length < 3) return null;   // over, but the order isn't filled in yet
+  const res = { outcome: 'p:' + top.join('~'), score: '', started: Date.parse(race.date || ''), hit: null };
+  if (p.ref) {
+    const mine = String(p.ref).replace(/^p:/, '').split('~').map(surname);
+    const real = top.map(surname);
+    const on = mine.filter((s) => s && real.includes(s)).length;
+    res.hit = mine.filter(Boolean).length === 3 && on === 3;
+    res.score = mine.filter((s, i) => s && s === real[i]).length + '/3';
+  }
+  return res;
+}
+
+// a LoL series: over once one side has won more than half its games
+async function lolResult(p) {
+  const r = await fetch(LOL + 'getEventDetails?hl=en-US&id=' + encodeURIComponent(p.event), { headers: { 'x-api-key': LOL_KEY } });
+  if (!r.ok) throw new Error('lol ' + r.status);
+  const m = ((((await r.json()).data || {}).event) || {}).match || {};
+  const t = m.teams || [];
+  if (t.length < 2) return null;
+  const need = Math.floor(((m.strategy || {}).count || 1) / 2) + 1;
+  const a = (t[0].result || {}).gameWins || 0, b = (t[1].result || {}).gameWins || 0;
+  if (a < need && b < need) return null;
+  return { outcome: a > b ? 'home' : 'away', score: a + '-' + b };
+}
+
+// CS2 and Valorant: the files the site publishes, which the app reads too
+async function pandaResult(p, cache) {
+  const f = p.sport;
+  if (!cache[f]) {
+    const r = await fetch(ORIGINS[0] + '/data/' + f + '.json', { cf: { cacheTtl: 60 } });
+    if (!r.ok) throw new Error(f + ' ' + r.status);
+    cache[f] = await r.json();
+  }
+  const m = [].concat(cache[f].recent || [], cache[f].upcoming || []).find((x) => String(x.id) === String(p.event));
+  if (!m || m.status !== 'finished') return null;
+  const t = m.teams || [];
+  if (t.length < 2 || t[0].score == null || t[1].score == null || t[0].score === t[1].score) return null;
+  return { outcome: t[0].score > t[1].score ? 'home' : 'away', score: t[0].score + '-' + t[1].score, started: Date.parse(m.start || '') };
+}
+
+const RESULTS = { football: espnResult, basketball: espnResult, f1: f1Result, esports: lolResult, cs2: pandaResult, valorant: pandaResult };
+
+// A few per minute, in no fixed order, so a result that won't come in
+// never holds up the ones behind it.
 async function verifyPicks(env) {
-  const rows = (await env.DB.prepare(`SELECT * FROM picks WHERE verified = 0 AND sport IN ('football', 'basketball')
-      AND starts < ?1 ORDER BY starts LIMIT 8`).bind(Date.now() - 2.5 * 3600000).all()).results || [];
+  const sports = Object.keys(RESULTS).map((s) => "'" + s + "'").join(', ');
+  const rows = (await env.DB.prepare(`SELECT * FROM picks WHERE verified = 0 AND sport IN (${sports})
+      AND starts < ?1 ORDER BY RANDOM() LIMIT 8`).bind(Date.now() - 2.5 * 3600000).all()).results || [];
+  const cache = {};
+  let settled = 0;
   for (const p of rows) {
-    const path = p.sport === 'football' ? 'soccer/' + (p.league || 'all') : 'basketball/nba';
-    let s;
-    try { s = await espn(path + '/summary?event=' + encodeURIComponent(p.event)); } catch (e) { continue; }
-    const comp = (((s.header || {}).competitions) || [])[0] || {};
-    const st = ((comp.status || {}).type || {});
-    if (st.state !== 'post') {
-      // postponed or abandoned: leave it, and stop looking after a week
-      if (Date.now() - p.starts > 7 * DAY) {
+    let r;
+    try { r = await RESULTS[p.sport](p, cache); } catch (e) { continue; }
+    if (!r || r.hit === null) {
+      // postponed, abandoned, or nothing here to check against: stop looking after a week
+      if (r || Date.now() - p.starts > 7 * DAY) {
         await env.DB.prepare('UPDATE picks SET verified = 2 WHERE user_id = ?1 AND pkey = ?2').bind(p.user_id, p.pkey).run();
       }
       continue;
     }
-    const cs = comp.competitors || [];
-    const home = cs.find((x) => x.homeAway === 'home') || {}, away = cs.find((x) => x.homeAway === 'away') || {};
-    const outcome = home.winner ? 'home' : away.winner ? 'away' : 'draw';
-    const started = Date.parse(comp.date || '') || p.starts;
-    const valid = p.made < started;
+    const valid = p.made < (r.started || p.starts);
+    const hit = valid && (r.hit !== undefined ? r.hit : p.side === r.outcome);
     await env.DB.prepare(`UPDATE picks SET result = ?3, score = ?4, hit = ?5, settled = COALESCE(settled, ?6), verified = 1
         WHERE user_id = ?1 AND pkey = ?2`)
-      .bind(p.user_id, p.pkey, outcome, (home.score || '') + '-' + (away.score || ''),
-        valid && p.side === outcome ? 1 : 0, Date.now()).run();
+      .bind(p.user_id, p.pkey, r.outcome, r.score, hit ? 1 : 0, Date.now()).run();
+    settled++;
   }
+  return settled;
 }
 
 /* --------------------------------------------------------------- router */
@@ -587,25 +868,46 @@ const ESPN_PROBES = {
   core: 'https://sports.core.api.espn.com/v2/sports/soccer/leagues/eng.1/events?limit=1',
   cdn: 'https://cdn.espn.com/core/soccer/scoreboard?xhr=1&league=eng.1'
 };
+// the other sources calls are settled from
+const OTHER_PROBES = {
+  lol: [LOL + 'getLeagues?hl=en-US', { 'x-api-key': LOL_KEY }],
+  pages: [ORIGINS[0] + '/data/cs2.json', {}]
+};
+async function probe(url, headers) {
+  try {
+    const r = await fetch(url, { headers: Object.assign({
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36',
+      'Accept': 'application/json' }, headers) });
+    return r.status + (r.ok ? ' ok' : '');
+  } catch (e) { return 'error: ' + e.message; }
+}
 async function health(req, env) {
-  const espn = {};
-  await Promise.all(Object.keys(ESPN_PROBES).map(async (k) => {
-    try {
-      const r = await fetch(ESPN_PROBES[k], {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36',
-          'Accept': 'application/json' }
-      });
-      espn[k] = r.status + (r.ok ? ' ok' : '');
-    } catch (e) { espn[k] = 'error: ' + e.message; }
-  }));
+  const espn = {}, sources = {};
+  await Promise.all(Object.keys(ESPN_PROBES).map(async (k) => { espn[k] = await probe(ESPN_PROBES[k], {}); })
+    .concat(Object.keys(OTHER_PROBES).map(async (k) => { sources[k] = await probe(...OTHER_PROBES[k]); })));
   const n = await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users) AS users, (SELECT COUNT(*) FROM subs) AS subs').first();
-  return { ok: true, espn, users: n.users, subs: n.subs };
+  const conf = {};
+  ((await env.DB.prepare("SELECT k, v FROM config WHERE k IN ('tick', 'mailError')").all()).results || [])
+    .forEach((r) => { try { conf[r.k] = JSON.parse(r.v); } catch (e) {} });
+  const t = conf.tick;
+  // the cron runs each minute; three missed in a row is a stopped cron
+  const cron = t ? {
+    ok: Date.now() - t.at < 3 * MIN && !t.error, last: new Date(t.at).toISOString(),
+    agoSec: Math.round((Date.now() - t.at) / 1000), ms: t.ms, pushes: t.pushes, settled: t.settled, error: t.error
+  } : { ok: false, last: null };
+  const mail = { via: mailer(env) || 'off' };
+  if (conf.mailError) mail.lastError = { at: new Date(conf.mailError.at).toISOString(), error: conf.mailError.error };
+  return { ok: true, cron, espn, sources, mail, users: n.users, subs: n.subs };
 }
 
 const ROUTES = {
   'GET /api/health': health,
   'POST /api/register': register,
   'POST /api/login': login,
+  'POST /api/reset/request': resetRequest,
+  'POST /api/reset/confirm': resetConfirm,
+  // what the settings sheet offers: no reset link while no mail can go out
+  'GET /api/features': async (req, env) => ({ mail: !!mailer(env) }),
   'POST /api/logout': async (req, env) => {
     const m = /^Bearer (\S+)$/.exec(req.headers.get('Authorization') || '');
     if (m) await env.DB.prepare('DELETE FROM sessions WHERE token = ?1').bind(m[1]).run();
@@ -636,7 +938,7 @@ export default {
       await ensureSchema(env);
       return json(req, await route(req, env, ctx));
     } catch (e) {
-      if (e instanceof HttpError) return json(req, { error: e.message }, e.status);
+      if (e instanceof HttpError) return json(req, Object.assign({ error: e.message }, e.extra), e.status);
       return json(req, { error: 'server error' }, 500);
     }
   },
@@ -644,5 +946,5 @@ export default {
     ctx.waitUntil(tick(env));
   },
   // exercised by the test page; nothing routes here
-  _test: { encryptPayload, hashPassword, b64u, unb64u, tick, verifyPicks }
+  _test: { encryptPayload, hashPassword, b64u, unb64u, tick, verifyPicks, sweep, surname, SESSION_IDLE }
 };

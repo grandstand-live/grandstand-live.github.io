@@ -1338,6 +1338,7 @@
     font-family: var(--serif); font-size: 14px; font-weight: 600; background: var(--accent); color: var(--on-accent);
   }
   .set-err { font-size: 12px; color: var(--loss); }
+  .set-forgot { display: block; margin-top: 6px; font-size: 12px; }
   .set-me { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--ink); }
   .set-me b { font-family: var(--serif); font-weight: 600; }
   .set-link {
@@ -12961,7 +12962,7 @@ O
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (d) {
           if (r.status === 401 && acct && path !== '/api/login') { acct = null; lsSet('acct', null); }
-          if (!r.ok) { var e = new Error(d.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+          if (!r.ok) { var e = new Error(d.error || ('HTTP ' + r.status)); e.status = r.status; e.retry = d.retry; throw e; }
           return d;
         });
       });
@@ -12981,9 +12982,26 @@ O
     if (!API_BASE || !acct) return;
     var p = picks[pickKey(sport, id)];
     if (!p) return;
-    api('POST', '/api/picks', {
-      sport: sport, id: id, side: p.side, when: p.when, home: p.home, away: p.away, league: p.league || ''
-    }).catch(function () {});
+    var data = { sport: sport, id: id, side: p.side, when: p.when, home: p.home, away: p.away, league: p.league || '' };
+    if (sport === 'f1') {
+      var names = podiumParse(p.side).map(f1KeyName);
+      if (names.every(Boolean)) data.ref = podiumSide(names);
+    }
+    api('POST', '/api/picks', data).catch(function () {});
+  }
+  /* A podium slot holds the app's own key for a driver (always Chinese);
+     the server settles from ESPN's results, which know them by name. The
+     name comes from wherever the key did: the standings, or a followed
+     driver. An empty slot stays empty. */
+  function f1KeyName(key) {
+    if (!key) return '';
+    var entries = ((((f1Cache.standings || {}).children || []).filter(function (c) {
+      return /driver/i.test(c.name || '');
+    })[0] || {}).standings || {}).entries || [];
+    var hit = entries.map(function (e) { return (e.athlete || {}).displayName || ''; })
+      .concat(favDrivers.map(function (f) { return f.name || ''; }))
+      .filter(function (n) { return n && f1DriverKey(n) === key; })[0];
+    return hit || '';
   }
   function settleSync(sport, id) {
     if (!API_BASE || !acct) return;
@@ -13044,6 +13062,9 @@ O
 
   /* ---- the settings sheet: language, account, push ---- */
   var setMode = 'login';
+  var feats = null;          // what the server offers: { mail }
+  var resetToken = null;     // from a reset mail's link
+  var resetSent = false;
   function settingsHTML(pushState) {
     var html = '<div class="set-box">' +
       '<div class="set-h">设置</div>' +
@@ -13054,9 +13075,23 @@ O
       '<div class="set-note">Mixed：界面用中文，队名、人名和赛事名用原文。</div>';
     if (API_BASE) {
       html += '<div class="set-k" style="margin-top:18px">账号</div>';
-      if (acct) {
+      if (setMode === 'reset') {
+        html += '<form class="set-form" autocomplete="on">' +
+          '<input type="password" name="password" placeholder="新密码（至少 8 位）" autocomplete="new-password" required>' +
+          '<button type="submit" class="set-go">设好新密码</button>' +
+          '<div class="set-err" hidden></div></form>' +
+          '<div class="set-note">设好后会直接登录，其他设备上的登录会退出。</div>';
+      } else if (acct) {
         html += '<div class="set-me"><b>' + esc(acct.nick) + '</b><button type="button" class="set-link" data-act="logout">退出登录</button></div>' +
           '<div class="set-note">你的预测会同步到排行榜。</div>';
+      } else if (setMode === 'forgot') {
+        html += resetSent
+          ? '<div class="set-note">如果这个邮箱注册过，重设链接已经发过去了，30 分钟内有效。没收到的话看看垃圾邮件。</div>'
+          : '<form class="set-form" autocomplete="on">' +
+            '<input type="email" name="email" placeholder="注册用的邮箱" autocomplete="email" required>' +
+            '<button type="submit" class="set-go">发送重设链接</button>' +
+            '<div class="set-err" hidden></div></form>';
+        html += '<button type="button" class="set-link set-forgot" data-mode="login">返回登录</button>';
       } else {
         html += '<div class="set-seg set-tabs"><button type="button" data-mode="login"' + (setMode === 'login' ? ' class="on"' : '') + '>登录</button>' +
           '<button type="button" data-mode="register"' + (setMode === 'register' ? ' class="on"' : '') + '>注册</button></div>' +
@@ -13066,6 +13101,7 @@ O
           (setMode === 'register' ? '<input type="text" name="nick" placeholder="昵称（2–16 个字）" maxlength="16" required>' : '') +
           '<button type="submit" class="set-go">' + (setMode === 'login' ? '登录' : '注册') + '</button>' +
           '<div class="set-err" hidden></div></form>' +
+          (setMode === 'login' && feats && feats.mail ? '<button type="button" class="set-link set-forgot" data-mode="forgot">忘记密码？</button>' : '') +
           '<div class="set-note">登录后，预测会进排行榜，赛后可以给球员打分。</div>';
       }
       html += '<div class="set-k" style="margin-top:18px">推送通知</div>';
@@ -13090,6 +13126,17 @@ O
       s.addEventListener('click', settingsClick);
       s.addEventListener('submit', settingsSubmit);
     }
+    // whether a reset link can be mailed, asked once; a slow answer only hides the link
+    if (!feats && API_BASE && !acct) {
+      api('GET', '/api/features').then(function (d) {
+        feats = d;
+        // added under the form rather than redrawn, so nothing typed is lost
+        var f = s.querySelector('.set-form');
+        if (d.mail && f && setMode === 'login' && !acct && !s.querySelector('.set-forgot')) {
+          f.insertAdjacentHTML('afterend', '<button type="button" class="set-link set-forgot" data-mode="forgot">忘记密码？</button>');
+        }
+      }).catch(function () {});
+    }
     pushSub().catch(function () { return null; }).then(function (sub) {
       s.innerHTML = settingsHTML(!!sub);
       s.hidden = false;
@@ -13108,7 +13155,7 @@ O
       return;
     }
     var m = t.closest('[data-mode]');
-    if (m) { setMode = m.dataset.mode; openSettings(); return; }
+    if (m) { setMode = m.dataset.mode; resetSent = false; openSettings(); return; }
     var a = t.closest('[data-act]');
     if (a) {
       var act = a.dataset.act;
@@ -13130,16 +13177,30 @@ O
       }
       return;
     }
-    if (t === s || t.closest('.set-done')) s.hidden = true;
+    if (t === s || t.closest('.set-done')) {
+      s.hidden = true;
+      // a reset not finished is not waiting next time the sheet opens
+      if (setMode === 'reset') { setMode = 'login'; resetToken = null; }
+    }
   }
   function settingsSubmit(e) {
     e.preventDefault();
     var f = e.target;
     var err = f.querySelector('.set-err');
-    var data = { email: f.email.value, password: f.password.value };
-    if (f.nick) data.nick = f.nick.value;
     f.querySelector('.set-go').disabled = true;
-    api('POST', setMode === 'login' ? '/api/login' : '/api/register', data).then(function (d) {
+    if (setMode === 'forgot') {
+      api('POST', '/api/reset/request', { email: f.email.value, lang: LANG }).then(function () {
+        resetSent = true;
+        openSettings();
+      }).catch(failed);
+      return;
+    }
+    var data = setMode === 'reset' ? { token: resetToken, password: f.password.value }
+      : { email: f.email.value, password: f.password.value };
+    if (f.nick) data.nick = f.nick.value;
+    var path = { login: '/api/login', register: '/api/register', reset: '/api/reset/confirm' }[setMode];
+    api('POST', path, data).then(function (d) {
+      if (setMode === 'reset') { resetToken = null; setMode = 'login'; }
       acct = { token: d.token, nick: d.nick };
       lsSet('acct', acct);
       pushSync();
@@ -13149,17 +13210,35 @@ O
         if (!p.result && Date.parse(p.when) > Date.now()) pickSync(p.sport, k.slice(p.sport.length + 1));
       });
       openSettings();
-    }).catch(function (x) {
-      var msg = {
+    }).catch(failed);
+    function failed(x) {
+      var msg = x.message === 'too many attempts' ? '试的次数太多了，' + (x.retry || 15) + ' 分钟后再试。' : {
         'wrong email or password': '邮箱或密码不对。', 'email taken': '这个邮箱已经注册过了，直接登录就行。',
         'nick taken': '这个昵称有人用了，换一个。', email: '邮箱格式不对。', nick: '昵称要 2 到 16 个字。',
-        password: '密码至少 8 位。'
+        password: '密码至少 8 位。', 'reset expired': '这个链接已经失效了（超过 30 分钟，或者已经用过），重新申请一个。',
+        'mail off': '找回密码暂时还没开通。'
       }[x.message] || '没连上服务器，稍后再试。';
       err.textContent = msg;
       err.hidden = false;
       f.querySelector('.set-go').disabled = false;
-    });
+      // a dead link can only be replaced: one tap to ask for another
+      if (x.message === 'reset expired') {
+        resetToken = null;
+        err.insertAdjacentHTML('beforeend', ' <button type="button" class="set-link" data-mode="forgot">重新申请</button>');
+      }
+    }
   }
+
+  /* The reset mail's link lands here. Its token is taken out of the address
+     at once, so it is in neither the history nor a shared screenshot. */
+  (function () {
+    var m = /[?&]reset=([\w-]+)/.exec(location.search);
+    if (!m || !API_BASE) return;
+    resetToken = m[1];
+    history.replaceState(null, '', location.pathname + location.search.replace(/[?&]reset=[\w-]+/, '').replace(/^&/, '?') + location.hash);
+    setMode = 'reset';
+    openSettings();
+  })();
 
   /* ---- the leaderboard ---- */
   var lbPeriod = 'all';
@@ -13193,7 +13272,7 @@ O
         }).join('') + '</div>' : '<div class="cmp-none">还没有人进榜：至少结算 3 个预测才上榜。</div>') +
         (me ? '<div class="set-note">你：' + (me.total ? me.hits + ' / ' + me.total + ' 命中' : '还没有结算的预测') + '</div>'
           : '<div class="set-note">登录后你的预测也会进榜：右上角 ⚙ → 账号。</div>') +
-        '<div class="set-note">足球和 NBA 由服务器按 ESPN 赛果核对，其他项目按 app 结算。</div>' +
+        '<div class="set-note">足球、NBA、F1 和电竞由服务器按官方赛果核对，其他项目按 app 结算。</div>' +
         '<button type="button" class="set-done">关闭</button></div>';
     }).catch(function () {
       s.innerHTML = '<div class="set-box lb-box"><div class="set-h">预测排行榜</div><div class="cmp-none">排行榜没取到，稍后再试。</div>' +

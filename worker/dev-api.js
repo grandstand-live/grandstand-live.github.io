@@ -7,7 +7,11 @@
      // then:
      await import('/worker/dev-api.js');
 
-   Everything is lost on reload, and nothing here is used by the live site. */
+   Everything is lost on reload, and nothing here is used by the live site.
+   To try the password reset, turn mail on; mails land in devApi.mails:
+
+     devApi.env.RESEND_KEY = 'dev';
+*/
 await new Promise((res, rej) => {
   const s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js';
@@ -38,9 +42,11 @@ const DB = {
 const src = await (await fetch('/worker/worker.js?' + Date.now())).text();
 const W = (await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })))).default;
 const realFetch = window.fetch.bind(window);
-const calls = [];
+const calls = [], mails = [];
+const env = { DB };
 window.fetch = async (url, opts = {}) => {
   const u = String((url && url.url) || url);
+  if (u.startsWith('https://api.resend.com/')) { mails.push(JSON.parse(opts.body)); return new Response('{"id":"dev"}'); }
   if (!u.startsWith('https://api.test')) return realFetch(url, opts);
   calls.push((opts.method || 'GET') + ' ' + u.slice('https://api.test'.length));
   const req = new Request(u, {
@@ -48,9 +54,9 @@ window.fetch = async (url, opts = {}) => {
     headers: Object.assign({ Origin: location.origin }, opts.headers),
     body: opts.body
   });
-  return W.fetch(req, { DB }, { waitUntil() {} });
+  return W.fetch(req, env, { waitUntil() {} });
 };
 // an account left over from an earlier session means nothing to this database
 localStorage.removeItem('acct');
-window.devApi = { db, calls, worker: W, env: { DB } };
+window.devApi = { db, calls, mails, worker: W, env };
 export default window.devApi;

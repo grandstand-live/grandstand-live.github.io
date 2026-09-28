@@ -1707,6 +1707,56 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- LoL: a game's numbers, the gold line, a team's page ---- */
+  tr[data-lolt], [data-lolt] { cursor: pointer; }
+  .lg-head { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+  .lg-side { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; }
+  .lg-side.red { flex-direction: row-reverse; }
+  .lg-side b { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+  .lg-side .tag { font-size: 10.5px; }
+  .lg-k { margin-left: auto; font-family: var(--narrow); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lg-side.red .lg-k { margin-left: 0; margin-right: auto; }
+  .lg-side.blue .lg-k { color: var(--ser-a); }
+  .lg-side.red .lg-k { color: var(--loss); }
+  .lg-mid { flex: 0 0 auto; text-align: center; }
+  .lg-clock { font-family: var(--narrow); font-weight: 700; font-size: 14px; color: var(--ink); }
+  .lg-state { font-size: 11px; color: var(--muted); }
+  .lg-obj { margin: 2px 0 6px; }
+  .lg-o { display: grid; grid-template-columns: 1fr 64px 1fr; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--hairline); }
+  .lg-o span { font-family: var(--narrow); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .lg-o span:last-child { text-align: right; }
+  .lg-o span.hi { color: var(--ink); }
+  .lg-o .k { font-family: var(--display); font-weight: 400; font-size: 11.5px; text-align: center; color: var(--muted); }
+  .lg-drag { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; font-size: 11.5px; color: var(--ink-2); margin-bottom: 6px; }
+  .lg-drag span:last-child { text-align: right; }
+  .lg-drag .k { color: var(--muted); }
+  .lg-gold { margin: 4px 0 10px; }
+  .lg-ab { fill: var(--ser-a); opacity: .35; }
+  .lg-ar { fill: var(--loss); opacity: .35; }
+  .nf-key .lg-b { background: var(--ser-a); }
+  .nf-key .lg-r { background: var(--loss); }
+  .lg-pr { border-top: 1px solid var(--hairline); padding: 6px 0; }
+  .lg-role { font-family: var(--narrow); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; color: var(--muted); margin-bottom: 4px; }
+  .lg-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lp { display: flex; gap: 7px; min-width: 0; }
+  .lp-c { flex: 0 0 auto; width: 32px; height: 32px; position: relative; border-radius: 4px; overflow: hidden; background: var(--surface); }
+  .lp-c img { width: 100%; height: 100%; display: block; }
+  .lp-c i { position: absolute; right: 0; bottom: 0; font-style: normal; font-family: var(--narrow); font-size: 9px; font-weight: 700; color: white; background: rgba(0,0,0,.65); padding: 0 2px; border-top-left-radius: 3px; }
+  .lp-m { flex: 1; min-width: 0; }
+  .lp-n { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+  .lp-n b { font-size: 12.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lp-n span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lp-s { display: flex; flex-wrap: wrap; gap: 0 7px; font-size: 11px; color: var(--ink-2); }
+  .lp-s b { font-family: var(--narrow); color: var(--ink); }
+  .lp-i { display: flex; gap: 2px; margin-top: 3px; }
+  .lp-i img { width: 16px; height: 16px; border-radius: 2px; }
+  .lt-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .lt-p { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; padding: 8px 4px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; }
+  .lt-ph { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; position: relative; background: var(--surface-2); }
+  .lt-ph svg, .lt-ph img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .lt-ph img { object-fit: cover; object-position: top; }
+  .lt-p b { font-size: 13px; color: var(--ink); }
+  .lt-p span { font-size: 11px; color: var(--muted); }
   /* ---- UFC: the fighter page, the card's parts ---- */
   [data-ufcf] { cursor: pointer; }
   .fnm[data-ufcf]:hover, .rnm[data-ufcf]:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -5113,7 +5163,7 @@
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
       f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
-      ufcFighter: ufcFighterPageHTML })[top.type](top).then(function (html) {
+      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -11970,7 +12020,7 @@ O
         var who = side === 'a' ? (a.acronym || a.name)
           : side === 'b' ? (b.acronym || b.name) : '—';
         return '<div class="map-line">' +
-          '<span class="map-no">第 ' + esc(g.pos || '?') + ' 图</span>' +
+          '<span class="map-no">第 ' + esc(g.pos || '?') + ' 图' + (g.map ? ' · ' + esc(g.map) : '') + '</span>' +
           '<span class="map-win ' + side + '">' + esc(who) + '</span>' +
           '<span class="map-len">' + (g.length ? Math.round(g.length / 60) + ' 分钟' : '') +
           '</span></div>';
@@ -12541,13 +12591,365 @@ O
       list.filter(function (v) { return /en/i.test(v.locale || ''); })[0] || list[0];
   }
 
-  function lolDetail(btn) {
-    var next = btn.nextElementSibling;
-    if (next && next.classList.contains('detail')) { next.remove(); return; }
-    var box = document.createElement('div');
-    box.className = 'detail';
-    box.innerHTML = '<div class="skeleton" style="padding:12px 0">正在获取比赛详情…</div>';
-    btn.parentNode.insertBefore(box, btn.nextSibling);
+  /* ---------- LoL: every game's numbers, the gold line, live, a team's page ----------
+     Riot's livestats feed answers for any moment of any game, finished or
+     not: each call gives about ten seconds of frames from the time asked
+     for. Champions and items come from Data Dragon. */
+  var LOL_FEED = 'https://feed.lolesports.com/livestats/v1/';
+  var DDRAGON = 'https://ddragon.leagueoflegends.com/';
+  function lolDD() {
+    if (lolCache.dd) return lolCache.dd;
+    lolCache.dd = fetch(DDRAGON + 'api/versions.json').then(function (r) { return r.json(); }).then(function (v) {
+      var ver = v[0];
+      return fetch(DDRAGON + 'cdn/' + ver + '/data/' + (LANG === 'en' ? 'en_US' : 'zh_CN') + '/champion.json')
+        .then(function (r) { return r.json(); }).then(function (c) {
+          var names = {};
+          // in zh_CN, `name` is the epithet (机械公敌) and `title` the name fans use (兰博)
+          Object.keys(c.data || {}).forEach(function (k) { var x = c.data[k]; names[k] = LANG === 'en' ? x.name : (x.title || x.name); });
+          return { ver: ver, names: names };
+        });
+    }).catch(function () { delete lolCache.dd; return { ver: '', names: {} }; });
+    return lolCache.dd;
+  }
+  // the league's image links are http; the site is https, so ask for the same file securely
+  function lolHttps(u) { return String(u || '').replace(/^http:\/\//, 'https://'); }
+  function lolChampImg(dd, id) { return dd.ver ? DDRAGON + 'cdn/' + dd.ver + '/img/champion/' + id + '.png' : ''; }
+  function lolItemImg(dd, id) { return dd.ver ? DDRAGON + 'cdn/' + dd.ver + '/img/item/' + id + '.png' : ''; }
+  // the feed takes a start time on a ten-second boundary
+  function lolTen(t) { return new Date(Math.floor(t / 10000) * 10000).toISOString().replace(/\.\d+Z$/, '.000Z'); }
+  function lolFeed(kind, gid, t) {
+    return fetch(LOL_FEED + kind + '/' + gid + (t ? '?startingTime=' + lolTen(t) : ''))
+      .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+  // a handful at a time, so a phone is not asked for twenty at once
+  function lolPool(list, n, fn) {
+    var i = 0;
+    function next() { if (i >= list.length) return Promise.resolve(); var x = list[i++]; return fn(x).then(next, next); }
+    var runs = [];
+    for (var k = 0; k < n; k++) runs.push(next());
+    return Promise.all(runs);
+  }
+
+  /* One game: who played what, the score every two minutes for the gold
+     line, and the last frame. A finished game is kept whole; one still on
+     keeps its sampled points and asks only for what is new. */
+  function lolGameData(gid) {
+    var had = lolCache['g' + gid];
+    if (had && had.done) return Promise.resolve(had);
+    return (had ? Promise.resolve({ meta: had.meta, T0: had.T0 }) : lolFeed('window', gid).then(function (w0) {
+      var f = (w0 && w0.frames) || [];
+      if (!f.length) return null;
+      return { meta: w0.gameMetadata || {}, T0: Date.parse(f[0].rfc460Timestamp) };
+    })).then(function (g) {
+      if (!g) return null;
+      // past the end the feed answers with the last frames; while on, a minute behind now
+      return lolFeed('window', gid, Math.min(Date.now() - 60000, g.T0 + 100 * 60000)).then(function (wf) {
+        var ff = (wf && wf.frames) || [];
+        var last = ff[ff.length - 1];
+        if (!last) return had || null;
+        var T1 = Date.parse(last.rfc460Timestamp);
+        var pts = had ? had.pts.slice() : [];
+        var have = {};
+        pts.forEach(function (p) { have[p.k] = 1; });
+        var ks = [];
+        for (var k = 1; g.T0 + k * 120000 < T1; k++) if (!have[k]) ks.push(k);
+        return lolPool(ks, 6, function (k) {
+          return lolFeed('window', gid, g.T0 + k * 120000).then(function (w) {
+            var f = w && w.frames && w.frames[0];
+            if (f) pts.push({ k: k, t: Date.parse(f.rfc460Timestamp) - g.T0, b: f.blueTeam, r: f.redTeam });
+          });
+        }).then(function () {
+          return lolFeed('details', gid, T1 - 5000);
+        }).then(function (d) {
+          var df = (d && d.frames) || [];
+          var out = {
+            meta: g.meta, T0: g.T0, T1: T1, done: last.gameState === 'finished', last: last,
+            pts: pts.sort(function (x, y) { return x.t - y.t; }),
+            players: ((df[df.length - 1] || {}).participants) || []
+          };
+          lolCache['g' + gid] = out;
+          return out;
+        });
+      });
+    });
+  }
+
+  // who won a game the feed has finished: the one who took more inhibitors, then towers, then gold
+  function lolGameWinner(g) {
+    if (!g || !g.done) return '';
+    var b = g.last.blueTeam || {}, r = g.last.redTeam || {};
+    var d = (b.inhibitors || 0) - (r.inhibitors || 0) || (b.towers || 0) - (r.towers || 0) || (b.totalGold || 0) - (r.totalGold || 0);
+    return d > 0 ? 'blue' : d < 0 ? 'red' : '';
+  }
+  var DRAGON_CN = { mountain: '山脉', chemtech: '化学科技', ocean: '海洋', cloud: '云端', infernal: '炼狱', hextech: '海克斯科技', elder: '远古' };
+  var ROLE_CN = { top: '上单', jungle: '打野', mid: '中单', bottom: '下路', support: '辅助' };
+  function lolClock(ms) { var s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function lolK(n) { return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n || 0); }
+
+  function lolGameHTML(g, teams, dd, trust) {
+    var bm = g.meta.blueTeamMetadata || {}, rm = g.meta.redTeamMetadata || {};
+    function team(id) { return teams.filter(function (t) { return String(t.id) === String(id); })[0] || {}; }
+    var bt = team(bm.esportsTeamId), rt = team(rm.esportsTeamId);
+    var b = g.last.blueTeam || {}, r = g.last.redTeam || {};
+    var win = trust ? lolGameWinner(g) : '';
+    function side(t, s, cls) {
+      return '<div class="lg-side ' + cls + (win === cls ? ' win' : '') + '">' +
+        (t.image ? '<img class="crest" src="' + esc(lolHttps(t.image)) + '" alt="" style="width:26px;height:26px">' : '') +
+        '<b data-lolt="' + esc(t.id || '') + '">' + esc(t.code || (cls === 'blue' ? '蓝色方' : '红色方')) + '</b>' +
+        (win === cls ? '<span class="tag">胜</span>' : '') + '<span class="lg-k">' + (s.totalKills || 0) + '</span></div>';
+    }
+    // one line an objective, blue on the left and red on the right, the bigger number in ink
+    function obj(label, bv, rv, show) {
+      var bn = Number(bv) || 0, rn = Number(rv) || 0;
+      return '<div class="lg-o"><span class="' + (bn > rn ? 'hi' : '') + '">' + esc(show ? show(bv) : bv) + '</span>' +
+        '<span class="k">' + label + '</span><span class="' + (rn > bn ? 'hi' : '') + '">' + esc(show ? show(rv) : rv) + '</span></div>';
+    }
+    var html = '<div class="lg-head">' + side(bt, b, 'blue') +
+      '<div class="lg-mid"><div class="lg-clock">' + lolClock(g.T1 - g.T0) + '</div><div class="lg-state">' + (g.done ? '已结束' : '进行中') + '</div></div>' +
+      side(rt, r, 'red') + '</div>' +
+      '<div class="lg-obj">' + obj('经济', b.totalGold || 0, r.totalGold || 0, lolK) + obj('推塔', b.towers || 0, r.towers || 0) +
+      obj('水晶', b.inhibitors || 0, r.inhibitors || 0) + obj('大龙', b.barons || 0, r.barons || 0) +
+      obj('小龙', (b.dragons || []).length, (r.dragons || []).length) + '</div>';
+    var drag = function (s) {
+      return (s.dragons || []).map(function (x) { return LANG === 'en' ? x : (DRAGON_CN[x] || x); }).join('、');
+    };
+    if ((b.dragons || []).length || (r.dragons || []).length) {
+      html += '<div class="lg-drag"><span>' + esc(drag(b) || '—') + '</span><span class="k">小龙</span><span>' + esc(drag(r) || '—') + '</span></div>';
+    }
+
+    // the gold difference over the game, blue above the line
+    var pts = [{ t: 0, d: 0 }].concat(g.pts.map(function (p) {
+      return { t: p.t, d: ((p.b || {}).totalGold || 0) - ((p.r || {}).totalGold || 0) };
+    })).concat([{ t: g.T1 - g.T0, d: (b.totalGold || 0) - (r.totalGold || 0) }]);
+    if (pts.length >= 4) {
+      var W = 320, H = 110, L = 30, R = 6, T = 8, B = 16, span = pts[pts.length - 1].t || 1;
+      var M = Math.max(2000, Math.ceil(Math.max.apply(null, pts.map(function (p) { return Math.abs(p.d); })) / 2000) * 2000);
+      var mid = T + (H - T - B) / 2, half = (H - T - B) / 2;
+      var X = function (t) { return L + t / span * (W - L - R); }, Y = function (d) { return mid - d / M * half; };
+      var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.d).toFixed(1); }).join('');
+      var area = line + 'L' + X(span).toFixed(1) + ' ' + mid.toFixed(1) + 'L' + L + ' ' + mid.toFixed(1) + 'Z';
+      var cid = 'lg' + String(g.T0);
+      var ticks = '';
+      for (var m = 10; m * 60000 < span; m += 10) {
+        ticks += '<line class="nf-q" x1="' + X(m * 60000).toFixed(1) + '" x2="' + X(m * 60000).toFixed(1) + '" y1="' + T + '" y2="' + (H - B) + '"/>' +
+          '<text class="nf-ax" x="' + X(m * 60000).toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle">' + m + '′</text>';
+      }
+      html += '<div class="lg-gold"><div class="nf-key"><span><i class="lg-b"></i>' + esc(bt.code || '蓝色方') + (LANG === 'en' ? ' ahead on gold' : '经济领先') + '</span>' +
+        '<span><i class="lg-r"></i>' + esc(rt.code || '红色方') + '经济领先</span></div>' +
+        '<svg class="nf-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="经济差">' +
+        '<defs><clipPath id="' + cid + 'b"><rect x="0" y="0" width="' + W + '" height="' + mid.toFixed(1) + '"/></clipPath>' +
+        '<clipPath id="' + cid + 'r"><rect x="0" y="' + mid.toFixed(1) + '" width="' + W + '" height="' + (H - mid).toFixed(1) + '"/></clipPath></defs>' +
+        ticks + '<line class="nf-zero" x1="' + L + '" x2="' + (W - R) + '" y1="' + mid.toFixed(1) + '" y2="' + mid.toFixed(1) + '"/>' +
+        '<path class="lg-ab" d="' + area + '" clip-path="url(#' + cid + 'b)"/><path class="lg-ar" d="' + area + '" clip-path="url(#' + cid + 'r)"/>' +
+        '<path class="nf-line" d="' + line + '"/>' +
+        '<text class="nf-ax" x="' + (L - 4) + '" y="' + (T + 7) + '" text-anchor="end">+' + (M / 1000) + 'k</text>' +
+        '<text class="nf-ax" x="' + (L - 4) + '" y="' + (H - B - 2) + '" text-anchor="end">+' + (M / 1000) + 'k</text></svg>' +
+        '<div class="fl-note">每 2 分钟取一个点。</div></div>';
+    }
+
+    // the ten who played, side by side in their roles
+    var byId = {};
+    (g.players || []).forEach(function (p) { byId[p.participantId] = p; });
+    function row(pm) {
+      var p = byId[pm.participantId] || {};
+      var champ = dd.names[pm.championId] || pm.championId || '';
+      var items = (p.items || []).filter(Boolean).slice(0, 7);
+      var name = String(pm.summonerName || '').replace(/^\S+\s/, '');   // "GEN Chovy" → "Chovy"
+      return '<div class="lp"><span class="lp-c"><img alt="" loading="lazy" src="' + esc(lolChampImg(dd, pm.championId)) + '" onerror="this.remove()">' +
+        '<i>' + esc(p.level || '') + '</i></span><div class="lp-m"><div class="lp-n"><b>' + esc(name) + '</b><span>' + esc(champ) + '</span></div>' +
+        '<div class="lp-s"><b>' + (p.kills || 0) + '/' + (p.deaths || 0) + '/' + (p.assists || 0) + '</b><span>补刀 ' + (p.creepScore || 0) + '</span>' +
+        '<span>' + lolK(p.totalGoldEarned) + '</span>' +
+        (p.championDamageShare ? '<span>伤害 ' + Math.round(p.championDamageShare * 100) + '%</span>' : '') + '</div>' +
+        (items.length ? '<div class="lp-i">' + items.map(function (x) { return '<img alt="" loading="lazy" src="' + esc(lolItemImg(dd, x)) + '" onerror="this.remove()">'; }).join('') + '</div>' : '') +
+        '</div></div>';
+    }
+    var bp = bm.participantMetadata || [], rp = rm.participantMetadata || [];
+    if (bp.length && rp.length) {
+      html += '<div class="lg-pl">' + bp.map(function (pm, i) {
+        var other = rp.filter(function (x) { return x.role === pm.role; })[0] || rp[i] || {};
+        return '<div class="lg-pr"><div class="lg-role">' + esc(LANG === 'en' ? pm.role : (ROLE_CN[pm.role] || pm.role)) + '</div>' +
+          '<div class="lg-two">' + row(pm) + row(other) + '</div></div>';
+      }).join('') + '</div>';
+    }
+    return html;
+  }
+
+  var lolGameTab = {};
+  // the games of a match as tabs, the chosen one drawn under them
+  function lolGamesHTML(m) {
+    var games = (m.games || []).filter(function (g) { return g.state === 'completed' || g.state === 'inProgress'; });
+    if (!games.length) return '';
+    var on = lolGameTab[m.id] || (games.filter(function (g) { return g.state === 'inProgress'; })[0] || games[games.length - 1]).id;
+    return '<h4>每局数据</h4><div class="lolg" data-match="' + esc(m.id) + '"><div class="rnd-tabs">' + games.map(function (g) {
+      return '<button type="button" class="rnd-tab' + (String(g.id) === String(on) ? ' on' : '') + '" data-lolg="' + esc(g.id) + '">第 ' + esc(g.number) +
+        ' 局' + (g.state === 'inProgress' ? ' · 进行中' : '') + '</button>';
+    }).join('') + '</div><div class="lolg-body"><div class="skeleton" style="padding:10px 0">正在读取这一局…</div></div></div>';
+  }
+  function lolGamesFill(box, m) {
+    var host = box.querySelector('.lolg');
+    if (!host) return;
+    var on = host.querySelector('.rnd-tab.on');
+    var gid = on && on.dataset.lolg;
+    if (!gid) return;
+    var body = host.querySelector('.lolg-body');
+    // the winners are only drawn when they add up to the match score
+    var teams = m.teams || [];
+    var ends = (m.games || []).filter(function (g) { return g.state === 'completed'; }).map(function (g) { return lolGameEnd(g.id); });
+    Promise.all([lolGameData(gid), lolDD(), Promise.all(ends)]).then(function (r) {
+      if (!body.isConnected || host.querySelector('.rnd-tab.on') !== on) return;
+      if (!r[0]) { body.innerHTML = '<div class="cmp-none">这一局的数据暂时没取到。</div>'; return; }
+      var trust = lolTrust(m);
+      body.innerHTML = lolGameHTML(r[0], teams, r[1], trust);
+    });
+  }
+  /* The feed never says who won a game. The inhibitor count says it almost
+     always; a surrendered game can fool it, so the calls are only shown
+     when every finished game is in the cache and they add up to the score. */
+  function lolTrust(m) {
+    var wins = {};
+    var done = (m.games || []).filter(function (g) { return g.state === 'completed'; });
+    var ok = done.every(function (g) {
+      var d = lolCache['g' + g.id] || lolCache['e' + g.id];
+      if (!d || !d.done) return false;
+      var w = lolGameWinner(d), meta = d.meta || {};
+      var id = w === 'blue' ? (meta.blueTeamMetadata || {}).esportsTeamId : w === 'red' ? (meta.redTeamMetadata || {}).esportsTeamId : null;
+      if (!id) return false;
+      wins[id] = (wins[id] || 0) + 1;
+      return true;
+    });
+    return ok && (m.teams || []).every(function (t) { return (wins[t.id] || 0) === ((t.result || {}).gameWins || 0); });
+  }
+  // just a game's last frame: two calls, enough to check who won it
+  function lolGameEnd(gid) {
+    var g = lolCache['g' + gid] || lolCache['e' + gid];
+    if (g && g.done) return Promise.resolve(g);
+    return lolFeed('window', gid).then(function (w0) {
+      var f = (w0 && w0.frames) || [];
+      if (!f.length) return null;
+      var meta = w0.gameMetadata || {}, T0 = Date.parse(f[0].rfc460Timestamp);
+      return lolFeed('window', gid, Math.min(Date.now() - 60000, T0 + 100 * 60000)).then(function (wf) {
+        var ff = (wf && wf.frames) || [], last = ff[ff.length - 1];
+        if (!last) return null;
+        var out = { meta: meta, T0: T0, last: last, done: last.gameState === 'finished' };
+        if (out.done) lolCache['e' + gid] = out;
+        return out;
+      });
+    });
+  }
+
+  /* ---- live: the open detail of a match on keeps itself current ---- */
+  var lolLive = null;
+  function lolWatch(btn, box) {
+    if (lolLive) clearInterval(lolLive);
+    lolLive = setInterval(function () {
+      if (!box.isConnected || sport !== 'esports') { clearInterval(lolLive); lolLive = null; return; }
+      if (document.hidden) return;
+      var path = 'getEventDetails?hl=' + (LANG === 'en' ? 'en-US' : 'zh-CN') + '&id=' + btn.dataset.lolm;
+      delete lolCache[path];
+      lolDetail(btn, box);
+    }, 30000);
+  }
+
+  /* ---- a team's page ---- */
+  function lolTeamPageHTML(pg) {
+    return lolGet('getTeams?hl=zh-CN&id=' + encodeURIComponent(pg.id)).then(function (d) {
+      var t = (((d || {}).data || {}).teams || [])[0];
+      if (!t) return null;
+      // its own league's schedule, for the results, unless it is already in hand
+      var lgName = t.homeLeague && t.homeLeague.name;
+      return lolGet('getLeagues?hl=zh-CN').then(function (l) {
+        var lg = ((((l || {}).data || {}).leagues) || []).filter(function (x) { return x.name === lgName; })[0];
+        return lg ? lolGet('getSchedule?hl=zh-CN&leagueId=' + lg.id) : null;
+      }).then(function () { return t; }, function () { return t; });
+    }).then(function (t) {
+      if (!t) return '<div class="err">战队资料没取到，返回再点一次试试。</div>';
+      var fav = favLol.some(function (f) { return f.code === t.code; });
+      var html = '<div class="pg-head">' + (t.image ? '<img class="crest" src="' + esc(lolHttps(t.image)) + '" alt="" style="width:56px;height:56px">' : '') +
+        '<div class="pg-hd"><div class="pg-name">' + esc(t.name || t.code) + '</div>' +
+        '<div class="pg-sub">' + esc([t.code, t.homeLeague && t.homeLeague.name, t.homeLeague && t.homeLeague.region].filter(Boolean).join(' · ')) + '</div></div>' +
+        '<button type="button" class="pg-fav' + (fav ? ' on' : '') + '" data-fav-lol="' + esc(t.code) + '" data-name="' + esc(t.name || '') + '" data-img="' + esc(t.image || '') + '">' +
+        (fav ? '已关注' : '关注') + '</button></div>';
+      var order = ['top', 'jungle', 'mid', 'bottom', 'support'];
+      var players = (t.players || []).slice().sort(function (a, b) {
+        return (order.indexOf(a.role) + 1 || 9) - (order.indexOf(b.role) + 1 || 9);
+      });
+      if (players.length) {
+        html += '<div class="f1-h">阵容</div><div class="lt-roster">' + players.map(function (p) {
+          return '<div class="lt-p"><span class="lt-ph">' + PS_FACE + (p.image ? '<img alt="" loading="lazy" src="' + esc(lolHttps(p.image)) + '" onerror="this.remove()">' : '') + '</span>' +
+            '<b>' + esc(p.summonerName || '') + '</b><span>' + esc(LANG === 'en' ? p.role : (ROLE_CN[p.role] || p.role || '')) +
+            (p.firstName || p.lastName ? ' · ' + esc([p.firstName, p.lastName].filter(Boolean).join(' ')) : '') + '</span></div>';
+        }).join('') + '</div>';
+      }
+      // results and fixtures from whichever schedules are already in hand
+      var past = [], next = [];
+      Object.keys(lolCache).forEach(function (k) {
+        if (k.indexOf('getSchedule') !== 0) return;
+        ((((lolCache[k] || {}).data || {}).schedule || {}).events || []).forEach(function (e) {
+          if (e.type !== 'match' || !e.match) return;
+          var ts = e.match.teams || [];
+          var me = ts.filter(function (x) { return x.code === t.code; })[0];
+          if (!me) return;
+          var op = ts.filter(function (x) { return x !== me; })[0] || {};
+          (e.state === 'completed' ? past : next).push({ e: e, me: me, op: op });
+        });
+      });
+      function uniq(list) { var seen = {}; return list.filter(function (x) { var k = x.e.match.id; if (seen[k]) return false; seen[k] = 1; return true; }); }
+      past = uniq(past).sort(function (a, b) { return new Date(b.e.startTime) - new Date(a.e.startTime); }).slice(0, 8);
+      next = uniq(next).sort(function (a, b) { return new Date(a.e.startTime) - new Date(b.e.startTime); }).slice(0, 3);
+      function row(x) {
+        var d = new Date(x.e.startTime), done = x.e.state === 'completed';
+        var res = done ? ((x.me.result || {}).outcome === 'win' ? 'W' : 'L') : '';
+        return '<div class="pg-ev"><span class="pg-d">' + (isNaN(d) ? '' : esc(fmtDay(d))) + '</span>' +
+          (x.op.image ? '<img class="crest" src="' + esc(lolHttps(x.op.image)) + '" alt="" style="width:16px;height:16px">' : '') +
+          '<span class="pg-op">' + esc(x.op.code || x.op.name || '') + '</span>' +
+          (done ? '<span class="pg-sc">' + esc((x.me.result || {}).gameWins) + '-' + esc((x.op.result || {}).gameWins) + '</span><span class="f ' + res + '">' + res + '</span>'
+            : '<span class="pg-sc muted">' + (isNaN(d) ? '' : fmtTime(d)) + '</span>') + '</div>';
+      }
+      if (past.length) html += '<div class="f1-h">近期赛果</div><div class="card pg-card">' + past.map(row).join('') + '</div>';
+      if (next.length) html += '<div class="f1-h">接下来</div><div class="card pg-card">' + next.map(row).join('') + '</div>';
+      return html;
+    });
+  }
+  function toggleFavLol(btn) {
+    var code = btn.dataset.favLol;
+    var on = favLol.some(function (f) { return f.code === code; });
+    if (on) favLol = favLol.filter(function (f) { return f.code !== code; });
+    else {
+      if (favLol.length >= MAX_LOL) { alert('最多只能选 ' + MAX_LOL + ' 支战队。'); return; }
+      favLol.push({ code: code, name: btn.dataset.name, image: btn.dataset.img });
+    }
+    lsSet('favLol', favLol);
+    btn.classList.toggle('on', !on);
+    btn.textContent = on ? '关注' : '已关注';
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-lolg], [data-lolt], [data-fav-lol]');
+    if (!el) return;
+    if (el.dataset.lolg) {
+      var host = el.closest('.lolg');
+      lolGameTab[host.dataset.match] = el.dataset.lolg;
+      [].forEach.call(host.querySelectorAll('[data-lolg]'), function (b) { b.classList.toggle('on', b === el); });
+      host.querySelector('.lolg-body').innerHTML = '<div class="skeleton" style="padding:10px 0">正在读取这一局…</div>';
+      var box = host.closest('.detail');
+      if (box && box._lolMatch) lolGamesFill(box, box._lolMatch);
+      return;
+    }
+    if (el.dataset.favLol) { toggleFavLol(el); return; }
+    if (el.dataset.lolt) { e.stopPropagation(); pgOpen({ type: 'lolTeam', id: el.dataset.lolt }); }
+  }, true);
+
+  function lolDetail(btn, keep) {
+    // a live refresh fills the open detail where it stands; a tap opens or closes one
+    var box = keep;
+    if (!box) {
+      var next = btn.nextElementSibling;
+      if (next && next.classList.contains('detail')) { next.remove(); return; }
+      box = document.createElement('div');
+      box.className = 'detail';
+      box.innerHTML = '<div class="skeleton" style="padding:12px 0">正在获取比赛详情…</div>';
+      btn.parentNode.insertBefore(box, btn.nextSibling);
+    }
 
     lolGet('getEventDetails?hl=zh-CN&id=' + btn.dataset.lolm).then(function (d) {
       if (!box.isConnected) return;
@@ -12587,7 +12989,7 @@ O
       var recRows = teams.map(function (t) {
         var r = t.record;
         if (!r) return '';
-        return '<div class="kv"><span class="k">' + esc(t.code) + '</span><span>赛季战绩 ' +
+        return '<div class="kv"><span class="k"><button type="button" class="tlink" data-lolt="' + esc(t.id || '') + '">' + esc(t.code) + '</button></span><span>赛季战绩 ' +
           esc(r.wins) + ' 胜 ' + esc(r.losses) + ' 负' +
           (t.result ? ' · 本场 ' + esc(t.result.gameWins) + ' 分' : '') + '</span></div>';
       }).filter(Boolean).join('');
@@ -12645,6 +13047,7 @@ O
               : '<span class="gvod" style="color:var(--muted)">暂无回放</span>') + '</div>';
         }).join('') + '</div>';
       }
+      html += lolGamesHTML(m);
 
       var streams = ev.streams || [];
       if (streams.length && ev.state !== 'completed') {
@@ -12682,6 +13085,14 @@ O
         codesTxt + ' ' + lgTxt + ' 集锦 ' + (isNaN(lolDate) ? '' : dayCN(lolDate)), '比赛回放');
 
       box.innerHTML = html || '<div class="kv"><span>这场比赛暂时没有更多资料。</span></div>';
+      box._lolMatch = m;
+      lolGamesFill(box, m);
+      var sc = btn.querySelector('.score');
+      if (sc && teams.length === 2 && teams[0].result && teams[1].result) {
+        sc.innerHTML = esc(teams[0].result.gameWins || 0) + ' <span style="color:var(--muted)">-</span> ' + esc(teams[1].result.gameWins || 0);
+      }
+      var on = ev.state === 'inProgress' || (m.games || []).some(function (g) { return g.state === 'inProgress'; });
+      if (on) lolWatch(btn, box);
     });
   }
 
@@ -12725,7 +13136,7 @@ O
                 return (r.teams || []).map(function (tm) {
                   var rec = tm.record || {};
                   var fav = favCodes.indexOf(tm.code) !== -1 ? ' fav' : '';
-                  return '<tr class="' + (r.ordinal <= 2 ? 'z-top' : '') + fav + '">' +
+                  return '<tr class="' + (r.ordinal <= 2 ? 'z-top' : '') + fav + '"' + (tm.id ? ' data-lolt="' + esc(tm.id) + '"' : '') + '>' +
                     '<td class="rk">' + esc(r.ordinal) + '</td>' +
                     '<td class="tm">' + (tm.image ? '<img class="crest" src="' + esc(tm.image) +
                       '" alt="" loading="lazy" style="width:20px;height:20px">' : '') +

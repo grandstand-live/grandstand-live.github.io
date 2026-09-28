@@ -192,7 +192,9 @@ function pandaMatch(m) {
       pos: g.position || null,
       status: g.status || '',
       winner: (g.winner || {}).id || null,
-      length: g.length || null
+      length: g.length || null,
+      // the map's name, where the plan includes it; the page shows it beside the game number
+      map: (g.map && (g.map.name || g.map.slug)) || null
     })),
     stream: stream ? { url: stream.raw_url, lang: stream.language || '' } : null
   };

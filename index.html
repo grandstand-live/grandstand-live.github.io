@@ -1707,6 +1707,35 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- UFC: the fighter page, the card's parts ---- */
+  [data-ufcf] { cursor: pointer; }
+  .fnm[data-ufcf]:hover, .rnm[data-ufcf]:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .ufc-fig { flex: 0 0 auto; width: 120px; height: 170px; position: relative; margin-left: -6px; }
+  .ufc-fig svg { display: none; }
+  .ufc-fig img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+  .f1-h small { font-family: var(--display); font-weight: 400; font-size: 11px; color: var(--muted); margin-left: 6px; letter-spacing: 0; text-transform: none; }
+  .ufm { margin: 4px 0 10px; }
+  .ufm-k { font-family: var(--serif); font-weight: 600; font-size: 13px; color: var(--ink); margin-bottom: 4px; }
+  .ufm-bar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; gap: 2px; }
+  .ufm-bar i, .ufm-l i { display: block; }
+  .ufm-l { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--ink-2); margin-top: 5px; }
+  .ufm-l i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+  .ufm .ko { background: var(--live); }
+  .ufm .sub { background: var(--brass); }
+  .ufm .dec { background: var(--ser-a); }   /* not the accent: in the fight section that is oxblood, next to the KO red */
+  .ufm .other { background: var(--hairline-strong); }
+  .ufh { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+  .ufh:last-child { border-bottom: none; }
+  .ufh-m { flex: 1; min-width: 0; }
+  .ufh-o { font-family: var(--serif); font-weight: 600; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ufh-s { font-size: 11.5px; color: var(--ink-2); margin-top: 1px; }
+  .ufh-e { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 11px; color: var(--muted); max-width: 42%; text-align: right; }
+  .ufc-seg {
+    display: flex; align-items: baseline; gap: 10px; padding: 8px 14px 6px; background: var(--surface-2);
+    border-top: 1px solid var(--hairline); font-size: 12px; color: var(--muted);
+  }
+  .ufc-seg:first-child { border-top: none; }
+  .ufc-seg b { font-family: var(--serif); font-size: 13px; color: var(--ink); }
   /* ---- F1: race progress, the fastest, the grid, driver / team / circuit pages ---- */
   .f1-r[data-f1d], tr[data-f1d], tr[data-f1t], .f1-slot, .f1g-r, .f1f-n, .pg-ev[data-f1d] { cursor: pointer; }
   .fl-box { position: relative; }
@@ -5083,7 +5112,8 @@
     s.scrollTop = 0;
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
-      f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML })[top.type](top).then(function (html) {
+      f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
+      ufcFighter: ufcFighterPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -12968,7 +12998,7 @@ O
       ? '<span class="bout-face"><img src="' + esc(mmaFace(c.id)) + '" alt="" loading="lazy"' +
         ' onerror="this.parentNode.style.display=\'none\'"></span>'
       : '';
-    var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '">' +
+    var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '"' + (c.id ? ' data-ufcf="' + esc(c.id) + '"' : '') + '>' +
       (c.winner ? '<span class="win-pip"></span> ' : '') + esc(name) + '</span>' +
       (rec ? '<span class="frec">' + esc(rec) + '</span>' : '') + '</span>';
     return '<span class="side ' + (isLeft ? 'home' : 'away') + '">' +
@@ -13607,13 +13637,221 @@ O
     });
   }
 
-  function toggleUfcCard(btn) {
-    var next = btn.nextElementSibling;
-    if (next && next.classList.contains('detail')) { next.remove(); return; }
-    var box = document.createElement('div');
-    box.className = 'detail';
-    box.innerHTML = '<div class="skeleton" style="padding:12px 0">正在获取对阵卡…</div>';
-    btn.parentNode.insertBefore(box, btn.nextSibling);
+  /* ---------- UFC: a fighter's page, the card in its three parts, fight night live ----------
+     ESPN's athlete record for the page, the scoreboard for the rest. */
+
+  var STANCE_CN = { orthodox: '正架', southpaw: '反架', switch: '换架', 'open stance': '开放架', sideways: '侧身' };
+  var FINISH_CN = [
+    [/rear naked choke/i, '裸绞'], [/guillotine/i, '断头台'], [/d'arce/i, '达斯绞'], [/anaconda/i, '森蚺绞'],
+    [/arm[- ]triangle/i, '肩固'], [/triangle/i, '三角绞'], [/armbar/i, '十字固'], [/kimura/i, '木村锁'],
+    [/heel hook/i, '足跟锁'], [/kneebar/i, '膝十字'], [/ankle lock/i, '踝关节技'], [/neck crank/i, '扭颈'],
+    [/head kick/i, '高扫'], [/body kick/i, '中段踢'], [/spinning/i, '转身技'], [/elbow/i, '肘击'], [/knee/i, '膝击'],
+    [/kick/i, '踢击'], [/punch/i, '拳击'], [/slam/i, '摔砸'], [/doctor/i, '医生叫停'], [/corner/i, '角落叫停'],
+    [/injury/i, '受伤'], [/retire/i, '放弃继续']
+  ];
+  function ufcMethodKey(res) {
+    var n = String((res && (res.name || res.displayName)) || '').toLowerCase();
+    return /ko|tko/.test(n) ? 'ko' : /sub/.test(n) ? 'sub' : /dec/.test(n) ? 'dec' : 'other';
+  }
+  function ufcResultCN(res) {
+    if (!res) return '';
+    var d = String(res.displayName || res.name || '');
+    if (LANG === 'en') return d + (res.description && !/decision/i.test(d) ? ' (' + res.description + ')' : '');
+    var how = /unanimous/i.test(d) ? '一致判定' : /split/i.test(d) ? '分歧判定' : /majority/i.test(d) ? '多数判定'
+      : /decision/i.test(d) ? '判定' : /sub/i.test(d) ? '降服' : /ko|tko/i.test(d) ? 'KO/TKO'
+      : /draw/i.test(d) ? '平局' : /no contest/i.test(d) ? '无效比赛' : /dq|disqual/i.test(d) ? '取消资格' : d;
+    var desc = String(res.description || '');
+    var by = '';
+    for (var i = 0; i < FINISH_CN.length && desc; i++) if (FINISH_CN[i][0].test(desc)) { by = FINISH_CN[i][1]; break; }
+    return how + (by ? '（' + by + '）' : '');
+  }
+  var STYLE_CN = { striker: '站立打击', freestyle: '综合', wrestler: '摔跤', wrestling: '摔跤', grappler: '地面缠斗', boxer: '拳击', boxing: '拳击',
+    'muay thai': '泰拳', 'brazilian jiu-jitsu': '巴西柔术', 'jiu-jitsu': '柔术', kickboxer: '踢拳', kickboxing: '踢拳', karate: '空手道',
+    sambo: '桑搏', judo: '柔道', taekwondo: '跆拳道', brawler: '缠斗型打击' };
+  function ufcStyleCN(s) {
+    var parts = String(s || '').split(/s*,s*/).filter(Boolean);
+    if (LANG === 'en') return parts.join(', ');
+    return parts.map(function (p) { return STYLE_CN[p.toLowerCase()] || p; }).join(' · ');
+  }
+  function inchCm(s) {
+    var m = /([\d.]+)\s*"/.exec(s || '');
+    return m ? Math.round(Number(m[1]) * 2.54) + ' cm' : '';
+  }
+
+  // where a fighter stands in the rankings: champion, a number, or nowhere
+  function ufcRankOf(d, id, name) {
+    var out = [];
+    ((d && d.divisions) || []).forEach(function (g) {
+      var div = (LANG === 'en' ? g.name : g.nameCN) || g.name || '';
+      if (g.champion && (String(g.champion.id) === String(id) || g.champion.name === name)) out.push(div + (LANG === 'en' ? ' champion' : ' 冠军'));
+      (g.ranks || []).forEach(function (r) {
+        if (String(r.id) === String(id) || r.name === name) out.push(div + (LANG === 'en' ? ' #' + r.rank : ' 第 ' + r.rank));
+      });
+    });
+    return out;
+  }
+
+  function ufcFighterPageHTML(pg) {
+    var base = API + 'common/v3/sports/mma/athletes/' + pg.id;
+    return Promise.all([getJSON(base), getJSON(base + '/overview'), ufcCareer(pg.id), ufcBodies(),
+      archiveGet('ufc-rankings.json').catch(function () { return null; })]).then(function (r) {
+      var a = (r[0] && r[0].athlete) || {};
+      if (!a.id) return '<div class="err">选手资料没取到，返回再点一次试试。</div>';
+      var name = a.displayName || '';
+      return ufcDefence(name).then(function (defence) {
+        var car = r[2] || { stats: {}, record: {} };
+        var body = bodyOf(r[3], name);
+        var ranks = ufcRankOf(r[4], a.id, name);
+        var face = body || (a.headshot && a.headshot.href) || mmaFace(a.id);
+        var stanceText = String((a.stance && (a.stance.text || a.stance)) || '');
+        var stance = stanceText.toLowerCase();
+        var style = ufcStyleCN(a.displayFightingStyle);
+        var sumRec = car.summary || (((((a.statsSummary || {}).statistics) || [])[0]) || {}).displayValue || '';
+        var html = '<div class="pg-head has-fig">' +
+          '<span class="' + (body ? 'ufc-fig' : 'pg-nf') + '">' + PS_FACE + '<img alt="" src="' + esc(face) + '" onerror="this.remove()"></span>' +
+          '<div class="pg-hd"><div class="pg-name">' + esc(name) + '</div>' +
+          (a.nickname ? '<div class="pg-sub">“' + esc(a.nickname) + '”</div>' : '') +
+          '<div class="pg-sub">' + (a.flag && a.flag.href ? '<img class="flag-sm" src="' + esc(a.flag.href) + '" alt=""> ' : '') +
+            esc(nationCN(a.citizenship) || a.citizenship || '') + (sumRec ? ' · ' + esc(sumRec) : '') + '</div>' +
+          (ranks.length ? '<div class="pg-sub"><b>' + esc(ranks.join(' · ')) + '</b></div>' : '') + '</div></div>';
+
+        html += '<div class="f1-tiles">' +
+          f1Tile(a.age ? a.age + ' 岁' : null, '年龄') + f1Tile(metricHeight(a.displayHeight) || null, '身高') +
+          f1Tile(metricWeight(a.displayWeight) || null, '体重') + f1Tile(inchCm(a.displayReach) || null, '臂展') +
+          f1Tile(stanceText ? (LANG === 'en' ? stanceText : (STANCE_CN[stance] || stanceText)) : null, '站架') +
+          f1Tile(style || null, '打法') +
+          (a.association && a.association.name ? f1Tile(a.association.name, '训练馆') : '') +
+          f1Tile(weightCN(a.weightClass && (a.weightClass.shortName || a.weightClass.text)) || (a.weightClass && a.weightClass.text) || null, '级别') + '</div>';
+
+        // how the wins came and how the losses did
+        var fights = Object.keys((r[0] && r[0].eventsMap) || {}).map(function (k) { return r[0].eventsMap[k]; })
+          .sort(function (x, y) { return Date.parse(y.gameDate) - Date.parse(x.gameDate); });
+        var past = fights.filter(function (f) { return f.gameResult; });
+        var next = fights.filter(function (f) { return !f.gameResult && Date.parse(f.gameDate) > Date.now() - 86400000; }).pop();
+        var tally = { W: { ko: 0, sub: 0, dec: 0, other: 0, n: 0 }, L: { ko: 0, sub: 0, dec: 0, other: 0, n: 0 } };
+        past.forEach(function (f) {
+          var t = tally[f.gameResult];
+          if (!t) return;
+          t[ufcMethodKey((f.status || {}).result)]++; t.n++;
+        });
+        function bar(t, label) {
+          if (!t.n) return '';
+          var parts = [['ko', 'KO/TKO'], ['sub', '降服'], ['dec', '判定'], ['other', '其他']].filter(function (p) { return t[p[0]]; });
+          return '<div class="ufm"><div class="ufm-k">' + label + ' ' + t.n + '</div><div class="ufm-bar">' + parts.map(function (p) {
+            return '<i class="' + p[0] + '" style="flex:' + t[p[0]] + '"></i>';
+          }).join('') + '</div><div class="ufm-l">' + parts.map(function (p) {
+            return '<span><i class="' + p[0] + '"></i>' + p[1] + ' ' + t[p[0]] + '</span>';
+          }).join('') + '</div></div>';
+        }
+        if (past.length) html += '<div class="f1-h">胜负方式<small>ESPN 收录的 ' + past.length + ' 场</small></div>' + bar(tally.W, '胜') + bar(tally.L, '负');
+
+        // the career numbers, where ESPN has them
+        var st = car.stats || {}, rec = car.record || {};
+        function pct(k) { return st[k] ? Math.round(Number(st[k].value) || 0) + '%' : null; }
+        function dec2(k) { return st[k] ? String(Math.round((Number(st[k].value) || 0) * 100) / 100) : null; }
+        var tw = rec.titleWins && rec.titleWins.displayValue, tl = rec.titleLosses && rec.titleLosses.displayValue;
+        var cells = [[dec2('strikeLPM'), '每分钟有效击打'], [pct('strikeAccuracy'), '击打命中率'], [pct('takedownAccuracy'), '摔跤成功率'],
+          [dec2('takedownAvg'), '场均摔跤'], [defence || null, '防摔率'], [dec2('submissionAvg'), '场均降服尝试'],
+          [tw != null && (tw !== '0' || tl !== '0') ? tw + ' 胜 ' + (tl || 0) + ' 负' : null, '冠军战']].filter(function (c) { return c[0] && c[0] !== '0' && c[0] !== '0%'; });
+        if (cells.length) html += '<div class="f1-h">生涯数据</div><div class="f1-tiles">' + cells.map(function (c) { return f1Tile(c[0], c[1]); }).join('') + '</div>';
+
+        if (next) {
+          var nd = new Date(next.gameDate), op0 = next.opponent || {};
+          html += '<div class="f1-h">下一场</div><div class="card pg-card"><div class="pg-ev"><span class="pg-d">' + (isNaN(nd) ? '' : esc(fmtDay(nd))) + '</span>' +
+            '<span class="pg-op"' + ufcOppAttr(op0) + '>vs ' + esc(op0.displayName || '') + '</span><span class="pg-sc muted">' + esc(next.shortName || '') + '</span></div></div>';
+        }
+        // title fights, from the overview's list of competitions
+        var titles = {};
+        ((r[1] && r[1].titleFights) || []).forEach(function (u) { var m = /c:(\d+)/.exec(u); if (m) titles[m[1]] = 1; });
+        if (past.length) {
+          html += '<div class="f1-h">战绩</div><div class="card pg-card">' + past.map(function (f) {
+            var d = new Date(f.gameDate), op = f.opponent || {}, s = f.status || {};
+            var res = String(f.gameResult || '').toUpperCase();
+            var how = ufcResultCN(s.result);
+            var when = s.period ? 'R' + s.period + (s.displayClock && ufcMethodKey(s.result) !== 'dec' ? ' ' + s.displayClock : '') : '';
+            return '<div class="ufh"><span class="f ' + esc(res) + '">' + esc(res) + '</span>' +
+              '<div class="ufh-m"><div class="ufh-o"' + ufcOppAttr(op) + '>' + esc(op.displayName || '') +
+                (titles[f.id] ? ' <span class="tag">冠军战</span>' : '') + '</div>' +
+              '<div class="ufh-s">' + esc([how, when].filter(Boolean).join(' · ')) + '</div></div>' +
+              '<div class="ufh-e"><span>' + (isNaN(d) ? '' : esc(fmtDay(d))) + '</span><span>' + esc(f.shortName || '') + '</span></div></div>';
+          }).join('') + '</div>';
+        }
+        return html;
+      });
+    });
+  }
+  function ufcOppAttr(op) {
+    var m = /a:(\d+)/.exec((op && op.uid) || '');
+    return m ? ' data-ufcf="' + m[1] + '"' : '';
+  }
+
+  /* ---- the card in its parts: main card, prelims, early prelims ----
+     ESPN gives every bout its segment's start time, so the times group the
+     card: the latest block is the main card. */
+  function ufcSegments(bouts) {
+    var times = [];
+    bouts.forEach(function (c) { var t = Date.parse(c.date || ''); if (t && times.indexOf(t) === -1) times.push(t); });
+    times.sort(function (x, y) { return y - x; });
+    var names = times.length >= 3 ? ['主赛', '副赛', '早场副赛'] : times.length === 2 ? ['主赛', '副赛'] : [];
+    return function (c) {
+      var i = times.indexOf(Date.parse(c.date || ''));
+      if (!names.length || i < 0) return null;
+      return { name: names[Math.min(i, names.length - 1)], t: times[i] };
+    };
+  }
+  function ufcSegHTML(seg, c) {
+    var d = new Date(seg.t);
+    return '<div class="ufc-seg"><b>' + seg.name + '</b><span>' + esc(fmtDay(d) + ' ' + fmtTime(d)) +
+      (c.broadcast ? ' · ' + esc(c.broadcast) : '') + '</span></div>';
+  }
+
+  /* ---- fight night: the open card keeps itself current ----
+     Every half minute while anything on it is on: the scoreboard for the
+     day is asked again, the card redrawn, and the bouts that were open are
+     opened again with their numbers fetched fresh. */
+  var ufcLive = null;
+  function ufcCardLive(ev, bouts) {
+    var now = Date.now();
+    var on = bouts.some(function (c) { return ((c.status || {}).type || {}).state === 'in'; });
+    var start = Date.parse(ev.date), end = Date.parse(ev.endDate || '') || start + 8 * 3600000;
+    var pending = bouts.some(function (c) { return ((c.status || {}).type || {}).state !== 'post'; });
+    return on || (pending && now > start - 30 * 60000 && now < end + 3600000);
+  }
+  function ufcWatch(btn, box, ev) {
+    if (ufcLive) clearInterval(ufcLive);
+    ufcLive = setInterval(function () {
+      if (!box.isConnected || sport !== 'fight') { clearInterval(ufcLive); ufcLive = null; return; }
+      if (document.hidden) return;
+      var t = Date.parse(ev.date);
+      [ymdET(new Date(t)), ymdET(new Date(t - 864e5))].forEach(function (k) { delete ufcCache['d' + k]; });
+      Object.keys(ufcCache).forEach(function (k) { if (k.indexOf('bs') === 0) delete ufcCache[k]; });
+      var open = [].map.call(box.querySelectorAll('.bout-detail'), function (d) {
+        var row = d.previousElementSibling;
+        return row && row.dataset && row.dataset.bout;
+      }).filter(Boolean);
+      toggleUfcCard(btn, box, open);
+    }, 30000);
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-ufcf]');
+    if (!el || !el.dataset.ufcf) return;
+    // a name on a bout row opens the fighter, not the bout
+    e.stopPropagation();
+    pgOpen({ type: 'ufcFighter', id: el.dataset.ufcf });
+  }, true);
+
+  function toggleUfcCard(btn, keep, reopen) {
+    // a fight-night refresh fills the open card where it stands; a tap opens or closes one
+    var box = keep;
+    if (!box) {
+      var next = btn.nextElementSibling;
+      if (next && next.classList.contains('detail')) { next.remove(); return; }
+      box = document.createElement('div');
+      box.className = 'detail';
+      box.innerHTML = '<div class="skeleton" style="padding:12px 0">正在获取对阵卡…</div>';
+      btn.parentNode.insertBefore(box, btn.nextSibling);
+    }
 
     ufcFindEvent(new Date(btn.dataset.start), btn.dataset.ufc).then(function (ev) {
       if (!box.isConnected) return;
@@ -13636,7 +13874,10 @@ O
       var bc = (bouts[0] || {}).broadcast;
       if (bc) html += '<div class="kv"><span class="k">转播</span><span>' + esc(bc) + '</span></div>';
 
+      var segOf = ufcSegments(bouts), lastSeg = null;
       html += '<h4>对阵卡</h4><div class="card">' + bouts.map(function (c, i) {
+        var seg = segOf(c), segHead = '';
+        if (seg && (!lastSeg || seg.name !== lastSeg)) { segHead = ufcSegHTML(seg, c); lastSeg = seg.name; }
         var cs = c.competitors || [];
         var a = cs[0] || {}, b = cs[1] || {};
         var st = (c.status && c.status.type) || {};
@@ -13669,11 +13910,11 @@ O
         /* A fought bout opens into its numbers; one still to come opens into
            the tale of the tape, which is the thing you want before calling it. */
         var opens = a.id && b.id;
-        return '<div class="match bout' + (opens ? ' opens' : '') + '"' +
-          (i === 0 ? ' style="border-top:none"' : '') +
+        return segHead + '<div class="match bout' + (opens ? ' opens' : '') + '"' +
+          (i === 0 && !segHead ? ' style="border-top:none"' : '') +
           (opens ? ' data-bout="' + esc(ev.id) + ':' + esc(c.id) + ':' +
             esc(a.id) + ':' + esc(b.id) + '" data-when="' + esc(c.date || ev.date) + '"' +
-            (done ? '' : ' data-preview="1"') : '') + '>' +
+            (st.state === 'pre' ? ' data-preview="1"' : '') : '') + '>' +   // a bout under way opens into its live numbers
           fighterSide(a, true, done && b.winner) +
           '<span class="mid">' + mid +
             (done ? '<div class="wclass" style="margin-top:2px">' +
@@ -13691,6 +13932,11 @@ O
         String(ev.name || '') + ' 集锦 ' + (isNaN(evDate) ? '' : dayCN(evDate)), '赛后集锦');
 
       box.innerHTML = html;
+      (reopen || []).forEach(function (key) {
+        var row = box.querySelector('.bout[data-bout="' + key + '"]');
+        if (row) toggleBoutStats(row);
+      });
+      if (ufcCardLive(ev, bouts)) ufcWatch(btn, box, ev);
     });
   }
 
@@ -13717,7 +13963,7 @@ O
             return '<div class="rank-row' + (r.champ ? ' champ' : '') + fav + '">' +
               '<span class="rpos">' + esc(r.champ ? '冠军' : r.rank) + '</span>' +
               (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="" loading="lazy">' : '') +
-              '<span class="rnm">' + esc(f.name || '') + '</span>' +
+              '<span class="rnm"' + (f.id ? ' data-ufcf="' + esc(f.id) + '"' : '') + '>' + esc(f.name || '') + '</span>' +
               '<span class="rrec">' + esc(f.record || '') + '</span></div>';
           }).join('') + '</div>';
       }).join('') + archiveFoot(d);
@@ -13869,7 +14115,7 @@ O
         return '<div class="card team-card"><div class="tc-head">' +
           (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) +
             '" alt="" style="width:26px;height:18px">' : '') +
-          '<span class="nm">' + esc(f.name) + '</span>' +
+          '<span class="nm" data-ufcf="' + esc(f.id) + '">' + esc(f.name) + '</span>' +
           '<span class="lg">' + esc(rec) + '</span></div>' + rows + '</div>';
       }).join('');
     });
@@ -15306,7 +15552,8 @@ O
     return {
       football: favorites.map(function (f) { return { league: f.league, id: String(f.id), name: f.name }; }),
       nba: favNba.map(function (f) { return { id: String(f.id), name: f.name }; }),
-      f1: favDrivers.length > 0
+      f1: favDrivers.length > 0,
+      ufc: favFighters.map(function (f) { return { id: String(f.id), name: f.name }; })
     };
   }
   /* serviceWorker.ready never settles while no worker is installed — the
@@ -15397,7 +15644,7 @@ O
         html += '<div class="set-me"><span>' + (pushState ? '已开启' : '未开启') + '</span>' +
           '<button type="button" class="set-link" data-act="' + (pushState ? 'push-off' : 'push-on') + '">' + (pushState ? '关闭' : '开启') + '</button>' +
           (pushState ? '<button type="button" class="set-link" data-act="push-test">发一条试试</button>' : '') + '</div>' +
-          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果。</div>';
+          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果，关注的 UFC 选手开打和结果。</div>';
       }
     }
     return html + '<button type="button" class="set-done">完成</button></div>';

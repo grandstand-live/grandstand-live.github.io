@@ -568,8 +568,21 @@ const T = {
   final: { zh: (s) => `完场：${s}`, en: (s) => `Full time: ${s}` },
   finalNba: { zh: (s) => `终场：${s}`, en: (s) => `Final: ${s}` },
   f1soon: { zh: (gp, s) => `${gp} ${s} 15 分钟后开始`, en: (gp, s) => `${gp} ${s} starts in 15 minutes` },
-  f1done: { zh: (gp, s) => `${gp} ${s} 结果`, en: (gp, s) => `${gp} ${s} result` }
+  f1done: { zh: (gp, s) => `${gp} ${s} 结果`, en: (gp, s) => `${gp} ${s} result` },
+  ufcOn: { zh: (a, b) => `开打：${a} vs ${b}`, en: (a, b) => `Fight on: ${a} v ${b}` },
+  ufcWin: { zh: (w, l) => `${w} 胜 ${l}`, en: (w, l) => `${w} beats ${l}` },
+  ufcEnd: { zh: (a, b) => `${a} vs ${b} 结束`, en: (a, b) => `${a} v ${b} is over` }
 };
+// how a bout ended, from ESPN's "Unofficial Winner …" detail
+function ufcMethod(comp, lang) {
+  const d = (comp.details || []).find((x) => /Unofficial Winner/i.test((x.type && x.type.text) || ''));
+  const t = (d && d.type && d.type.text) || '';
+  const en = lang === 'en';
+  if (/kotko|\bko\b/i.test(t)) return 'KO/TKO';
+  if (/submission/i.test(t)) return en ? 'Submission' : '降服';
+  if (/decision/i.test(t)) return en ? 'Decision' : '判定';
+  return '';
+}
 function say(key, lang, ...args) { return T[key][lang === 'en' ? 'en' : 'zh'](...args); }
 
 // ESPN's title carries the sponsor ("Qatar Airways Azerbaijan Grand Prix");
@@ -622,7 +635,7 @@ async function sweep(env) {
 async function watch(env) {
   const subs = (await env.DB.prepare('SELECT * FROM subs WHERE fails < 20').all()).results || [];
   const out = [];   // [sub, message]
-  const leagues = {}, nba = {};
+  const leagues = {}, nba = {}, ufc = {};
   let f1 = false;
   subs.forEach((s) => {
     let f = {};
@@ -630,6 +643,7 @@ async function watch(env) {
     s.f = f;
     (f.football || []).forEach((t) => { (leagues[t.league] = leagues[t.league] || new Set()).add(String(t.id)); });
     (f.nba || []).forEach((t) => { nba[String(t.id)] = 1; });
+    (f.ufc || []).forEach((t) => { ufc[String(t.id)] = 1; });
     if (f.f1) f1 = true;
   });
 
@@ -741,6 +755,53 @@ async function watch(env) {
         }
       }
     } catch (e) {}
+  }
+
+  // ---- UFC: a followed fighter's bout, when it starts and when it is decided
+  if (Object.keys(ufc).length) {
+    let evs = [];
+    for (const d of days) {
+      try { evs = evs.concat((await espn('mma/ufc/scoreboard?dates=' + d)).events || []); } catch (e) {}
+    }
+    const done = new Set();
+    for (const ev of evs) {
+      for (const c of ev.competitions || []) {
+        if (done.has(c.id)) continue;
+        done.add(c.id);
+        const cs = c.competitors || [];
+        const ids = cs.map((x) => String(x.id || (x.athlete || {}).id || ''));
+        if (!ids.some((id) => ufc[id])) continue;
+        const key = 'ufc:' + c.id;
+        const st = ((c.status || {}).type || {}).state || 'pre';
+        const prev = await seen(key);
+        const flags = new Set(((prev && prev.notified) || '').split(',').filter(Boolean));
+        const fire = [];
+        if (st === 'in' && !flags.has('kick')) fire.push('kick');
+        if (st === 'post' && prev && !flags.has('final')) fire.push('final');
+        const nm = (x) => ((x && x.athlete) || {}).displayName || '';
+        const a = cs[0], b = cs[1];
+        const w = cs.find((x) => x.winner), l = w && cs.find((x) => x !== w);
+        for (const e of fire) {
+          flags.add(e);
+          subs.filter((s) => (s.f.ufc || []).some((t) => ids.includes(String(t.id)))).forEach((s) => {
+            let msg;
+            if (e === 'kick') msg = { title: say('ufcOn', s.lang, nm(a), nm(b)), body: ev.shortName || ev.name || '' };
+            else {
+              // a decision goes the distance: the round, not the clock
+              const dec = ufcMethod(c, 'en') === 'Decision';
+              const how = [ufcMethod(c, s.lang), c.status && c.status.period ? 'R' + c.status.period : '',
+                c.status && c.status.displayClock && !dec ? c.status.displayClock : ''].filter(Boolean).join(' ');
+              msg = w ? { title: say('ufcWin', s.lang, nm(w), nm(l)), body: how }
+                : { title: say('ufcEnd', s.lang, nm(a), nm(b)), body: how };
+            }
+            msg.tag = key;
+            msg.url = '/?go=fight';
+            out.push([s, msg]);
+          });
+        }
+        if (!prev || fire.length || prev.state !== st) await note(key, st, '', [...flags].join(','));
+      }
+    }
   }
 
   if (out.length) {

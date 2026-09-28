@@ -79,6 +79,9 @@ window.fetch = async (url, opts) => {
     const state = id === '777' ? 'in' : 'post';
     return new Response(JSON.stringify({ header: { competitions: [{ date: new Date(Date.now() - 3 * 3600000).toISOString(), status: { type: { state } } }] } }), { status: 200 });
   }
+  if (u.includes('/mma/ufc/scoreboard?dates=')) {
+    return new Response(JSON.stringify(fakeUfc && u.endsWith(fakeUfc.day) ? { events: [fakeUfc.ev] } : { events: [] }), { status: 200 });
+  }
   if (u.includes('/racing/f1/scoreboard?dates=') && fakeF1) return new Response(JSON.stringify(fakeF1), { status: 200 });
   if (u.includes('esports-api.lolesports.com/persisted/gw/getEventDetails')) {
     const id = new URL(u).searchParams.get('id');
@@ -92,7 +95,7 @@ window.fetch = async (url, opts) => {
   if (u.includes('espn.com') || u.includes('lolesports.com') || u.includes('github.io')) return new Response('{"events":[]}', { status: 200 });
   return realFetch(url, opts);
 };
-let fakeF1 = null, fakeCs2 = null;
+let fakeF1 = null, fakeCs2 = null, fakeUfc = null;
 const fakeLol = {}, mails = [];
 
 const src = await (await realFetch('./worker.js?' + Date.now())).text();
@@ -255,6 +258,30 @@ got = await tickAndRead();
 check(got.length === 1 && got[0].title === '完场：利物浦 2-0 Man City', 'full time', got[0] && got[0].title);
 got = await tickAndRead();
 check(got.length === 0, 'full time only once');
+
+// ---- the minute tick: a followed UFC fighter's bout starts, then is decided
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/ufc', keys: { p256dh: uaPub, auth } },
+  follows: { ufc: [{ id: '2560746', name: 'Alexandre Pantoja' }] }, lang: 'zh'
+});
+function bout(state, extra) {
+  return { day: ymd(Date.now()), ev: { id: '600057500', shortName: 'UFC 331', competitions: [Object.assign({
+    id: '401838400', status: { type: { state }, period: 5, displayClock: '5:00' }, details: [],
+    competitors: [{ id: '2560746', athlete: { displayName: 'Alexandre Pantoja' } }, { id: '5120301', athlete: { displayName: 'Joshua Van' } }]
+  }, extra || {})] } };
+}
+fakeUfc = bout('in');
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === '开打：Alexandre Pantoja vs Joshua Van' && got[0].url === '/?go=fight', 'UFC bout under way', got[0] && got[0].title);
+got = await tickAndRead();
+check(got.length === 0, 'UFC start only once');
+fakeUfc = bout('post', { details: [{ type: { text: 'Unofficial Winner Decision' } }] });
+fakeUfc.ev.competitions[0].competitors[1].winner = true;
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === 'Joshua Van 胜 Alexandre Pantoja' && got[0].body === '判定 R5', 'UFC result, a decision without the clock', got[0] && (got[0].title + ' / ' + got[0].body));
+got = await tickAndRead();
+check(got.length === 0, 'UFC result only once');
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/ufc' });
 
 // ---- server-side settling of a football call
 await call('POST', '/api/picks', { sport: 'football', id: '9001', side: 'home', when: Date.now() + 3600000, league: 'eng.1', home: '利物浦', away: '曼城' }, tok);

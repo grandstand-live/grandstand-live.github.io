@@ -781,7 +781,7 @@
   /* A section label is a label, not a headline — it stays narrow and small, and
      a hairline runs off its right edge to the margin. That rule, repeated, is
      what holds the page together in place of boxes and fills. */
-  .detail h4 {
+  .detail h4, .pg h4 {
     display: flex;
     align-items: center;
     gap: 9px;
@@ -793,7 +793,7 @@
     color: var(--muted);
     margin: 16px 0 7px;
   }
-  .detail h4::after {
+  .detail h4::after, .pg h4::after {
     content: '';
     flex: 1;
     height: 1px;
@@ -1707,6 +1707,104 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- football: shot map, players' numbers, scorers, team and player pages ---- */
+  [data-fbp], [data-fbt] { cursor: pointer; }
+  .tlink {
+    background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: inherit;
+    text-decoration: underline dotted var(--hairline-strong); text-underline-offset: 3px;
+  }
+  .shot { cursor: pointer; }
+  .shot.on circle:first-of-type { stroke: var(--ink); stroke-width: .7; }
+  .shot-key { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+  .shot-key i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: var(--ink-2); vertical-align: 0; }
+  .shot-key .k-goal { width: 10px; height: 10px; box-shadow: inset 0 0 0 3px var(--ink-2), inset 0 0 0 5px var(--surface); }
+  .shot-key .k-off { background: none; box-shadow: inset 0 0 0 1.5px var(--ink-2); }
+  .shot-key .k-blk { width: 6px; height: 6px; opacity: .5; }
+  .shot-cap { font-size: 12.5px; color: var(--ink); margin-top: 6px; min-height: 18px; line-height: 1.5; }
+  .shot-cap.hint { color: var(--muted); }
+  table.ps { min-width: 0; font-size: 12.5px; }
+  table.ps th, table.ps td { padding: 6px 3px; }
+  table.ps td.z { color: var(--muted); opacity: .55; }
+  /* a flex cell leaves the row rule short; this one stays a table cell */
+  table.ps td.tm { display: table-cell; text-align: left; padding-left: 0; }
+  .ps-ph {
+    display: inline-block; width: 24px; height: 24px; margin-right: 5px; vertical-align: middle;
+    border-radius: 50%; overflow: hidden; position: relative; background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--hairline);
+  }
+  .ps-ph svg, .ps-ph img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ps-ph img { object-fit: cover; object-position: top; opacity: 0; transition: opacity .2s; }
+  .ps-ph img.on { opacity: 1; }
+  table.ps tbody td { vertical-align: middle; }
+  .ps-nm {
+    display: inline-block; max-width: 92px; vertical-align: middle;
+    overflow: hidden; text-overflow: ellipsis; color: var(--ink);
+  }
+  .ps-in { margin-left: 4px; }
+  .ps-in { color: var(--win); font-size: 11px; }
+  .ps-team { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); margin: 10px 0 0; }
+  .ps-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .cd { display: inline-block; width: 7px; height: 10px; border-radius: 1px; margin-left: 2px; vertical-align: -1px; }
+  .cd.y { background: rgb(227, 181, 5); }
+  .cd.r { background: var(--loss); }
+  .sc-tabs { margin-top: 14px; }
+  table.sc { min-width: 0; }
+  table.sc tr.more { display: none; }
+  table.sc.all tr.more { display: table-row; }
+  td.sc-who { display: table-cell; }
+  .sc-n { display: block; font-family: var(--serif); font-weight: 600; font-size: 13.5px; color: var(--ink); }
+  .sc-t { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
+  .pg table .pg-d { display: inline-block; min-width: 0; margin-right: 6px; }
+  .pg { position: fixed; inset: 0; z-index: 70; background: var(--ground); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .pg[hidden] { display: none; }
+  html.pg-open, html.pg-open body { overflow: hidden; }
+  .pg-in { max-width: 680px; margin: 0 auto; padding: var(--safetop) 16px calc(var(--safebottom) + 32px); }
+  .pg-bar { position: sticky; top: 0; z-index: 2; background: var(--ground); padding: 10px 0 6px; }
+  .pg-back {
+    background: none; border: none; padding: 4px 0; cursor: pointer;
+    font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--accent);
+  }
+  .pg-head { display: flex; align-items: center; gap: 14px; padding: 4px 0 6px; }
+  .pg-hd { flex: 1; min-width: 0; }
+  .pg-name { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+  .pg-sub { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+  .pg-sub.muted, .pg-sc.muted { color: var(--muted); }
+  .pg-fav {
+    flex: 0 0 auto; align-self: flex-start; cursor: pointer; border-radius: 999px; padding: 6px 14px;
+    font-family: var(--serif); font-size: 13px; font-weight: 600;
+    background: none; color: var(--accent); border: 1px solid var(--accent);
+  }
+  .pg-fav.on { background: var(--accent); color: var(--on-accent); }
+  .pg-card { padding: 0 12px; }
+  .pg-ev { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+  .pg-ev:last-child { border-bottom: none; }
+  .pg-d { flex: 0 0 auto; min-width: 86px; color: var(--muted); font-size: 12px; }
+  .pg-ha { flex: 0 0 auto; font-size: 11px; color: var(--muted); margin-right: 2px; }
+  .pg-op { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  .pg-sc { font-family: var(--narrow); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .pg-grp {
+    font-family: var(--narrow); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--muted);
+    padding: 10px 0 2px;
+  }
+  .pg-pl {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; cursor: pointer; text-align: left;
+    background: none; border: none; border-bottom: 1px solid var(--hairline); font: inherit; color: var(--ink);
+  }
+  .pg-pl .bn { width: 22px; flex: 0 0 auto; text-align: right; font-family: var(--narrow); color: var(--muted); font-size: 12px; }
+  .pg-pn { flex: 1; min-width: 0; font-family: var(--serif); font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pg-pm { flex: 0 0 auto; font-size: 11.5px; color: var(--muted); }
+  .pg-ph { width: 72px; height: 72px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; position: relative; background: var(--surface-2); }
+  .pg-ph svg, .pg-ph img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .pg-ph img { object-fit: cover; object-position: top; }
+  /* a full-length figure stands beside the name, feet on the rule below */
+  .pg-head.has-fig { align-items: flex-end; }
+  /* the renders are square, the figure in the middle of a clear canvas: the
+     box is square too, and pulled in at the sides where the canvas is empty */
+  .pg-ph.fig { width: 150px; height: 150px; margin: 0 -24px 0 -26px; border-radius: 0; background: none; overflow: visible; }
+  .pg-ph.fig svg { display: none; }
+  .pg-ph.fig img { object-fit: contain; object-position: bottom; }
+  .pg-head.has-fig .pg-hd { padding-bottom: 10px; }
+  .pg table.ps td.tm { white-space: nowrap; }
   /* ---- F1 ---- */
   .gp {
     display: flex; align-items: center; gap: 11px;
@@ -4180,7 +4278,7 @@
 
   // One call per club gives a partial squad with cutouts — cheap and high yield.
   function squadPhotos(teamName) {
-    var key = 'sq:' + normName(teamName);
+    var key = 'sq2:' + normName(teamName);
     var hit = cacheGet(key);
     if (hit !== undefined) return Promise.resolve(hit);
     return getJSON(TSDB + 'searchteams.php?t=' + encodeURIComponent(teamName))
@@ -4195,6 +4293,7 @@
               var ln = lastName(p.strPlayer);
               if (ln && !map['~' + ln]) map['~' + ln] = p.strCutout;
             }
+            if (p.strRender) map['r:' + normName(p.strPlayer)] = p.strRender;
           });
           return map;
         });
@@ -4225,6 +4324,16 @@
       .catch(function () { return ''; });
   }
 
+  function setPhoto(node, url) {
+    if (node.tagName.toLowerCase() === 'img') {
+      node.src = url;
+      node.classList.add('on');
+    } else {
+      node.setAttribute('href', url);
+      node.setAttribute('opacity', '1');
+    }
+  }
+
   function runPhotoQueue() {
     if (photoRunning) return;
     photoRunning = true;
@@ -4232,12 +4341,11 @@
       var job = photoQueue.shift();
       if (!job) { photoRunning = false; return; }
       if (!job.node.isConnected) { step(); return; }
+      job.cached = cacheGet('pl:' + normName(job.name)) !== undefined;
       lookupPlayer(job.name, job.team).then(function (url) {
-        if (url && job.node.isConnected) {
-          job.node.setAttribute('href', url);
-          job.node.setAttribute('opacity', '1');
-        }
-        setTimeout(step, 2200);
+        if (url && job.node.isConnected) setPhoto(job.node, url);
+        // the same player on the pitch and in the table: the second is a cache hit and waits for nothing
+        setTimeout(step, job.cached ? 0 : 2200);
       });
     })();
   }
@@ -4245,7 +4353,7 @@
   // Called right after a match detail is inserted into the page.
   function fillPhotos(root) {
     if (!root) return;
-    var nodes = [].slice.call(root.querySelectorAll('image[data-player]'));
+    var nodes = [].slice.call(root.querySelectorAll('image[data-player], img[data-player]'));
     if (!nodes.length) return;
     var byTeam = {};
     nodes.forEach(function (n) {
@@ -4259,8 +4367,7 @@
           var nm = normName(n.getAttribute('data-player'));
           var url = map[nm] || map['~' + lastName(nm)];
           if (url) {
-            n.setAttribute('href', url);
-            n.setAttribute('opacity', '1');
+            setPhoto(n, url);
           } else {
             photoQueue.push({ node: n, name: n.getAttribute('data-player'), team: team });
           }
@@ -4294,6 +4401,17 @@
   // photos when most of its XI actually has one, so the row stays consistent.
   function headshot(ath) {
     return (ath && ath.headshot && ath.headshot.href) || '';
+  }
+
+  function pitchBase(W, H) {
+    var line = 'stroke="var(--pitch-line)" stroke-width=".4" fill="none"';
+    return '<rect x="1" y="1" width="' + (W - 2) + '" height="' + (H - 2) + '" rx="2" fill="var(--pitch)" ' + line + '></rect>' +
+      '<line x1="50" y1="1" x2="50" y2="' + (H - 1) + '" ' + line + '></line>' +
+      '<circle cx="50" cy="' + (H / 2) + '" r="7.5" ' + line + '></circle>' +
+      '<rect x="1" y="' + (H / 2 - 14) + '" width="11" height="28" ' + line + '></rect>' +
+      '<rect x="' + (W - 12) + '" y="' + (H / 2 - 14) + '" width="11" height="28" ' + line + '></rect>' +
+      '<rect x="1" y="' + (H / 2 - 6.5) + '" width="4.5" height="13" ' + line + '></rect>' +
+      '<rect x="' + (W - 5.5) + '" y="' + (H / 2 - 6.5) + '" width="4.5" height="13" ' + line + '></rect>';
   }
 
   function pitchHTML(rosters, hColor, aColor, keyEvents) {
@@ -4352,7 +4470,7 @@
           var offClock = item.p.subbedOut ? (subs.off[ath.displayName] || '') : null;
           var cx = x.toFixed(1), cy = y.toFixed(1);
 
-          out += '<g>' +
+          out += '<g class="pl-tap" data-fbp="' + esc(ath.id || '') + '">' +
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="' + fill + '"></circle>' +
             // generic silhouette, shown until (or unless) a photo arrives
             '<g fill="' + ink + '" opacity=".5">' +
@@ -4378,21 +4496,13 @@
       return out;
     }
 
-    var line = 'stroke="var(--pitch-line)" stroke-width=".4" fill="none"';
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="首发阵容" ' +
-      'style="display:block;overflow:visible">' +
-      '<rect x="1" y="1" width="' + (W - 2) + '" height="' + (H - 2) + '" rx="2" fill="var(--pitch)" ' + line + '></rect>' +
-      '<line x1="50" y1="1" x2="50" y2="' + (H - 1) + '" ' + line + '></line>' +
-      '<circle cx="50" cy="' + (H / 2) + '" r="7.5" ' + line + '></circle>' +
-      '<rect x="1" y="' + (H / 2 - 14) + '" width="11" height="28" ' + line + '></rect>' +
-      '<rect x="' + (W - 12) + '" y="' + (H / 2 - 14) + '" width="11" height="28" ' + line + '></rect>' +
-      '<rect x="1" y="' + (H / 2 - 6.5) + '" width="4.5" height="13" ' + line + '></rect>' +
-      '<rect x="' + (W - 5.5) + '" y="' + (H / 2 - 6.5) + '" width="4.5" height="13" ' + line + '></rect>' +
+      'style="display:block;overflow:visible">' + pitchBase(W, H) +
       dots(home, kit.home, true) + dots(away, kit.away, false) +
       '</svg>';
 
     function cap(s, color) {
-      return '<span class="xi-team"><i style="background:' + color + '"></i>' +
+      return '<span class="xi-team" data-fbt="' + esc(s.team.id || '') + '"><i style="background:' + color + '"></i>' +
         esc(cn(s.team.displayName, s.team.shortDisplayName)) +
         (s.formation ? '<b>' + esc(s.formation) + '</b>' : '') + '</span>';
     }
@@ -4409,7 +4519,7 @@
           var clock = came ? (subs.on[ath.displayName] || '') : '';
           var forWho = p.subbedInFor && p.subbedInFor.athlete &&
             (p.subbedInFor.athlete.shortName || p.subbedInFor.athlete.displayName);
-          return '<div class="bench-row' + (came ? ' on' : '') + '">' +
+          return '<div class="bench-row' + (came ? ' on' : '') + '" data-fbp="' + esc(ath.id || '') + '">' +
             '<span class="bn">' + esc(p.jersey || '') + '</span>' +
             '<span class="bnm">' + esc(nm) + '</span>' +
             (came ? '<span class="bin">↑' + esc(clock) + (forWho ? ' 替下 ' + esc(forWho) : '') + '</span>' : '') +
@@ -4463,6 +4573,8 @@
       html += commentaryHTML(data.commentary, id);
       html += statsHTML(data.boxscore && data.boxscore.teams, homeId,
         t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
+      var kit = twoColors(t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
+      if (t) html += shotMapHTML(data.commentary, t.home.team || {}, t.away.team || {}, kit);
 
       // win probability, from the sportsbook line (ESPN's predictor rarely covers soccer)
       var pick = (data.pickcenter && data.pickcenter[0]) || null;
@@ -4506,8 +4618,10 @@
       var hl = line(hSched), al = line(aSched);
       if (hl || al) {
         html += '<h4>赛季状态</h4>';
-        if (hl) html += '<div class="kv"><span class="k">' + esc(hName) + '</span><span>' + esc(hl) + '</span></div>';
-        if (al) html += '<div class="kv"><span class="k">' + esc(aName) + '</span><span>' + esc(al) + '</span></div>';
+        if (hl) html += '<div class="kv"><span class="k"><button type="button" class="tlink" data-fbt="' + esc(homeId) + '">' +
+          esc(hName) + '</button></span><span>' + esc(hl) + '</span></div>';
+        if (al) html += '<div class="kv"><span class="k"><button type="button" class="tlink" data-fbt="' + esc(awayId) + '">' +
+          esc(aName) + '</button></span><span>' + esc(al) + '</span></div>';
       }
 
       // lineups — drawn on a pitch when the XI is out, otherwise a note
@@ -4515,6 +4629,7 @@
       var pitch = pitchHTML(rosters, t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color, data.keyEvents);
       if (pitch) html += pitch;
       else if (rosters.length) html += '<h4>首发阵容</h4><div class="kv"><span>开赛前约 1 小时公布</span></div>';
+      html += playerStatsHTML(rosters, kit);
 
       // injuries
       var inj = (data.injuries || []).map(function (g) {
@@ -4575,6 +4690,548 @@
     });
   }
 
+  /* ---------- football: shots, the players' numbers, the scorers, team and player pages ----------
+     Everything here comes from the same ESPN feed as the scores. */
+
+  /* Opta's shot events carry where each was struck from and where it went:
+     x runs 0–100 toward the goal being attacked, y 0–100 across it, and y
+     above 50 is the shooter's left. Own goals are left out — they are the
+     other side's shot at nobody. */
+  function shotKind(type) {
+    var t = String(type || '');
+    if (/own goal/i.test(t)) return '';
+    if (/^goal|scored/i.test(t)) return 'goal';
+    if (/blocked/i.test(t)) return 'blk';
+    if (/on target|saved/i.test(t)) return 'on';
+    if (/off target|missed|woodwork|post|bar\b/i.test(t)) return 'off';
+    return '';
+  }
+
+  function shotMapHTML(list, home, away, kit) {
+    var hName = (home && home.displayName) || '', aName = (away && away.displayName) || '';
+    var shots = [];
+    (list || []).forEach(function (c) {
+      var p = c && c.play;
+      if (!p || p.fieldPositionX == null || p.fieldPositionY == null) return;
+      var kind = shotKind(p.type && p.type.text);
+      if (!kind) return;
+      var tn = (p.team && p.team.displayName) || '';
+      var side = tn === hName ? 'h' : tn === aName ? 'a' : '';
+      if (side) shots.push({ c: c, p: p, kind: kind, side: side });
+    });
+    if (!shots.length) return '';
+
+    var W = 100, H = 68;
+    /* The home side is listed on the left, so it attacks the left-hand goal
+       and its shots gather on that half; the away side's on the right. */
+    function at(x, y, side) {
+      x = Math.max(0, Math.min(100, +x));
+      y = Math.max(0, Math.min(100, +y));
+      return side === 'h' ? [100 - x, y * H / 100] : [x, (100 - y) * H / 100];
+    }
+    // goals drawn last, so they sit on top of the misses around them
+    var order = { blk: 0, off: 1, on: 2, goal: 3 };
+    shots.sort(function (a, b) { return order[a.kind] - order[b.kind]; });
+
+    var marks = shots.map(function (s) {
+      var col = s.side === 'h' ? kit.home : kit.away;
+      /* The rings and dots have to stand off the pitch: a white kit on the
+         pale pitch gets a dark edge, a dark kit on the night pitch a light one */
+      var dark = isDark();
+      var edge = !dark && luminance(col) > 200 ? 'rgba(0,0,0,.45)'
+        : dark && luminance(col) < 70 ? 'rgba(255,255,255,.6)' : col;
+      var q = at(s.p.fieldPositionX, s.p.fieldPositionY, s.side);
+      var cx = q[0].toFixed(1), cy = q[1].toFixed(1);
+      var zh = comTr(s.c.text);
+      var cap = ((s.c.time && s.c.time.displayValue) || '') + ' ' + (zh || s.c.text || '');
+      var out = '<g class="shot" data-cap="' + esc(cap) + '">';
+      if (s.kind === 'goal' && s.p.fieldPosition2X != null) {
+        var e = at(s.p.fieldPosition2X, s.p.fieldPosition2Y, s.side);
+        out += '<line x1="' + cx + '" y1="' + cy + '" x2="' + e[0].toFixed(1) + '" y2="' + e[1].toFixed(1) +
+          '" stroke="' + edge + '" stroke-width=".45" stroke-dasharray="1 .8"></line>';
+      }
+      if (s.kind === 'goal') {
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r="2.3" fill="' + col + '" stroke="' + edge + '" stroke-width=".5"></circle>' +
+          '<circle cx="' + cx + '" cy="' + cy + '" r="1" fill="' + readableOn(col) + '"></circle>';
+      } else if (s.kind === 'on') {
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r="1.45" fill="' + col + '" stroke="' + edge + '" stroke-width=".35"></circle>';
+      } else if (s.kind === 'off') {
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r="1.3" fill="none" stroke="' + edge + '" stroke-width=".55"></circle>';
+      } else {
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r=".95" fill="' + edge + '" opacity=".5"></circle>';
+      }
+      // a finger-sized target around every mark
+      return out + '<circle cx="' + cx + '" cy="' + cy + '" r="3.2" fill="transparent"></circle></g>';
+    }).join('');
+
+    function tally(side) {
+      var mine = shots.filter(function (s) { return s.side === side; });
+      var on = mine.filter(function (s) { return s.kind === 'on' || s.kind === 'goal'; }).length;
+      return '射门 ' + mine.length + ' · 射正 ' + on;
+    }
+    function cap(team, side, color) {
+      return '<span class="xi-team"><i style="background:' + color + '"></i>' +
+        esc(cn(team.displayName, team.shortDisplayName)) + '<b>' + tally(side) + '</b></span>';
+    }
+    return '<h4>射门分布</h4><div class="xi-head">' + cap(home, 'h', kit.home) + cap(away, 'a', kit.away) + '</div>' +
+      '<div class="pitch shotmap"><svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="射门分布" ' +
+      'style="display:block;overflow:visible">' + pitchBase(W, H) + marks + '</svg></div>' +
+      '<div class="shot-key"><span><i class="k-goal"></i>进球</span><span><i class="k-on"></i>射正</span>' +
+      '<span><i class="k-off"></i>射偏</span><span><i class="k-blk"></i>被封堵</span></div>' +
+      '<div class="shot-cap hint">点一个点，看是谁、怎么射的。</div>';
+  }
+
+  /* Each player's own line from the match: only those who got on the pitch,
+     in the order the teamsheet lists them. Before kick-off every number is
+     nought, and the block stays out of the way. */
+  var PS_COLS = [['G', '进球'], ['A', '助攻'], ['SHOT', '射门'], ['SOG', '射正'], ['SV', '扑救'], ['FC', '犯规']];
+  // shown until a photo is found, and for good where none is
+  var PS_FACE = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="16" r="7" fill="var(--hairline-strong)"></circle>' +
+    '<path d="M7 40a13 12 0 0 1 26 0z" fill="var(--hairline-strong)"></path></svg>';
+  function playerStatsHTML(rosters, kit) {
+    var sides = (rosters || []).filter(function (r) { return r && r.roster && r.roster.length; })
+      .sort(function (a, b) { return (a.homeAway === 'home' ? 0 : 1) - (b.homeAway === 'home' ? 0 : 1); });
+    if (sides.length < 2) return '';
+    var any = false;
+    var blocks = sides.map(function (r) {
+      var col = r.homeAway === 'home' ? kit.home : kit.away;
+      var tm = r.team || {};
+      var rows = r.roster.filter(function (p) { return p.starter || p.subbedIn; }).map(function (p) {
+        var s = {};
+        (p.stats || []).forEach(function (x) { s[x.abbreviation] = Number(x.value) || 0; });
+        var ath = p.athlete || {};
+        var cells = PS_COLS.map(function (c) {
+          var v = s[c[0]] || 0;
+          if (v) any = true;
+          return '<td' + (v ? '' : ' class="z"') + '>' + v + '</td>';
+        }).join('');
+        var cards = '';
+        for (var i = 0; i < (s.YC || 0); i++) cards += '<i class="cd y"></i>';
+        for (var j = 0; j < (s.RC || 0); j++) cards += '<i class="cd r"></i>';
+        var known = headshot(ath);
+        return '<tr data-fbp="' + esc(ath.id || '') + '" data-name="' + esc(ath.displayName || '') + '">' +
+          '<td class="tm"><span class="ps-ph">' + PS_FACE +
+          '<img alt="" data-player="' + esc(ath.displayName || '') + '" data-team="' + esc(tm.displayName || '') + '"' +
+          (known ? ' src="' + esc(known) + '" class="on"' : '') + '></span>' +
+          '<span class="ps-nm">' + esc(ath.shortName || ath.displayName || '') + '</span>' +
+          (p.subbedIn ? '<span class="ps-in">↑</span>' : '') + '</td>' + cells + '<td>' + cards + '</td></tr>';
+      }).join('');
+      return '<div class="ps-team"><i style="background:' + col + '"></i>' + esc(cn(tm.displayName, tm.shortDisplayName)) + '</div>' +
+        '<div class="table-scroll"><table class="ps"><thead><tr><th class="tm">球员</th>' +
+        PS_COLS.map(function (c) { return '<th>' + c[1] + '</th>'; }).join('') + '<th>牌</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+    });
+    return any ? '<h4>球员数据</h4>' + blocks.join('') : '';
+  }
+
+  /* ---- the scorers and the assists, beside the table ---- */
+  var scView = 'table';
+  var leadersCache = {};
+  function scTabsHTML() {
+    return '<div class="rnd-tabs sc-tabs">' + [['table', '积分榜'], ['goals', '射手榜'], ['assists', '助攻榜']].map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === scView ? ' on' : '') + '" data-sc="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function scShow(host, tableHTML) {
+    host.innerHTML = scTabsHTML() + '<div class="sc-body">' +
+      (scView === 'table' ? tableHTML : '<div class="skeleton">正在获取…</div>') + '</div>';
+    if (scView !== 'table') scFill(host.querySelector('.sc-body'));
+  }
+  function scStat(ath, name) {
+    var v = 0;
+    (ath.statistics || []).forEach(function (s) { if (s.name === name) v = Number(s.value) || 0; });
+    return v;
+  }
+  function scFill(box) {
+    var lg = league, kind = scView;
+    var hit = leadersCache[lg];
+    var got = hit && Date.now() - hit.t < 10 * 60000 ? Promise.resolve(hit.d)
+      : getJSON(API + 'site/v2/sports/soccer/' + lg + '/statistics').then(function (d) {
+        if (d) leadersCache[lg] = { t: Date.now(), d: d };
+        return d;
+      });
+    got.then(function (d) {
+      if (!box.isConnected || lg !== league || kind !== scView) return;
+      box.innerHTML = d ? leadersHTML(d, kind) : '<div class="err">没取到，切走再切回来试一次。</div>';
+    });
+  }
+  function leadersHTML(d, kind) {
+    var cat = ((d && d.stats) || []).filter(function (s) {
+      return s.name === (kind === 'goals' ? 'goalsLeaders' : 'assistsLeaders');
+    })[0];
+    var list = (cat && cat.leaders) || [];
+    var title = kind === 'goals' ? '射手榜' : '助攻榜';
+    if (!list.length) return '<div class="empty">这个赛事暂时没有' + title + '。</div>';
+    var key = kind === 'goals' ? 'totalGoals' : 'goalAssists';
+    var favIds = favorites.map(function (f) { return String(f.id); });
+    var rank = 0, prev = null;
+    var rows = list.map(function (l, i) {
+      var a = l.athlete || {}, tm = a.team || {};
+      var v = scStat(a, key);
+      // level on the count, level on the place
+      if (v !== prev) { rank = i + 1; prev = v; }
+      var g = scStat(a, 'totalGoals'), as = scStat(a, 'goalAssists');
+      return '<tr class="' + (i >= 20 ? 'more' : '') + (favIds.indexOf(String(tm.id)) !== -1 ? ' fav' : '') +
+        '" data-fbp="' + esc(a.id || '') + '" data-name="' + esc(a.displayName || '') + '">' +
+        '<td class="rk">' + rank + '</td>' +
+        '<td class="tm sc-who"><span class="sc-n">' + esc(a.displayName || '') + '</span>' +
+        '<span class="sc-t">' + crest(tm, 16) + esc(cn(tm.displayName, tm.abbreviation)) + '</span></td>' +
+        '<td>' + scStat(a, 'appearances') + '</td>' +
+        '<td' + (kind === 'goals' ? ' class="pts"' : '') + '>' + g + '</td>' +
+        '<td' + (kind === 'assists' ? ' class="pts"' : '') + '>' + as + '</td></tr>';
+    }).join('');
+    return '<div class="card" style="margin-top:14px"><div class="table-scroll"><table class="sc">' +
+      '<thead><tr><th class="rk" style="text-align:left">#</th><th class="tm">球员</th><th>出场</th><th>进球</th><th>助攻</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div></div>' +
+      (list.length > 20 ? '<button type="button" class="com-more sc-more">显示全部 ' + list.length + ' 人</button>' : '');
+  }
+
+  /* ---- team and player pages ----
+     One layer over the board, with its own back button; the phone's back
+     gesture closes it too, so it never throws someone out of the app. A
+     player opened from a team page goes back to that team. */
+  var pgStack = [];
+  function pgEl() {
+    var s = $('pgSheet');
+    if (!s) {
+      s = document.createElement('div');
+      s.id = 'pgSheet';
+      s.className = 'pg';
+      s.hidden = true;
+      s.innerHTML = '<div class="pg-in"><div class="pg-bar"><button type="button" class="pg-back">‹ 返回</button></div>' +
+        '<div class="pg-body"></div></div>';
+      document.body.appendChild(s);
+      s.addEventListener('click', function (e) {
+        if (e.target.closest('.pg-back')) pgBack();
+      });
+    }
+    return s;
+  }
+  function pgOpen(entry) {
+    pgStack.push(entry);
+    try { history.pushState({ pg: pgStack.length }, ''); } catch (e) {}
+    pgRender();
+  }
+  function pgBack() {
+    if (history.state && history.state.pg) history.back();
+    else pgPop();
+  }
+  function pgPop() {
+    pgStack.pop();
+    if (pgStack.length) { pgRender(); return; }
+    var s = $('pgSheet');
+    if (s) s.hidden = true;
+    document.documentElement.classList.remove('pg-open');
+  }
+  window.addEventListener('popstate', function () { if (pgStack.length) pgPop(); });
+  function pgRender() {
+    var s = pgEl(), top = pgStack[pgStack.length - 1];
+    var body = s.querySelector('.pg-body');
+    body.innerHTML = '<div class="skeleton">正在读取…</div>';
+    s.hidden = false;
+    s.scrollTop = 0;
+    document.documentElement.classList.add('pg-open');
+    (top.type === 'team' ? teamPageHTML(top) : playerPageHTML(top)).then(function (html) {
+      if (pgStack[pgStack.length - 1] !== top) return;
+      body.innerHTML = html;
+      if (top.type === 'player') playerPhoto(body);
+    });
+  }
+
+  function sbURL(lg) { return API + 'site/v2/sports/soccer/' + lg + '/'; }
+  var POS_CN = { goalkeeper: '门将', defender: '后卫', midfielder: '中场', forward: '前锋' };
+  var POS_BY_ABBR = { G: 'goalkeeper', D: 'defender', M: 'midfielder', F: 'forward' };
+  function posKey(p) {
+    var n = String((p && p.name) || '').toLowerCase();
+    return POS_CN[n] ? n : (POS_BY_ABBR[String((p && p.abbreviation) || '').charAt(0).toUpperCase()] || '');
+  }
+  function posCN(p) {
+    var k = posKey(p);
+    if (!k) return (p && (p.displayName || p.name)) || '';
+    return POS_CN[k];
+  }
+  function scoreText(x) {
+    var s = x && x.score;
+    if (s == null) return '';
+    return typeof s === 'object' ? (s.displayValue != null ? s.displayValue : s.value) : s;
+  }
+  function lgNameOf(lg) {
+    return (LEAGUES.filter(function (l) { return l.id === lg; })[0] || {}).name || '';
+  }
+
+  function teamPageHTML(pg) {
+    var lg = pg.lg, id = pg.id;
+    return Promise.all([
+      getJSON(sbURL(lg) + 'teams/' + id),
+      getJSON(sbURL(lg) + 'teams/' + id + '/roster'),
+      getJSON(sbURL(lg) + 'teams/' + id + '/schedule'),
+      getJSON(sbURL(lg) + 'teams/' + id + '/schedule?fixture=true')
+    ]).then(function (r) {
+      var t = (r[0] && r[0].team) || {};
+      if (!t.id) return '<div class="err">球队资料没取到，返回再点一次试试。</div>';
+      var name = cn(t.displayName, t.shortDisplayName);
+      var rec = {};
+      ((((t.record || {}).items || [])[0] || {}).stats || []).forEach(function (s) { rec[s.name] = s.value; });
+      var fav = favorites.some(function (f) { return String(f.id) === String(t.id); });
+      var place = standCN(t.standingSummary, lgNameOf(lg));
+      var html = '<div class="pg-head">' + crest(t, 56) + '<div class="pg-hd"><div class="pg-name">' + esc(name) + '</div>' +
+        (place ? '<div class="pg-sub">' + esc(place) + ' 名</div>' : '') +
+        (rec.gamesPlayed ? '<div class="pg-sub">' + rec.gamesPlayed + ' 赛 ' + rec.wins + ' 胜 ' + rec.ties + ' 平 ' + rec.losses +
+          ' 负 · 进 ' + rec.pointsFor + ' 失 ' + rec.pointsAgainst + ' · ' + rec.points + ' 分</div>' : '') +
+        '</div><button type="button" class="pg-fav' + (fav ? ' on' : '') + '" data-fav-team="' + esc(t.id) + '" data-lg="' + esc(lg) +
+        '" data-name="' + esc(name) + '" data-raw="' + esc(t.displayName || '') + '">' + (fav ? '已关注' : '关注') + '</button></div>';
+
+      function evRow(ev) {
+        var c = (ev.competitions || [])[0] || {};
+        var cs = c.competitors || [];
+        var me = cs.filter(function (x) { return String(x.team && x.team.id) === String(id); })[0] || {};
+        var op = cs.filter(function (x) { return x !== me; })[0] || {};
+        var d = new Date(ev.date);
+        var st = ((c.status || ev.status || {}).type || {}).state;
+        var tail;
+        if (st === 'post') {
+          var a = Number(scoreText(me)), b = Number(scoreText(op));
+          // a shoot-out is settled by the winner flag, not the score
+          var res = me.winner === true ? 'W' : op.winner === true ? 'L' : a > b ? 'W' : a < b ? 'L' : 'D';
+          tail = '<span class="pg-sc">' + esc(scoreText(me)) + '-' + esc(scoreText(op)) + '</span><span class="f ' + res + '">' + res + '</span>';
+        } else {
+          tail = '<span class="pg-sc muted">' + (isNaN(d) ? '' : fmtTime(d)) + '</span>';
+        }
+        var ot = op.team || {};
+        return '<div class="pg-ev"><span class="pg-d">' + (isNaN(d) ? '' : esc(fmtDay(d))) + '</span>' +
+          '<span class="pg-ha">' + (me.homeAway === 'home' ? '主' : '客') + '</span>' + crest(ot, 16) +
+          '<span class="pg-op" data-fbt="' + esc(ot.id || '') + '" data-lg="' + esc(lg) + '">' +
+          esc(cn(ot.displayName, ot.shortDisplayName)) + '</span>' + tail + '</div>';
+      }
+      function state(ev) { return ((((ev.competitions || [])[0] || {}).status || ev.status || {}).type || {}).state; }
+      var past = ((r[2] && r[2].events) || []).filter(function (e) { return state(e) === 'post'; })
+        .sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).slice(0, 5);
+      var next = ((r[3] && r[3].events) || []).filter(function (e) { return state(e) !== 'post'; })
+        .sort(function (a, b) { return new Date(a.date) - new Date(b.date); }).slice(0, 3);
+      if (past.length) html += '<h4>近期赛果</h4><div class="card pg-card">' + past.map(evRow).join('') + '</div>';
+      if (next.length) html += '<h4>接下来</h4><div class="card pg-card">' + next.map(evRow).join('') + '</div>';
+
+      var squad = (r[1] && r[1].athletes) || [];
+      if (squad.length) {
+        var groups = {};
+        squad.forEach(function (a) { var k = posKey(a.position) || 'other'; (groups[k] = groups[k] || []).push(a); });
+        html += '<h4>阵容</h4><div class="card pg-card">' + ['goalkeeper', 'defender', 'midfielder', 'forward', 'other']
+          .filter(function (k) { return groups[k]; }).map(function (k) {
+            return '<div class="pg-grp">' + (k === 'other' ? '其他' : esc(posCN({ name: k }))) + '</div>' +
+              groups[k].sort(function (a, b) { return (Number(a.jersey) || 99) - (Number(b.jersey) || 99); }).map(function (a) {
+                var hurt = a.injuries && a.injuries.length;
+                return '<button type="button" class="pg-pl" data-fbp="' + esc(a.id) + '" data-lg="' + esc(lg) +
+                  '" data-name="' + esc(a.displayName || '') + '"><span class="bn">' + esc(a.jersey || '') + '</span>' +
+                  '<span class="pg-pn">' + esc(a.displayName || '') + '</span>' +
+                  (hurt ? '<span class="tag cold">伤</span>' : '') +
+                  '<span class="pg-pm">' + [a.age ? a.age + ' 岁' : '', nationCN(a.citizenship)].filter(Boolean).map(esc).join(' · ') +
+                  '</span></button>';
+              }).join('');
+          }).join('') + '</div>';
+      }
+      var coach = ((r[1] && r[1].coach) || [])[0];
+      if (coach) html += '<div class="kv" style="margin-top:10px"><span class="k">主教练</span><span>' +
+        esc([coach.firstName, coach.lastName].filter(Boolean).join(' ')) + '</span></div>';
+      return html;
+    });
+  }
+
+  // The competition a line of stats belongs to, without its season
+  var COMP_CN = [
+    [/Club World Cup/i, '世俱杯'], [/World Cup Qualifying/i, '世预赛'], [/World Cup/i, '世界杯'],
+    [/Champions League/i, '欧冠'], [/Europa League/i, '欧联'], [/Conference League/i, '欧协联'],
+    [/Nations League/i, '欧国联'], [/Super ?Cup|Supercopa|Supercoppa/i, '超级杯'], [/Community Shield/i, '社区盾'],
+    [/Chinese Super League/i, '中超'], [/Premier League/i, '英超'], [/LALIGA|La Liga/i, '西甲'],
+    [/Serie A/i, '意甲'], [/Bundesliga/i, '德甲'], [/Ligue 1/i, '法甲'], [/FA Cup/i, '足总杯'],
+    [/Carabao|League Cup/i, '联赛杯'], [/Copa del Rey/i, '国王杯'], [/Coppa Italia/i, '意大利杯'],
+    [/DFB/i, '德国杯'], [/Coupe de France/i, '法国杯'], [/Friendl/i, '友谊赛'],
+    [/Copa Am[eé]rica/i, '美洲杯'], [/Asian Cup/i, '亚洲杯'], [/\bEuro(pean Championship)?\b/i, '欧洲杯']
+  ];
+  function compCN(name) {
+    var s = String(name || '').replace(/^\d{4}(-\d{2,4})?\s+/, '');
+    if (NAMES_EN) return s;
+    for (var i = 0; i < COMP_CN.length; i++) if (COMP_CN[i][0].test(s)) return COMP_CN[i][1];
+    return s;
+  }
+  // 6' 5" → 196 cm, 205 lbs → 93 kg; anything already metric passes through
+  function metricHeight(s) {
+    var m = /(\d+)'\s*(\d+)?/.exec(s || '');
+    return m ? Math.round((Number(m[1]) * 12 + Number(m[2] || 0)) * 2.54) + ' cm' : (s || '');
+  }
+  function metricWeight(s) {
+    var m = /([\d.]+)\s*lbs?/i.exec(s || '');
+    return m ? Math.round(Number(m[1]) * 0.4536) + ' kg' : (s || '');
+  }
+
+  function playerPageHTML(pg) {
+    var base = API + 'common/v3/sports/soccer/' + pg.lg + '/athletes/' + pg.id;
+    return Promise.all([getJSON(base), getJSON(base + '/overview'), getJSON(base + '/gamelog')]).then(function (r) {
+      var a = (r[0] && r[0].athlete) || {};
+      if (!a.id) return '<div class="err">球员资料没取到，返回再点一次试试。</div>';
+      var tm = a.team || {};
+      var bio = [a.age ? a.age + ' 岁' : '', nationCN(a.citizenship), metricHeight(a.displayHeight), metricWeight(a.displayWeight)]
+        .filter(Boolean);
+      var html = '<div class="pg-head"><div class="pg-ph" data-photo="' + esc(a.displayName || '') + '" data-team="' +
+        esc(tm.displayName || '') + '" data-espn="' + esc(a.id) + '"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="15" r="7" fill="var(--hairline-strong)"></circle>' +
+        '<path d="M6 40a14 13 0 0 1 28 0z" fill="var(--hairline-strong)"></path></svg></div>' +
+        '<div class="pg-hd"><div class="pg-name">' + esc(a.displayName || '') + '</div>' +
+        '<div class="pg-sub">' + (a.jersey ? '#' + esc(a.jersey) + ' · ' : '') + esc(posCN(a.position)) +
+        (tm.id ? ' · <button type="button" class="tlink" data-fbt="' + esc(tm.id) + '" data-lg="' + esc(pg.lg) + '">' +
+          esc(cn(tm.displayName, tm.abbreviation)) + '</button>' : '') + '</div>' +
+        (bio.length ? '<div class="pg-sub muted">' + bio.map(esc).join(' · ') + '</div>' : '') + '</div></div>';
+
+      // this season, one row per competition
+      var st = (r[1] && r[1].statistics) || {};
+      var labels = st.labels || [];
+      var want = [['STRT', '首发'], ['G', '进球'], ['A', '助攻'], ['SHOT', '射门'], ['SOG', '射正'], ['YC', '黄牌'], ['RC', '红牌']];
+      var splits = (st.splits || []).filter(function (s) { return s.stats && s.stats.length; });
+      if (splits.length) {
+        html += '<h4>本赛季</h4><div class="card pg-card"><div class="table-scroll"><table class="ps">' +
+          '<thead><tr><th class="tm">赛事</th>' + want.map(function (w) { return '<th>' + w[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          splits.map(function (s) {
+            return '<tr><td class="tm">' + esc(compCN(s.displayName)) + '</td>' + want.map(function (w) {
+              var v = s.stats[labels.indexOf(w[0])];
+              return '<td' + (v && v !== '0' ? '' : ' class="z"') + '>' + esc(v == null ? '–' : v) + '</td>';
+            }).join('') + '</tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+
+      // the last five matches, with what they did in each
+      var gl = r[2] || {};
+      var byEv = {};
+      (gl.seasonTypes || []).forEach(function (t) {
+        (t.categories || []).forEach(function (c) { (c.events || []).forEach(function (e) { byEv[e.eventId] = e.stats; }); });
+      });
+      var gLab = gl.labels || [];
+      var games = Object.keys(gl.events || {}).map(function (k) { return gl.events[k]; })
+        .sort(function (x, y) { return new Date(y.gameDate) - new Date(x.gameDate); }).slice(0, 5);
+      if (games.length) {
+        var cols = [['G', '进球'], ['A', '助攻'], ['SHOT', '射门']];
+        html += '<h4>最近 5 场</h4><div class="card pg-card"><div class="table-scroll"><table class="ps">' +
+          '<thead><tr><th class="tm">对手</th><th>比分</th>' + cols.map(function (c) { return '<th>' + c[1] + '</th>'; }).join('') +
+          '</tr></thead><tbody>' + games.map(function (g) {
+            var s = byEv[g.id] || [];
+            var d = new Date(g.gameDate);
+            var op = g.opponent || {};
+            var res = String(g.gameResult || '').toUpperCase();
+            return '<tr><td class="tm"><span class="pg-d">' + (isNaN(d) ? '' : esc(fmtDay(d))) + '</span>' +
+              '<span class="pg-ha">' + (g.atVs === '@' ? '客' : '主') + '</span>' + esc(cn(op.displayName, op.abbreviation)) + '</td>' +
+              '<td>' + esc(g.score || '') + (res ? ' <span class="f ' + esc(res) + '">' + esc(res) + '</span>' : '') + '</td>' +
+              cols.map(function (c) {
+                var v = s[gLab.indexOf(c[0])];
+                return '<td' + (v && v !== '0' ? '' : ' class="z"') + '>' + esc(v == null ? '–' : v) + '</td>';
+              }).join('') + '</tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+      if (!splits.length && !games.length) html += '<div class="empty" style="margin-top:14px">这名球员暂时没有本赛季的数据。</div>';
+      return html;
+    });
+  }
+  // the photo comes from TheSportsDB, the same place the lineup's do
+  function playerPhoto(root) {
+    var ph = root.querySelector('.pg-ph[data-photo]');
+    if (!ph) return;
+    playerImages(ph.dataset.photo, ph.dataset.team).then(function (im) {
+      /* last, ESPN's own headshot: it has one for some players TheSportsDB
+         lacks, and none for most — a miss just leaves the silhouette */
+      var url = im.render || im.cut ||
+        (ph.dataset.espn ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + ph.dataset.espn + '.png' : '');
+      if (!url || !ph.isConnected) return;
+      var img = new Image();
+      img.alt = '';
+      img.onload = function () {
+        if (!ph.isConnected) return;
+        if (im.render) { ph.classList.add('fig'); ph.parentNode.classList.add('has-fig'); }
+        ph.appendChild(img);
+      };
+      img.src = url;
+    });
+  }
+  /* The search gives the head-and-shoulders cutout; the full-length render
+     is only on the player's own record, one more request. Only a hit at the
+     same club is trusted, as for the lineup's photos. */
+  function playerImages(name, teamName) {
+    var key = 'pi2:' + normName(name);
+    var hit = cacheGet(key);
+    if (hit !== undefined) return Promise.resolve(hit);
+    var nm = normName(name);
+    return squadPhotos(teamName).then(function (map) {
+      var fromSquad = { cut: map[nm] || map['~' + lastName(nm)] || '', render: map['r:' + nm] || '' };
+      if (fromSquad.render) return fromSquad;
+      return searchImages(name, teamName, fromSquad);
+    }).then(function (v) { return v; }, function () { return { cut: '', render: '' }; });
+  }
+  function searchImages(name, teamName, fallback) {
+    var key = 'pi2:' + normName(name);
+    return getJSON(TSDB + 'searchplayers.php?p=' + encodeURIComponent(name)).then(function (d) {
+      if (!d) return fallback;   // not cached: asked again next time
+      var want = normName(teamName);
+      var row = ((d.player) || []).filter(function (p) {
+        var t = normName(p.strTeam);
+        return t && want && (t.indexOf(want) !== -1 || want.indexOf(t) !== -1);
+      })[0];
+      if (!row) { cacheSet(key, fallback); return fallback; }
+      var v = { cut: row.strCutout || fallback.cut, render: row.strRender || '' };
+      if (v.render || !row.idPlayer) { cacheSet(key, v); return v; }
+      return getJSON(TSDB + 'lookupplayer.php?id=' + encodeURIComponent(row.idPlayer)).then(function (l) {
+        var p = l && l.players;
+        p = p && p.length ? p[0] : p;
+        if (p && p.strRender) v.render = p.strRender;
+        if (l) cacheSet(key, v);
+        return v;
+      });
+    });
+  }
+
+  function toggleFavTeam(btn) {
+    var id = String(btn.dataset.favTeam);
+    var on = favorites.some(function (f) { return String(f.id) === id; });
+    if (on) {
+      favorites = favorites.filter(function (f) { return String(f.id) !== id; });
+    } else {
+      if (favorites.length >= MAX_TEAMS) { alert('最多只能选 ' + MAX_TEAMS + ' 支球队。'); return; }
+      favorites.push({ id: id, name: btn.dataset.name, raw: btn.dataset.raw, league: btn.dataset.lg });
+    }
+    lsSet('favTeams', favorites);
+    setFavCount();
+    standingsCache = {};
+    btn.classList.toggle('on', !on);
+    btn.textContent = on ? '关注' : '已关注';
+  }
+
+  // one listener for every way into a page: a name, a row, a dot on the pitch
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-fbp], [data-fbt], [data-fav-team], .shot, [data-sc], .sc-more');
+    if (!el) return;
+    if (el.classList.contains('shot')) {
+      var cap = el.closest('.detail') && el.closest('.detail').querySelector('.shot-cap');
+      var map = el.closest('.shotmap');
+      if (cap && map) {
+        [].forEach.call(map.querySelectorAll('.shot.on'), function (x) { x.classList.remove('on'); });
+        el.classList.add('on');
+        cap.textContent = el.getAttribute('data-cap') || '';
+        cap.classList.remove('hint');
+      }
+      return;
+    }
+    if (el.dataset.sc) {
+      if (el.dataset.sc === scView) return;
+      scView = el.dataset.sc;
+      loadStandings();
+      return;
+    }
+    if (el.classList.contains('sc-more')) {
+      var tb = el.parentNode.querySelector('table.sc');
+      if (tb) tb.classList.add('all');
+      el.remove();
+      return;
+    }
+    if (el.dataset.favTeam) { toggleFavTeam(el); return; }
+    var lg = el.dataset.lg || league;
+    if (el.dataset.fbp) pgOpen({ type: 'player', id: el.dataset.fbp, lg: lg });
+    else if (el.dataset.fbt) pgOpen({ type: 'team', id: el.dataset.fbt, lg: lg });
+  });
+
   /* ---------- standings ---------- */
   /* The fixtures list wants league position to say anything interesting about
      a match, but the table is a separate request the user may never open. So
@@ -4619,7 +5276,7 @@
 
   function loadStandings() {
     var host = panelFor('panel-table');
-    if (standingsCache[league]) { host.innerHTML = standingsCache[league]; return; }
+    if (standingsCache[league]) { scShow(host, standingsCache[league]); return; }
     host.innerHTML = '<div class="skeleton">正在获取积分榜…</div>';
     getJSON(API + 'v2/sports/soccer/' + league + '/standings').then(function (data) {
       if (!data) { host.innerHTML = '<div class="err">积分榜没取到，切走再切回来试一次。</div>'; return; }
@@ -4656,7 +5313,7 @@
             else if (r.rank > total - z.drop) zone = 'z-drop';
           }
           var fav = favIds.indexOf(String(tm.id)) !== -1 ? ' fav' : '';
-          return '<tr class="' + zone + fav + '">' +
+          return '<tr class="' + zone + fav + '" data-fbt="' + esc(tm.id || '') + '">' +
             '<td class="rk">' + r.rank + '</td>' +
             '<td class="tm">' + crest(tm, 20) + '<span class="nm">' + esc(cn(tm.displayName, tm.shortDisplayName)) + '</span></td>' +
             '<td>' + esc(r.s.gamesPlayed || '0') + '</td>' +
@@ -4684,7 +5341,7 @@
           '<span><i style="background:var(--loss)"></i>降级区</span></div>';
 
       standingsCache[league] = html;
-      host.innerHTML = html;
+      scShow(host, html);
 
       // the standings list is the complete team list — use it for the picker
       teamsOfLeague = [];

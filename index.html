@@ -1707,6 +1707,81 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- F1: race progress, the fastest, the grid, driver / team / circuit pages ---- */
+  .f1-r[data-f1d], tr[data-f1d], tr[data-f1t], .f1-slot, .f1g-r, .f1f-n, .pg-ev[data-f1d] { cursor: pointer; }
+  .fl-box { position: relative; }
+  .fl-svg { display: block; width: 100%; height: auto; }
+  .fl[data-show="pos"] .fl-svg[data-kind="gap"], .fl[data-show="gap"] .fl-svg[data-kind="pos"] { display: none; }
+  .fl-grid { stroke: var(--hairline); stroke-width: .5; }
+  .fl-ax { font-family: var(--narrow); font-size: 7.5px; fill: var(--muted); }
+  .fl-sc { fill: var(--brass); opacity: .14; }
+  .fl-sc.vsc { opacity: .08; }
+  .fl-sc.red { fill: var(--loss); opacity: .2; }
+  .fl-sct { font-family: var(--narrow); font-size: 6.5px; font-weight: 700; fill: var(--brass); }
+  .fl-line { fill: none; stroke-width: 1.1; stroke-linejoin: round; opacity: .85; }
+  .fl-tag { font-family: var(--narrow); font-size: 6.5px; font-weight: 700; }
+  .fl-svg.hi .fl-d { opacity: .12; }
+  .fl-svg.hi .fl-d.on { opacity: 1; }
+  .fl-svg.hi .fl-d.on .fl-line { stroke-width: 2; opacity: 1; }
+  .fl-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .fl-chip {
+    font-family: var(--narrow); font-size: 11px; font-weight: 700; padding: 3px 6px; cursor: pointer; border-radius: 3px;
+    background: none; color: var(--ink-2); border: 1px solid var(--hairline); box-shadow: inset 3px 0 0 var(--c);
+  }
+  .fl-chip.on { background: var(--c); color: white; border-color: var(--c); }
+  .fl-note { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .f1f-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 520px) { .f1f-grid { grid-template-columns: 1fr; } }
+  .f1f { background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; padding: 8px 10px 4px; }
+  .f1f-h { font-family: var(--serif); font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .f1f-h small { font-family: var(--display); font-weight: 400; font-size: 11px; color: var(--muted); margin-left: 6px; }
+  .f1f-r { display: flex; align-items: center; gap: 7px; padding: 5px 0; border-top: 1px solid var(--hairline); font-size: 12.5px; }
+  .f1f-i { flex: 0 0 18px; font-family: var(--narrow); font-weight: 700; color: var(--muted); font-size: 11.5px; }
+  .f1f-c { flex: 0 0 auto; width: 3px; height: 14px; border-radius: 1px; }
+  .f1f-n { flex: 1; min-width: 0; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .f1f-v { font-family: var(--narrow); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .f1f-v small { font-weight: 400; font-size: 10.5px; color: var(--muted); margin-left: 4px; }
+  .f1g-best { font-size: 12.5px; color: var(--ink-2); margin-bottom: 6px; }
+  .f1g { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  @media (max-width: 520px) { .f1g { grid-template-columns: 1fr; } }
+  .f1g-r { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--hairline); font-size: 12.5px; }
+  .f1g-f { flex: 0 0 22px; font-family: var(--narrow); font-weight: 700; color: var(--ink); text-align: right; }
+  .f1g-n { flex: 1; min-width: 0; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .f1g-s { font-size: 11px; color: var(--muted); }
+  .f1g-d { flex: 0 0 30px; text-align: right; font-family: var(--narrow); font-weight: 700; color: var(--muted); }
+  .f1g-d.up { color: var(--win); }
+  .f1g-d.dn { color: var(--loss); }
+  /* the grid as it lines up: two by two, the even side a half-slot back */
+  .f1-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 4px 0 20px; }
+  .f1-slot {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--hairline-strong);
+    border-top: 3px solid var(--ink-2); border-radius: 2px; background: var(--surface); font-size: 12.5px;
+  }
+  .f1-slot.even { transform: translateY(18px); }
+  .f1-slot-p { font-family: var(--narrow); font-weight: 700; color: var(--muted); min-width: 16px; }
+  .f1-slot-c { width: 3px; height: 14px; border-radius: 1px; background: var(--hairline-strong); }
+  .f1-slot-n { flex: 1; min-width: 0; color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .f1-ph { box-shadow: inset 4px 0 0 var(--tc, transparent); padding-left: 12px; }
+  .f1-fig { flex: 0 0 auto; width: 118px; height: 150px; position: relative; margin-left: -6px; }
+  .f1-fig img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+  .f1-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 6px; }
+  @media (max-width: 420px) { .f1-tiles { grid-template-columns: repeat(2, 1fr); } }
+  .f1-tile { background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; padding: 8px 8px 6px; min-width: 0; }
+  .f1-tile b { display: block; font-family: var(--narrow); font-size: 17px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+  .f1-tile span { font-size: 11px; color: var(--muted); }
+  .f1-car { display: block; width: 100%; max-width: 420px; margin: 4px auto 0; }
+  .f1-drv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .f1-dc {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0 10px 10px; cursor: pointer; text-align: left;
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; font: inherit; color: var(--ink); overflow: hidden;
+  }
+  .f1-dc-img { display: block; width: 100%; height: 120px; position: relative; }
+  .f1-dc-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+  .f1-dc b { font-family: var(--serif); font-size: 14px; }
+  .f1-dc span:last-child { font-size: 11.5px; color: var(--muted); }
+  .f1-map svg { display: block; width: 100%; max-width: 440px; margin: 0 auto; }
+  .f1-map-w { fill: none; stroke: var(--surface-2); stroke-width: 9; stroke-linejoin: round; }
+  .f1-map-l { fill: none; stroke: var(--ink-2); stroke-width: 3.2; stroke-linejoin: round; }
   /* ---- NBA: play by play, the box, the flow, shots, leaders, bracket, pages ---- */
   .pbp-list { margin-top: 2px; }
   .pbp-row { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--hairline); font-size: 12.5px; }
@@ -5007,10 +5082,12 @@
     s.hidden = false;
     s.scrollTop = 0;
     document.documentElement.classList.add('pg-open');
-    ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML })[top.type](top).then(function (html) {
+    ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
+      f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
+      if (PG_AFTER[top.type]) PG_AFTER[top.type](body);
     });
   }
 
@@ -5887,7 +5964,8 @@
     return '<div class="f1-hero" id="nextGp">' +
       '<div class="f1-hero-k">' + (f1SessionsDone(ev).length ? '本站进行中' : '下一站') + '</div>' +
       '<div class="f1-hero-t">' + esc(gpName(ev.name)) + '</div>' +
-      '<div class="f1-hero-p">' + esc(c.fullName || '') + (place ? ' · ' + esc(place) : '') + '</div>' +
+      '<div class="f1-hero-p"><button type="button" class="tlink" data-f1c="' + esc(ev.id) + '">' + esc(c.fullName || '') + '</button>' +
+        (place ? ' · ' + esc(place) : '') + '</div>' +
       '<div class="f1-hero-cd">' + esc(countdown(when)) + '</div>' +
       (facts.length ? '<div class="f1-facts">' + facts.map(function (f) {
         return '<div class="f1-fact"><b>' + esc(f[1]) + '</b><span>' + f[0] + '</span></div>';
@@ -6131,7 +6209,7 @@
       : r.pos === 1 ? (isRace ? f1Lap(r.time) : '')
       : typeof r.gap === 'number' ? '+' + r.gap.toFixed(3)
       : (r.gap || '');
-    return '<div class="f1-r' + (r.pos > 10 || !r.pos ? ' deep' : '') + '">' +   // a retirement has no place, and waits with the rest
+    return '<div class="f1-r' + (r.pos > 10 || !r.pos ? ' deep' : '') + '" data-f1d="' + esc(f1DriverKey(r.name)) + '" data-f1dn="' + esc(r.name || '') + '">' +   // a retirement has no place, and waits with the rest
       '<span class="f1-r-p">' + (r.pos || '—') + '</span>' +
       '<span class="f1-r-c"' + (r.colour ? ' style="background:#' + esc(r.colour) + '"' : '') + '></span>' +
       '<span class="f1-r-n"><b>' + esc(driverCN(r.name) || r.name) + '</b>' +
@@ -6164,6 +6242,13 @@
         (rows.length > 10 ? '<button type="button" class="f1-r-more">展开全部 ' + rows.length + ' 人</button>' : '') +
         '</div>';
     });
+    var hasRace = sets.some(function (x) { var t0 = (x.comp.type && (x.comp.type.abbreviation || x.comp.type.text)) || ''; return /^(Race|Sprint|SR)$/.test(t0); });
+    var quali = sets.filter(function (x) { return ((x.comp.type && (x.comp.type.abbreviation || x.comp.type.text)) || '') === 'Qual' && x.rows; }).pop();
+    var gridHTML = !hasRace && quali ? f1GridHTML(quali.rows) : '';
+    if (gridHTML) {
+      tabs += '<button type="button" class="rnd-tab" data-rnd="grid">发车格</button>';
+      panels += '<div class="rnd-panel" data-rnd="grid" hidden>' + gridHTML + '</div>';
+    }
     return '<div class="f1-h">' + (title || '本站成绩') + '</div><div class="rnd-wrap">' +
       '<div class="rnd-tabs">' + tabs + '</div>' + panels + '</div>';
   }
@@ -6243,8 +6328,10 @@
     f1Schedule();
     f1Cache.detail = Promise.all([
       jolpicaAll(y + '/results/', 'Results'),
-      jolpicaAll(y + '/qualifying/', 'QualifyingResults')
-    ]).then(function (r) { return { results: r[0], qual: r[1] }; })
+      jolpicaAll(y + '/qualifying/', 'QualifyingResults'),
+      // a sprint's points count toward the round; a season with none gives an empty list
+      jolpicaAll(y + '/sprint/', 'SprintResults').catch(function () { return []; })
+    ]).then(function (r) { return { results: r[0], qual: r[1], sprint: r[2] }; })
       .catch(function () { f1Cache.detail = null; return null; });
     return f1Cache.detail;
   }
@@ -7882,11 +7969,11 @@ O
       var lastCard = prev ? '<div class="f1-hero f1-last" id="f1Last">' +
         '<div class="f1-hero-k">上一站</div>' +
         '<div class="f1-hero-t">' + esc(gpName(prev.name)) + '</div>' +
-        '<div class="f1-hero-p">' + esc((prev.circuit && prev.circuit.fullName) || '') +
+        '<div class="f1-hero-p"><button type="button" class="tlink" data-f1c="' + esc(prev.id) + '">' + esc((prev.circuit && prev.circuit.fullName) || '') + '</button>' +
           (isNaN(prevRace) ? '' : ' · ' + esc(fmtDay(prevRace))) + '</div>' +
         '<div id="f1LastRes">' + f1WeekendHTML(f1SessionsDone(prev).map(function (c) {
           return { comp: c, rows: null };
-        }), '成绩') + '</div></div>' : '';
+        }), '成绩') + '</div><div id="f1LastAn"></div></div>' : '';
 
       /* The board runs six sections deep; a row of jumps under the season
          line gets to any of them without a long scroll on a phone. */
@@ -7943,6 +8030,11 @@ O
       }
 
       if (prev) {
+        // the race told lap by lap, once it is over
+        var pr = raceOf(prev);
+        if (pr && ((pr.status || {}).type || {}).state === 'post') {
+          sessionKeyFor(pr.date).then(function (k) { f1AnalysisFill(document.getElementById('f1LastAn'), k, pr.date, 'last' + prev.id); });
+        }
         f1WeekendResults(prev).then(function (sets) {
           var slot = document.getElementById('f1LastRes');
           if (!slot || !slot.isConnected || !sets || !sets.some(function (x) { return x.rows; })) return;
@@ -8120,7 +8212,7 @@ O
       if (ev.circuit) {
         var ci = ev.circuit;
         html += '<div class="kv" style="margin-top:12px"><span class="k">赛道</span><span>' +
-          esc(ci.fullName || '') + (ci.address && ci.address.city ? ' · ' + esc(ci.address.city) : '') +
+          '<button type="button" class="tlink" data-f1c="' + esc(ev.id) + '">' + esc(ci.fullName || '') + '</button>' + (ci.address && ci.address.city ? ' · ' + esc(ci.address.city) : '') +
           '</span></div>';
       }
       var box = document.createElement('div');
@@ -8140,11 +8232,578 @@ O
             '收起再展开重试一次。</div>') +
             stintsHTML(data.stints, drivers, data.rows) +
             stewardsHTML(data.rc, drivers) +
-            weatherHTML(data.weather);
+            weatherHTML(data.weather) + '<div class="f1-an"></div>';
+          f1AnalysisFill(slot.querySelector('.f1-an'), key, (race && race.date) || ev.date, 'gp' + id);
         });
       });
     });
   }
+
+  /* ---------- F1: the race told lap by lap, the fastest of everything, the grid,
+     and pages for a driver, a team and a circuit ----------
+     OpenF1's laps (free once a session is over) and Jolpica's results. */
+
+  // each driver's lap-by-lap race: when each lap ended, from the next lap's start
+  function f1LapEnds(laps) {
+    var by = {};
+    (laps || []).forEach(function (l) { (by[l.driver_number] = by[l.driver_number] || []).push(l); });
+    var ends = {};
+    Object.keys(by).forEach(function (n) {
+      var L = by[n].sort(function (a, b) { return a.lap_number - b.lap_number; });
+      /* The lap times are exact to the thousandth; the lap start stamps are
+         not, and a race won by two tenths came out the wrong way round. So a
+         stamp only anchors the end of lap one, and every lap after it adds its
+         own time. A lap with no time falls back on the next lap's stamp. */
+      var e = {}, prev = null;
+      L.forEach(function (l, i) {
+        var nx = L[i + 1];
+        var t = null;
+        if (prev != null && l.lap_duration) t = prev + l.lap_duration * 1000;
+        else if (nx && nx.date_start) t = Date.parse(nx.date_start);
+        else if (l.date_start && l.lap_duration) t = Date.parse(l.date_start) + l.lap_duration * 1000;
+        if (t) { e[l.lap_number] = t; prev = t; }
+      });
+      ends[n] = e;
+    });
+    return ends;
+  }
+  // safety car and virtual safety car spells, as lap ranges, from race control
+  function f1Neutral(rc) {
+    var out = [], open = null;
+    (rc || []).slice().sort(function (a, b) { return Date.parse(a.date) - Date.parse(b.date); }).forEach(function (m) {
+      var t = String(m.message || '').toUpperCase(), lap = m.lap_number;
+      if (!lap) return;
+      if (/VIRTUAL SAFETY CAR DEPLOYED/.test(t) && !open) open = { kind: 'VSC', a: lap };
+      else if (/^SAFETY CAR DEPLOYED/.test(t) && !open) open = { kind: 'SC', a: lap };
+      else if (open && (/VIRTUAL SAFETY CAR ENDING/.test(t) || /SAFETY CAR IN THIS LAP/.test(t))) {
+        open.b = lap; out.push(open); open = null;
+      } else if (/RED FLAG/.test(t)) out.push({ kind: 'RED', a: lap, b: lap });
+    });
+    if (open) { open.b = open.a; out.push(open); }
+    return out;
+  }
+
+  var f1AnaTab = {}, f1AnaHi = {};
+  function f1AnalysisHTML(data, drivers, id) {
+    var ends = f1LapEnds(data.laps);
+    var nums = Object.keys(ends).filter(function (n) { return Object.keys(ends[n]).length; });
+    if (nums.length < 5) return '';
+    var N = 0;
+    nums.forEach(function (n) { Object.keys(ends[n]).forEach(function (l) { N = Math.max(N, Number(l)); }); });
+    if (N < 5) return '';
+    var pos = {}, gap = {};
+    nums.forEach(function (n) { pos[n] = {}; gap[n] = {}; });
+    for (var lap = 1; lap <= N; lap++) {
+      var at = nums.filter(function (n) { return ends[n][lap]; }).sort(function (a, b) { return ends[a][lap] - ends[b][lap]; });
+      if (!at.length) continue;
+      var lead = ends[at[0]][lap];
+      at.forEach(function (n, i) { pos[n][lap] = i + 1; gap[n][lap] = (ends[n][lap] - lead) / 1000; });
+    }
+    // the last lap as classified: penalties and photo finishes are the stewards', not the stopwatch's
+    (data.rows || []).forEach(function (r) {
+      var n = r.driver_number;
+      if (!pos[n] || pos[n][N] == null || !r.position) return;
+      pos[n][N] = r.position;
+      if (typeof r.gap_to_leader === 'number') gap[n][N] = r.gap_to_leader;
+    });
+    // teammates share a colour; the second of each pair is drawn dashed
+    var seenTeam = {};
+    var finish = {};
+    (data.rows || []).forEach(function (r) { finish[r.driver_number] = r.position || 99; });
+    nums.sort(function (a, b) { return (finish[a] || 99) - (finish[b] || 99); });
+    var info = {};
+    nums.forEach(function (n) {
+      var d = drivers[n] || {};
+      var team = d.team_name || '';
+      var dash = !!seenTeam[team];
+      seenTeam[team] = 1;
+      info[n] = { code: d.name_acronym || String(n), col: '#' + (d.team_colour || '888888'), dash: dash, name: f1RadioName(d.full_name) || '' };
+    });
+    var maxPos = nums.length;
+    var W = 320, H = 210, L = 18, R = 26, T = 8, B = 16;
+    function X(l) { return L + (l - 1) / (N - 1) * (W - L - R); }
+    var neutral = f1Neutral(data.rc);
+    function frame(yLabels) {
+      var g = '';
+      neutral.forEach(function (s) {
+        var x0 = X(Math.max(1, s.a - 0.5)), x1 = X(Math.min(N, s.b + 0.5));
+        g += '<rect class="fl-sc ' + s.kind.toLowerCase() + '" x="' + x0.toFixed(1) + '" y="' + T + '" width="' + Math.max(1.5, x1 - x0).toFixed(1) +
+          '" height="' + (H - T - B) + '"/><text class="fl-sct" x="' + ((x0 + x1) / 2).toFixed(1) + '" y="' + (T + 7) + '" text-anchor="middle">' + s.kind + '</text>';
+      });
+      for (var l = 10; l < N; l += 10) {
+        g += '<line class="fl-grid" x1="' + X(l).toFixed(1) + '" x2="' + X(l).toFixed(1) + '" y1="' + T + '" y2="' + (H - B) + '"/>' +
+          '<text class="fl-ax" x="' + X(l).toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle">' + l + '</text>';
+      }
+      return g + yLabels;
+    }
+    function lines(Y, val, cap) {
+      return nums.map(function (n) {
+        var d = '', pen = false, last = null;
+        for (var l = 1; l <= N; l++) {
+          var v = val[n][l];
+          if (v == null || (cap && v > cap)) { pen = false; continue; }
+          d += (pen ? 'L' : 'M') + X(l).toFixed(1) + ' ' + Y(v).toFixed(1);
+          pen = true; last = [X(l), Y(v)];
+        }
+        if (!d) return '';
+        var inf = info[n];
+        return '<g class="fl-d" data-n="' + n + '"><path class="fl-line" d="' + d + '" stroke="' + inf.col + '"' +
+          (inf.dash ? ' stroke-dasharray="3 2"' : '') + '/>' +
+          (last ? '<text class="fl-tag" x="' + (last[0] + 3).toFixed(1) + '" y="' + (last[1] + 2.5).toFixed(1) + '" fill="' + inf.col + '">' + esc(inf.code) + '</text>' : '') + '</g>';
+      }).join('');
+    }
+    function Yp(p) { return T + (p - 1) / Math.max(1, maxPos - 1) * (H - T - B); }
+    var posLabels = [1, 5, 10, 15, 20].filter(function (p) { return p <= maxPos; }).map(function (p) {
+      return '<text class="fl-ax" x="' + (L - 4) + '" y="' + (Yp(p) + 3).toFixed(1) + '" text-anchor="end">' + p + '</text>';
+    }).join('');
+    // the gap chart stops at a minute: past that a car is being lapped and the scale would flatten the rest
+    var CAP = 60;
+    function Yg(s) { return T + Math.min(s, CAP) / CAP * (H - T - B); }
+    var gapLabels = [0, 20, 40, 60].map(function (s) {
+      return '<text class="fl-ax" x="' + (L - 4) + '" y="' + (Yg(s) + 3).toFixed(1) + '" text-anchor="end">' + (s ? '+' + s : '0') + '</text>';
+    }).join('');
+    var hi = f1AnaHi[id] || favDrivers.map(function (f) { return String(f.num); }).filter(function (n) { return info[n]; });
+    var tab = f1AnaTab[id] || 'pos';
+    var svgPos = '<svg class="fl-svg" data-kind="pos" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="逐圈名次">' + frame(posLabels) + lines(Yp, pos) + '</svg>';
+    var svgGap = '<svg class="fl-svg" data-kind="gap" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="落后领跑者">' + frame(gapLabels) + lines(Yg, gap, CAP * 1.5) + '</svg>';
+    var chips = nums.map(function (n) {
+      var inf = info[n];
+      return '<button type="button" class="fl-chip' + (hi.indexOf(String(n)) !== -1 ? ' on' : '') + '" data-fl-n="' + n + '" style="--c:' + inf.col + '">' + esc(inf.code) + '</button>';
+    }).join('');
+    return '<div class="f1-h">比赛进程</div><div class="fl" data-fl="' + esc(id) + '" data-show="' + tab + '"' + (hi.length ? ' data-hi="' + hi.join(',') + '"' : '') + '>' +
+      '<div class="rnd-tabs"><button type="button" class="rnd-tab' + (tab === 'pos' ? ' on' : '') + '" data-fl-tab="pos">逐圈名次</button>' +
+      '<button type="button" class="rnd-tab' + (tab === 'gap' ? ' on' : '') + '" data-fl-tab="gap">落后领跑者</button></div>' +
+      '<div class="fl-box">' + svgPos + svgGap + '</div>' +
+      '<div class="fl-chips">' + chips + '</div>' +
+      '<div class="fl-note">点车手缩写单独看他的线；虚线是同队第二位车手' + (neutral.length ? '；阴影是安全车（SC）、虚拟安全车（VSC）' : '') +
+      '。差距图只画到落后 60 秒。</div></div>';
+  }
+  // which lines are picked out, drawn after a tap or a redraw
+  function f1AnaShow(box) {
+    var on = (box.dataset.hi || '').split(',').filter(Boolean);
+    [].forEach.call(box.querySelectorAll('.fl-svg'), function (s) { s.classList.toggle('hi', on.length > 0); });
+    [].forEach.call(box.querySelectorAll('.fl-d'), function (g) {
+      var yes = on.indexOf(g.getAttribute('data-n')) !== -1;
+      g.classList.toggle('on', yes);
+      // the chosen lines are drawn last, on top of the rest
+      if (yes) g.parentNode.appendChild(g);
+    });
+    [].forEach.call(box.querySelectorAll('.fl-chip'), function (c) { c.classList.toggle('on', on.indexOf(c.dataset.flN) !== -1); });
+  }
+
+  // the fastest of everything: lap, sectors, the ideal lap, top speed, the stop in the box
+  function f1FastHTML(data, drivers) {
+    var per = {};
+    (data.laps || []).forEach(function (l) {
+      var p = per[l.driver_number] = per[l.driver_number] || { lap: null, lapNo: 0, s: [null, null, null], top: 0 };
+      if (l.lap_duration && (!p.lap || l.lap_duration < p.lap)) { p.lap = l.lap_duration; p.lapNo = l.lap_number; }
+      [l.duration_sector_1, l.duration_sector_2, l.duration_sector_3].forEach(function (v, i) {
+        if (v && (!p.s[i] || v < p.s[i])) p.s[i] = v;
+      });
+      if (l.st_speed && l.st_speed > p.top) p.top = l.st_speed;
+    });
+    var nums = Object.keys(per);
+    if (nums.length < 5) return '';
+    function who(n) {
+      var d = drivers[n] || {};
+      var nm = f1RadioName(d.full_name) || String(n);
+      return '<span class="f1f-c" style="background:#' + esc(d.team_colour || '888888') + '"></span>' +
+        '<span class="f1f-n" data-f1d="' + esc(f1DriverKey(nm)) + '" data-f1dn="' + esc(nm) + '">' + esc(driverCN(nm) || nm) + '</span>';
+    }
+    function card(title, rows) {
+      return rows ? '<div class="f1f"><div class="f1f-h">' + title + '</div>' + rows + '</div>' : '';
+    }
+    var laps = nums.filter(function (n) { return per[n].lap; }).sort(function (a, b) { return per[a].lap - per[b].lap; });
+    var best = laps.length ? per[laps[0]].lap : 0;
+    var fastest = laps.slice(0, 5).map(function (n, i) {
+      return '<div class="f1f-r"><span class="f1f-i">' + (i + 1) + '</span>' + who(n) +
+        '<span class="f1f-v">' + esc(f1Lap(per[n].lap)) + (i ? '<small>+' + (per[n].lap - best).toFixed(3) + '</small>' : '<small>第 ' + per[n].lapNo + ' 圈</small>') + '</span></div>';
+    }).join('');
+    var sectors = [0, 1, 2].map(function (i) {
+      var s = nums.filter(function (n) { return per[n].s[i]; }).sort(function (a, b) { return per[a].s[i] - per[b].s[i]; })[0];
+      return s ? '<div class="f1f-r"><span class="f1f-i">S' + (i + 1) + '</span>' + who(s) +
+        '<span class="f1f-v">' + per[s].s[i].toFixed(3) + '</span></div>' : '';
+    }).join('');
+    // the lap nobody drove: each one's three best sectors put together
+    var ideal = nums.filter(function (n) { return per[n].s.every(Boolean); }).map(function (n) {
+      return { n: n, t: per[n].s[0] + per[n].s[1] + per[n].s[2] };
+    }).sort(function (a, b) { return a.t - b.t; }).slice(0, 3).map(function (x, i) {
+      return '<div class="f1f-r"><span class="f1f-i">' + (i + 1) + '</span>' + who(x.n) + '<span class="f1f-v">' + esc(f1Lap(x.t)) + '</span></div>';
+    }).join('');
+    var speed = nums.filter(function (n) { return per[n].top; }).sort(function (a, b) { return per[b].top - per[a].top; }).slice(0, 5).map(function (n, i) {
+      return '<div class="f1f-r"><span class="f1f-i">' + (i + 1) + '</span>' + who(n) + '<span class="f1f-v">' + per[n].top + '<small>km/h</small></span></div>';
+    }).join('');
+    // the stop itself where OpenF1 has it; the pit-lane time otherwise, and said so
+    var stops = {}, stationary = false;
+    (data.pitList || []).forEach(function (p) {
+      var v = p.stop_duration || null;
+      if (v) stationary = true;
+      v = v || p.pit_duration || p.lane_duration;
+      if (v && (!stops[p.driver_number] || v < stops[p.driver_number].v)) stops[p.driver_number] = { v: v, lap: p.lap_number };
+    });
+    var pit = Object.keys(stops).sort(function (a, b) { return stops[a].v - stops[b].v; }).slice(0, 5).map(function (n, i) {
+      return '<div class="f1f-r"><span class="f1f-i">' + (i + 1) + '</span>' + who(n) + '<span class="f1f-v">' + stops[n].v.toFixed(stationary ? 2 : 1) +
+        '<small>秒 · 第 ' + stops[n].lap + ' 圈</small></span></div>';
+    }).join('');
+    return '<div class="f1-h">各项最快</div><div class="f1f-grid">' +
+      card('最快圈', fastest) + card('最快扇区', sectors) + card('理论最快圈<small>各自三个最快扇区相加</small>', ideal) +
+      card('最高速<small>测速点</small>', speed) + card(stationary ? '最快进站<small>停车时间</small>' : '最快进站<small>进出维修区用时</small>', pit) + '</div>';
+  }
+
+  // from the grid to the flag, once Jolpica has the race
+  function f1GainsFill(slot, raceDate) {
+    if (!slot) return;
+    var day = String(raceDate || '').slice(0, 10);
+    f1SeasonDetail().then(function (detail) {
+      var race = ((detail && detail.results) || []).filter(function (r) { return r.date === day; })[0];
+      if (!race || !slot.isConnected) return;
+      var rows = (race.Results || []).filter(function (x) { return Number(x.grid) > 0; });
+      if (!rows.length) return;
+      var moves = rows.map(function (x) {
+        var fin = /^\d+$/.test(x.positionText) ? Number(x.position) : null;
+        return { x: x, grid: Number(x.grid), fin: fin, d: fin ? Number(x.grid) - fin : null };
+      });
+      var up = moves.filter(function (m) { return m.d > 0; }).sort(function (a, b) { return b.d - a.d; })[0];
+      function nm(x) { return driverCN([x.Driver.givenName, x.Driver.familyName].join(' ')); }
+      slot.innerHTML = '<div class="f1-h">发车 → 完赛</div>' +
+        (up ? '<div class="f1g-best">进步最多： <b>' + esc(nm(up.x)) + '</b> 从第 ' + up.grid + ' 位发车，第 ' + up.fin + ' 名完赛（+' + up.d + '）</div>' : '') +
+        '<div class="f1g">' + moves.map(function (m) {
+          var key = jolKey(m.x.Driver);
+          var cls = m.d == null ? 'out' : m.d > 0 ? 'up' : m.d < 0 ? 'dn' : '';
+          return '<div class="f1g-r" data-f1d="' + esc(key) + '" data-f1dn="' + esc([m.x.Driver.givenName, m.x.Driver.familyName].join(' ')) + '">' +
+            '<span class="f1g-f">' + (m.fin || esc(m.x.positionText === 'R' ? '退' : m.x.positionText)) + '</span>' +
+            '<span class="f1g-n">' + esc(nm(m.x)) + '</span><span class="f1g-s">第 ' + m.grid + ' 位发车</span>' +
+            '<span class="f1g-d ' + cls + '">' + (m.d == null ? '—' : m.d > 0 ? '+' + m.d : m.d < 0 ? String(m.d) : '±0') + '</span></div>';
+        }).join('') + '</div>';
+    });
+  }
+
+  // the whole analysis for a race that is over: into a slot, once its data is in
+  function f1AnalysisFill(slot, key, raceDate, id) {
+    if (!slot || !key) return;
+    Promise.all([f1RaceData(key), f1DriverMap()]).then(function (r) {
+      if (!slot.isConnected) return;
+      var html = f1AnalysisHTML(r[0], r[1], id) + f1FastHTML(r[0], r[1]) + '<div class="f1g-slot"></div>';
+      if (!html) return;
+      slot.innerHTML = html;
+      var fl = slot.querySelector('.fl');
+      if (fl) f1AnaShow(fl);
+      f1GainsFill(slot.querySelector('.f1g-slot'), raceDate);
+    });
+  }
+
+  /* ---- the grid before the race: the qualifying order, two by two ---- */
+  function f1GridHTML(rows) {
+    var list = (rows || []).filter(function (r) { return r.pos; }).slice(0, 22);
+    if (list.length < 10) return '';
+    return '<div class="f1-grid">' + list.map(function (r) {
+      var nm = r.name || '';
+      return '<div class="f1-slot' + (r.pos % 2 ? '' : ' even') + '" data-f1d="' + esc(f1DriverKey(nm)) + '" data-f1dn="' + esc(nm) + '">' +
+        '<span class="f1-slot-p">' + r.pos + '</span><span class="f1-slot-c"' + (r.colour ? ' style="background:#' + esc(r.colour) + '"' : '') + '></span>' +
+        '<span class="f1-slot-n">' + esc(driverCN(nm) || nm) + '</span></div>';
+    }).join('') + '</div><div class="fl-note">按排位赛成绩排列；罚退和维修区起步要等官方公布发车格。</div>';
+  }
+
+  /* ---- a driver's page ---- */
+  function f1TeamKey(name) {
+    var low = plain(name || '');
+    var keys = Object.keys(TEAM_CN).sort(function (a, b) { return b.length - a.length; });
+    var k = keys.filter(function (x) { return low.indexOf(x) !== -1; })[0];
+    return k ? TEAM_CN[k] : low;
+  }
+  function f1SprintPts(detail, round, key) {
+    var sp = ((detail && detail.sprint) || []).filter(function (x) { return x.round === round; })[0];
+    var hit = ((sp && sp.SprintResults) || []).filter(function (x) { return jolKey(x.Driver) === key; })[0];
+    return hit ? Number(hit.points) || 0 : 0;
+  }
+  function f1StandRow(st, isDriver, test) {
+    var g = ((st && st.children) || []).filter(function (c) { return /driver/i.test(c.name || '') === isDriver; })[0];
+    var e = (((g || {}).standings || {}).entries || []).filter(test)[0];
+    if (!e) return null;
+    var s = {};
+    (e.stats || []).forEach(function (x) { s[x.name] = x.displayValue; });
+    return { e: e, rank: parseInt(s.rank, 10) || null, pts: s.championshipPts || s.points || '0' };
+  }
+  function f1Tile(v, k) { return '<div class="f1-tile"><b>' + esc(v == null ? '—' : v) + '</b><span>' + k + '</span></div>'; }
+
+  function f1DriverPageHTML(pg) {
+    return Promise.all([f1SeasonDetail(), f1Standings(), f1Grid().catch(function () { return {}; })]).then(function (r) {
+      var detail = r[0] || { results: [], qual: [] }, st = r[1], grid = r[2] || {};
+      var key = pg.key, g = grid[key] || {};
+      var row = f1StandRow(st, true, function (e) { return f1DriverKey((e.athlete || {}).displayName) === key; });
+      var s = cmpSeason(detail, key);
+      var id = jolDriverId(detail, key);
+      var last = null;
+      Object.keys(s.race).forEach(function (k) { last = s.race[k]; });
+      var teamName = g.team || (last && last.Constructor && last.Constructor.name) || '';
+      var name = pg.name || (row && row.e.athlete && row.e.athlete.displayName) || key;
+      var html = '<div class="pg-head has-fig f1-ph"' + (g.colour ? ' style="--tc:#' + esc(g.colour) + '"' : '') + '>' +
+        '<span class="f1-fig"><img alt="" src="' + esc(f1BodyURL(g.code ? g : null, 'right')) + '" onerror="this.remove()"></span>' +
+        '<div class="pg-hd"><div class="pg-name">' + esc(driverCN(name) || name) + '</div>' +
+        '<div class="pg-sub">' + (g.num ? '#' + esc(g.num) + ' · ' : '') +
+        (teamName ? '<button type="button" class="tlink" data-f1t="' + esc(f1TeamKey(teamName)) + '" data-f1tn="' + esc(teamName) + '">' + esc(teamCN(teamName) || teamName) + '</button>' : '') + '</div>' +
+        (row ? '<div class="pg-sub">积分榜第 ' + row.rank + ' · ' + esc(row.pts) + ' 分</div>' : '') + '</div></div>';
+      if (s.starts) {
+        html += '<div class="f1-h">本赛季</div><div class="f1-tiles">' +
+          f1Tile(s.wins, '分站冠军') + f1Tile(s.podiums, '领奖台') + f1Tile(s.poles, '杆位') + f1Tile(s.fastest, '最快圈') +
+          f1Tile(s.best ? 'P' + s.best : null, '最好名次') + f1Tile(s.avgQ ? s.avgQ.toFixed(1) : null, '平均排位') +
+          f1Tile(s.avgF ? s.avgF.toFixed(1) : null, '平均完赛') + f1Tile(s.dnf, '未完赛') + '</div>';
+        var rounds = (detail.results || []).filter(function (rc) { return s.race[rc.round]; });
+        html += '<div class="f1-h">每站成绩</div><div class="card pg-card"><div class="table-scroll"><table class="ps"><thead><tr>' +
+          '<th class="tm">分站</th><th>排位</th><th>发车</th><th>完赛</th><th>积分</th></tr></thead><tbody>' +
+          rounds.slice().reverse().map(function (rc) {
+            var x = s.race[rc.round], q = s.qual[rc.round];
+            var fin = /^\d+$/.test(x.positionText) ? x.positionText : (x.positionText === 'R' ? '退赛' : x.positionText);
+            return '<tr><td class="tm">' + esc(histGpName(rc.raceName) || rc.raceName) + '</td><td>' + esc(q ? q.position : '–') + '</td>' +
+              '<td>' + esc(Number(x.grid) > 0 ? x.grid : '–') + '</td><td class="pts">' + esc(fin) + '</td><td>' +
+              ((Number(x.points) || 0) + f1SprintPts(detail, rc.round, key)) + '</td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+      html += '<div class="f1-h">生涯</div><div class="f1-tiles" id="f1dCareer" data-id="' + esc(id) + '"><div class="cmp-none">正在统计…</div></div>';
+      return html;
+    });
+  }
+  function f1DriverCareerFill(root) {
+    var box = root.querySelector('#f1dCareer');
+    if (!box || !box.dataset.id) { if (box) box.innerHTML = '<div class="cmp-none">生涯数据没取到。</div>'; return; }
+    var id = box.dataset.id;
+    cmpCareer(id).then(function (c) {
+      if (!c) { box.innerHTML = '<div class="cmp-none">生涯数据没取到。</div>'; return null; }
+      return f1FinalStandings(c.seasons).then(function (store) {
+        var titles = c.seasons.filter(function (y) { return store[y] && store[y][id] === 1; });
+        if (!box.isConnected) return;
+        box.innerHTML = f1Tile(titles.length, '世界冠军') + f1Tile(c.wins, '分站冠军') + f1Tile(c.pod, '领奖台') + f1Tile(c.poles, '杆位') +
+          f1Tile(c.starts, '出赛') + f1Tile(c.seasons.length, '赛季') + f1Tile(Math.min.apply(null, c.seasons), '首个赛季') +
+          (titles.length ? f1Tile(titles.join('、'), '夺冠年份') : '');
+      });
+    });
+  }
+
+  /* ---- a team's page ---- */
+  var F1_IMG_CAR = 'https://media.formula1.com/image/upload/c_lfill,w_640/q_auto/';
+  function f1CarURL(team) {
+    var y = new Date().getFullYear();
+    var slug = String(team || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return F1_IMG_CAR + 'd_common:f1:' + y + ':fallback:car:' + y + 'fallbackcarright.webp/v1740000000/common/f1/' + y + '/' + slug + '/' + y + slug + 'carright.webp';
+  }
+  function f1TeamPageHTML(pg) {
+    return Promise.all([f1SeasonDetail(), f1Standings(), f1Grid().catch(function () { return {}; })]).then(function (r) {
+      var detail = r[0] || { results: [], qual: [] }, st = r[1], grid = r[2] || {};
+      var key = pg.key;
+      var row = f1StandRow(st, false, function (e) { return f1TeamKey((e.team || {}).displayName) === key; });
+      // who drove for it this season, and their points
+      var drv = {}, rounds = [], conId = '', conName = '';
+      (detail.results || []).forEach(function (rc) {
+        var mine = (rc.Results || []).filter(function (x) { return f1TeamKey(x.Constructor.name) === key; });
+        if (!mine.length) return;
+        conId = mine[0].Constructor.constructorId; conName = mine[0].Constructor.name;
+        mine.forEach(function (x) {
+          var k = jolKey(x.Driver);
+          var d = drv[k] = drv[k] || { key: k, name: [x.Driver.givenName, x.Driver.familyName].join(' '), pts: 0, starts: 0 };
+          d.pts += (Number(x.points) || 0) + f1SprintPts(detail, rc.round, k); d.starts++;
+        });
+        rounds.push({ rc: rc, mine: mine });
+      });
+      var gTeam = Object.keys(grid).map(function (k) { return grid[k]; }).filter(function (g) { return f1TeamKey(g.team) === key; });
+      var colour = (gTeam[0] || {}).colour || '';
+      var teamName = (gTeam[0] || {}).team || conName || pg.name || '';
+      var html = '<div class="pg-head f1-ph"' + (colour ? ' style="--tc:#' + esc(colour) + '"' : '') + '><div class="pg-hd">' +
+        '<div class="pg-name">' + esc(teamCN(teamName) || teamName) + '</div>' +
+        (row ? '<div class="pg-sub">车队积分榜第 ' + row.rank + ' · ' + esc(row.pts) + ' 分</div>' : '') + '</div></div>' +
+        '<img class="f1-car" alt="" src="' + esc(f1CarURL(teamName)) + '" onerror="this.remove()">';
+      var ds = Object.keys(drv).map(function (k) { return drv[k]; }).sort(function (a, b) { return b.pts - a.pts; });
+      if (ds.length) {
+        html += '<div class="f1-h">车手</div><div class="f1-drv">' + ds.map(function (d) {
+          var g = grid[d.key] || {};
+          return '<button type="button" class="f1-dc" data-f1d="' + esc(d.key) + '" data-f1dn="' + esc(d.name) + '">' +
+            '<span class="f1-dc-img"><img alt="" loading="lazy" src="' + esc(f1BodyURL(g.code ? g : null, 'left')) + '" onerror="this.remove()"></span>' +
+            '<b>' + esc(driverCN(d.name) || d.name) + '</b><span>' + (g.num ? '#' + esc(g.num) + ' · ' : '') + d.pts + ' 分 · ' + d.starts + ' 站</span></button>';
+        }).join('') + '</div>';
+      }
+      if (rounds.length) {
+        var wins = 0, pods = 0, oneTwo = 0, dnf = 0, best = null, poles = 0;
+        rounds.forEach(function (x) {
+          var p = x.mine.map(function (m) { return /^\d+$/.test(m.positionText) ? Number(m.position) : null; });
+          p.forEach(function (v) { if (v === 1) wins++; if (v && v <= 3) pods++; if (v == null) dnf++; if (v && (best == null || v < best)) best = v; });
+          if (p.indexOf(1) !== -1 && p.indexOf(2) !== -1) oneTwo++;
+        });
+        (detail.qual || []).forEach(function (q) {
+          (q.QualifyingResults || []).forEach(function (x) { if (x.position === '1' && f1TeamKey(x.Constructor.name) === key) poles++; });
+        });
+        html += '<div class="f1-h">本赛季</div><div class="f1-tiles">' + f1Tile(wins, '分站冠军') + f1Tile(pods, '领奖台') +
+          f1Tile(poles, '杆位') + f1Tile(oneTwo, '包揽一二') + f1Tile(best ? 'P' + best : null, '最好名次') + f1Tile(dnf, '未完赛') + '</div>';
+        var names = ds.map(function (d) { return d.key; });
+        html += '<div class="f1-h">每站成绩</div><div class="card pg-card"><div class="table-scroll"><table class="ps"><thead><tr><th class="tm">分站</th>' +
+          ds.map(function (d) { return '<th>' + esc((driverCN(d.name) || d.name).split(/[\s·]/).pop()) + '</th>'; }).join('') + '<th>积分</th></tr></thead><tbody>' +
+          rounds.slice().reverse().map(function (x) {
+            var by = {}, pts = 0;
+            x.mine.forEach(function (m) { var k2 = jolKey(m.Driver); by[k2] = m; pts += (Number(m.points) || 0) + f1SprintPts(detail, x.rc.round, k2); });
+            return '<tr><td class="tm">' + esc(histGpName(x.rc.raceName) || x.rc.raceName) + '</td>' + names.map(function (k) {
+              var m = by[k];
+              return '<td>' + (m ? esc(/^\d+$/.test(m.positionText) ? m.positionText : (m.positionText === 'R' ? '退赛' : m.positionText)) : '–') + '</td>';
+            }).join('') + '<td class="pts">' + pts + '</td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+      html += '<div class="f1-h">历史</div><div class="f1-tiles" id="f1tHist" data-id="' + esc(conId) + '"><div class="cmp-none">正在统计…</div></div>';
+      return html;
+    });
+  }
+  /* A team's championships are one Jolpica call a season, since 1958: asked
+     once on this phone, then kept for good, as the drivers' titles are. */
+  function f1ConstructorChamps() {
+    var store = lsGet('f1CChamp', {}) || {};
+    var y0 = new Date().getFullYear(), need = [];
+    for (var y = 1958; y < y0; y++) if (!store[y]) need.push(y);
+    return Promise.all(need.map(function (y) {
+      return jolpica(y + '/constructorStandings/1/').then(function (d) {
+        var L = d && d.MRData && d.MRData.StandingsTable && d.MRData.StandingsTable.StandingsLists[0];
+        var c = L && (L.ConstructorStandings || [])[0];
+        if (c) store[y] = c.Constructor.constructorId;
+      });
+    })).then(function () {
+      if (need.length) lsSet('f1CChamp', store);
+      return store;
+    });
+  }
+  function f1TeamHistFill(root) {
+    var box = root.querySelector('#f1tHist');
+    if (!box) return;
+    var id = box.dataset.id;
+    if (!id) { box.innerHTML = '<div class="cmp-none">历史数据没取到。</div>'; return; }
+    var p = 'constructors/' + id + '/';
+    Promise.all([jolTotal(p + 'results/1/'), jolpica(p + 'seasons/?limit=1'), jolTotal(p + 'qualifying/1/'), f1ConstructorChamps()]).then(function (r) {
+      if (!box.isConnected) return;
+      var first = ((((r[1] || {}).MRData || {}).SeasonTable || {}).Seasons || [])[0];
+      var champs = Object.keys(r[3] || {}).filter(function (y) { return r[3][y] === id; }).sort();
+      box.innerHTML = f1Tile(champs.length, '车队总冠军') + f1Tile(r[0], '分站冠军') + f1Tile(r[2], '杆位') +
+        f1Tile(first ? first.season : null, '首个赛季') + (champs.length ? f1Tile(champs.slice(-6).join('、') + (champs.length > 6 ? '…' : ''), '最近夺冠') : '');
+    });
+  }
+
+  /* ---- a circuit's page ---- */
+  function f1CircuitPageHTML(pg) {
+    return Promise.all([f1Season(), f1Circuits(), f1Schedule()]).then(function (r) {
+      var ev = ((r[0] && r[0].events) || []).filter(function (e) { return String(e.id) === String(pg.ev); })[0];
+      if (!ev) return '<div class="err">赛道资料没取到，返回再点一次试试。</div>';
+      var c = ev.circuit || {}, facts = (r[1] || {})[c.id] || null;
+      var race = raceOf(ev) || {};
+      var t = new Date(race.date || ev.date).getTime();
+      var jr = (r[2] || []).filter(function (x) { return Math.abs(new Date(x.date).getTime() - t) < 2 * 86400000; })[0];
+      var laps = facts ? f1Laps(facts.km, facts.wiki) : null;
+      var place = [c.address && c.address.city, c.address && c.address.country].filter(Boolean).join(' · ');
+      var html = '<div class="pg-head"><div class="pg-hd"><div class="pg-name">' + esc(c.fullName || gpName(ev.name)) + '</div>' +
+        '<div class="pg-sub">' + esc(gpName(ev.name)) + (place ? ' · ' + esc(place) : '') + '</div></div></div>' +
+        '<div class="f1-map" id="f1cMap" data-ev="' + esc(ev.id) + '" data-date="' + esc(race.date || ev.date) + '"><div class="cmp-none">正在画赛道…</div></div>';
+      if (facts) {
+        html += '<div class="f1-tiles">' + f1Tile(facts.km ? facts.km.toFixed(3) + ' km' : null, '赛道长度') +
+          f1Tile(facts.turns || null, '弯道') + f1Tile(laps ? laps + ' 圈' : null, '正赛圈数') +
+          f1Tile(laps && facts.km ? (laps * facts.km).toFixed(1) + ' km' : null, '正赛里程') + '</div>' +
+          (facts.recordTime ? '<div class="f1-rec"><span class="k">正赛圈速纪录</span><span><b>' + esc(facts.recordTime) + '</b> ' +
+            esc(driverCN(facts.recordDriver) || facts.recordDriver || '') + (facts.recordYear ? ' · ' + esc(facts.recordYear) : '') + '</span></div>' : '');
+      }
+      html += '<div class="f1-h">历届冠军</div><div id="f1cWin" data-cid="' + esc((jr && jr.Circuit && jr.Circuit.circuitId) || '') + '"><div class="cmp-none">正在读取…</div></div>';
+      return html;
+    });
+  }
+  function f1CircuitFill(root) {
+    var win = root.querySelector('#f1cWin');
+    if (win && win.dataset.cid) {
+      jolpica('circuits/' + win.dataset.cid + '/results/1/?limit=100').then(function (d) {
+        var races = ((d && d.MRData && d.MRData.RaceTable && d.MRData.RaceTable.Races) || []).slice().reverse();
+        if (!win.isConnected) return;
+        // a request that failed is not a circuit that never raced
+        if (!d) { win.innerHTML = '<div class="cmp-none">历届冠军没取到，返回再点一次试试。</div>'; return; }
+        if (!races.length) { win.innerHTML = '<div class="cmp-none">这条赛道还没有办过大奖赛。</div>'; return; }
+        var count = {};
+        races.forEach(function (x) { var w = (x.Results || [])[0]; if (w) { var k = jolKey(w.Driver); count[k] = (count[k] || 0) + 1; } });
+        var top = Object.keys(count).sort(function (a, b) { return count[b] - count[a]; })[0];
+        var first = races[races.length - 1];
+        win.innerHTML = '<div class="f1-tiles">' + f1Tile(first.season, '首届') + f1Tile(races.length, '办过') +
+          (top && count[top] > 1 ? f1Tile(driverCN(top) + ' ×' + count[top], '夺冠最多') : '') + '</div>' +
+          '<div class="card pg-card">' + races.slice(0, 12).map(function (x) {
+            var w = (x.Results || [])[0] || {};
+            var nm = [w.Driver && w.Driver.givenName, w.Driver && w.Driver.familyName].join(' ');
+            return '<div class="pg-ev" data-f1d="' + esc(jolKey(w.Driver)) + '" data-f1dn="' + esc(nm) + '"><span class="pg-d">' + esc(x.season) + '</span>' +
+              '<span class="pg-op">' + esc(driverCN(nm) || nm) + '</span><span class="pg-sc muted">' + esc(teamCN(w.Constructor && w.Constructor.name) || '') + '</span></div>';
+          }).join('') + '</div>';
+      });
+    } else if (win) win.innerHTML = '<div class="cmp-none">历届冠军没取到。</div>';
+
+    /* The outline is the pole lap, driven: this year's qualifying if it has
+       run, last year's at the same circuit if not. */
+    var map = root.querySelector('#f1cMap');
+    if (!map) return;
+    var t = Date.parse(map.dataset.date), y = new Date(t).getFullYear();
+    of1('sessions?year=' + y).then(function (list) {
+      var here = (list || []).filter(function (s) { return Math.abs(Date.parse(s.date_start) - t) < 4 * 86400000; });
+      var ck = (here[0] || {}).circuit_key;
+      if (!ck) return null;
+      var q = here.filter(function (s) { return s.session_name === 'Qualifying' && Date.parse(s.date_end) < Date.now() - 3600000; })[0];
+      if (q) return q.session_key;
+      // the latest qualifying ever run here, whichever year that was
+      return of1('sessions?circuit_key=' + ck + '&session_name=Qualifying').then(function (l) {
+        var done = (l || []).filter(function (s) { return Date.parse(s.date_end) < Date.now() - 3600000; })
+          .sort(function (a, b) { return Date.parse(b.date_start) - Date.parse(a.date_start); });
+        return (done[0] || {}).session_key || 'none';
+      });
+    }).then(function (sk) {
+      if (sk === 'none') return 'none';
+      if (!sk) return null;
+      return of1('laps?session_key=' + sk).then(function (laps) {
+        var best = (laps || []).filter(function (l) { return l.lap_duration; }).sort(function (a, b) { return a.lap_duration - b.lap_duration; })[0];
+        if (!best) return null;
+        var t0 = Date.parse(best.date_start), q = '&date>=' + new Date(t0).toISOString() + '&date<=' + new Date(t0 + best.lap_duration * 1000).toISOString();
+        return of1('location?session_key=' + sk + '&driver_number=' + best.driver_number + q);
+      });
+    }).then(function (loc) {
+      if (!map.isConnected) return;
+      if (loc === 'none') { map.innerHTML = '<div class="cmp-none">这条赛道 2023 年以来没办过比赛，定位数据从那时才有，暂时画不出赛道图。</div>'; return; }
+      var pts = (Array.isArray(loc) ? loc : []).filter(function (p) { return p.x || p.y; }).map(function (p) { return [p.x, p.y]; });
+      if (pts.length < 50) { map.innerHTML = '<div class="cmp-none">赛道图暂时画不出来。</div>'; return; }
+      var fit = teleFit(pts, 320, 230, 14);
+      var d = pts.map(function (p, i) { var q = fit.p(p); return (i ? 'L' : 'M') + q[0] + ' ' + q[1]; }).join('') + 'Z';
+      var a = fit.p(pts[0]).map(Number), b = fit.p(pts[6]).map(Number);
+      var dx = b[0] - a[0], dy = b[1] - a[1], l = Math.sqrt(dx * dx + dy * dy) || 1;
+      dx /= l; dy /= l;
+      var nx = -dy * 9, ny = dx * 9;
+      var ax = a[0] + dx * 16, ay = a[1] + dy * 16;
+      map.innerHTML = '<svg viewBox="0 0 320 ' + fit.H.toFixed(0) + '" role="img" aria-label="赛道图">' +
+        '<path class="f1-map-w" d="' + d + '"/><path class="f1-map-l" d="' + d + '"/>' +
+        '<line class="rp-sf-w" x1="' + (a[0] - nx) + '" y1="' + (a[1] - ny) + '" x2="' + (a[0] + nx) + '" y2="' + (a[1] + ny) + '"/>' +
+        '<line class="rp-sf-k" x1="' + (a[0] - nx) + '" y1="' + (a[1] - ny) + '" x2="' + (a[0] + nx) + '" y2="' + (a[1] + ny) + '"/>' +
+        '<path class="rp-sf-arr" d="M' + (ax + dx * 6) + ' ' + (ay + dy * 6) + 'L' + (ax - dx * 5 - dy * 5) + ' ' + (ay - dy * 5 + dx * 5) +
+          'L' + (ax - dx * 5 + dy * 5) + ' ' + (ay - dy * 5 - dx * 5) + 'Z"/></svg>' +
+        '<div class="fl-note">杆位圈的实际行驶路线，格子线是起点 / 终点，箭头是行驶方向。</div>';
+    });
+  }
+
+  // after a page's HTML is in, what fills in behind it
+  var PG_AFTER = { f1Driver: f1DriverCareerFill, f1Team: f1TeamHistFill, f1Circuit: f1CircuitFill };
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-f1d], [data-f1t], [data-f1c], [data-fl-tab], [data-fl-n]');
+    if (!el) return;
+    if (el.dataset.flTab) {
+      var box = el.closest('.fl');
+      box.dataset.show = f1AnaTab[box.dataset.fl] = el.dataset.flTab;
+      [].forEach.call(box.querySelectorAll('[data-fl-tab]'), function (b) { b.classList.toggle('on', b === el); });
+      return;
+    }
+    if (el.dataset.flN) {
+      var fl = el.closest('.fl');
+      var on = (fl.dataset.hi || '').split(',').filter(Boolean);
+      var i = on.indexOf(el.dataset.flN);
+      if (i === -1) on.push(el.dataset.flN); else on.splice(i, 1);
+      fl.dataset.hi = on.join(',');
+      f1AnaHi[fl.dataset.fl] = on;
+      f1AnaShow(fl);
+      return;
+    }
+    e.stopPropagation();
+    if (el.dataset.f1d) pgOpen({ type: 'f1Driver', key: el.dataset.f1d, name: el.dataset.f1dn || '' });
+    else if (el.dataset.f1t) pgOpen({ type: 'f1Team', key: el.dataset.f1t, name: el.dataset.f1tn || '' });
+    else if (el.dataset.f1c) pgOpen({ type: 'f1Circuit', ev: el.dataset.f1c });
+  }, true);
 
   function renderF1Table() {
     var host = panelFor('panel-table');
@@ -8171,7 +8830,9 @@ O
           rows.map(function (r) {
             var zone = r.rank <= 3 ? 'z-top' : '';
             var logo = r.team && r.team.logos && r.team.logos[0] && r.team.logos[0].href;
-            return '<tr class="' + zone + '"><td class="rk">' + r.rank + '</td>' +
+            var link = r.ath ? ' data-f1d="' + esc(f1DriverKey(r.ath.displayName)) + '" data-f1dn="' + esc(r.ath.displayName || '') + '"'
+              : r.team ? ' data-f1t="' + esc(f1TeamKey(r.team.displayName)) + '" data-f1tn="' + esc(r.team.displayName || '') + '"' : '';
+            return '<tr class="' + zone + '"' + link + '><td class="rk">' + r.rank + '</td>' +
               '<td class="tm">' + (r.ath ? flagImg(r.ath) : (logo ?
                 '<img class="crest" src="' + esc(logo) + '" alt="" loading="lazy" style="width:20px;height:20px">' : '')) +
               '<span class="nm">' + esc(r.label) + '</span></td>' +
@@ -8266,7 +8927,8 @@ O
       });
       var out = {
         rows: rows, pits: pits, fastest: fastest,
-        rc: r[3] || [], stints: r[4] || [], weather: r[5] || []
+        rc: r[3] || [], stints: r[4] || [], weather: r[5] || [],
+        laps: r[2] || [], pitList: r[1] || []
       };
       if (rows.length) f1Cache[tag] = out;
       return out;

@@ -74,6 +74,11 @@ window.fetch = async (url, opts) => {
     return new Response(JSON.stringify({ header: { competitions: [{ date: fakeBoard.ev.date, status: fakeBoard.ev.competitions[0].status,
       competitors: fakeBoard.ev.competitions[0].competitors }] } }), { status: 200 });
   }
+  if (u.includes('/basketball/nba/summary?event=')) {
+    const id = new URL(u).searchParams.get('event');
+    const state = id === '777' ? 'in' : 'post';
+    return new Response(JSON.stringify({ header: { competitions: [{ date: new Date(Date.now() - 3 * 3600000).toISOString(), status: { type: { state } } }] } }), { status: 200 });
+  }
   if (u.includes('/racing/f1/scoreboard?dates=') && fakeF1) return new Response(JSON.stringify(fakeF1), { status: 200 });
   if (u.includes('esports-api.lolesports.com/persisted/gw/getEventDetails')) {
     const id = new URL(u).searchParams.get('id');
@@ -155,6 +160,12 @@ r = await call('GET', '/api/ratings?event=m1', null, tok);
 check(r.data.players.length === 1 && r.data.players[0].avg === 6 && r.data.mine.p9 === 6, 'rating re-rated, not doubled', JSON.stringify(r.data.players[0]));
 r = await call('POST', '/api/ratings', { event: 'm1', player: 'p9', score: 7 });
 check(r.status === 401, 'rating needs login');
+r = await call('POST', '/api/ratings', { event: 'nba:401859967', player: '3934672', name: 'Jalen Brunson', team: 'New York Knicks', score: 9 }, tok);
+check(r.status === 200, 'NBA rating saved once ESPN says the game is over');
+r = await call('POST', '/api/ratings', { event: 'nba:777', player: '1', score: 9 }, tok);
+check(r.status === 409 && r.data.error === 'not finished', 'NBA rating refused while the game is on');
+r = await call('GET', '/api/ratings?event=' + encodeURIComponent('nba:401859967'), null, tok);
+check(r.data.players.length === 1 && r.data.mine['3934672'] === 9, 'NBA ratings read back under their own event');
 
 // ---- push: keys, encryption, the JWT
 r = await call('GET', '/api/vapid');

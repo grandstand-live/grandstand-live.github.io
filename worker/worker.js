@@ -440,10 +440,13 @@ async function putRating(req, env) {
   if (!(score >= 1 && score <= 10)) throw bad('score');
   const event = String(b.event || ''), player = String(b.player || '');
   if (!event || !player) throw bad('rating');
-  // only once the match is over, and for three days after, when ESPN can say
-  if (b.league) {
+  // only once the match is over, and for three days after, when ESPN can say.
+  // A basketball game comes as "nba:<id>", so it never shares a football id.
+  const nba = /^nba:(\d+)$/.exec(event);
+  if (b.league || nba) {
     try {
-      const s = await espn('soccer/' + encodeURIComponent(b.league) + '/summary?event=' + encodeURIComponent(event));
+      const s = await espn(nba ? 'basketball/nba/summary?event=' + nba[1]
+        : 'soccer/' + encodeURIComponent(b.league) + '/summary?event=' + encodeURIComponent(event));
       const comp = (((s.header || {}).competitions) || [])[0] || {};
       const st = ((comp.status || {}).type || {}).state;
       if (st && st !== 'post') throw new HttpError(409, 'not finished');

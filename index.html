@@ -1707,6 +1707,26 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- basketball: runs, the fuller table, team ranks, injuries, a career ---- */
+  .nf-run { font-family: var(--narrow); font-size: 8px; font-weight: 700; }
+  .nbt-view { margin-top: 10px; }
+  .nbt-cl { font-family: var(--narrow); font-size: 9.5px; color: var(--muted); margin-left: 3px; }
+  .nbt-key { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+  .nbt-key b { font-family: var(--narrow); color: var(--ink-2); }
+  table.nbt { min-width: 560px; }
+  .pg-body h4 small { font-weight: 400; font-size: 11px; color: var(--muted); margin-left: 6px; letter-spacing: 0; text-transform: none; }
+  .nt-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .nt-c { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 2px 7px; border-radius: 3px; background: var(--surface-2); }
+  .nt-c b { font-family: var(--narrow); font-size: 16px; color: var(--ink); }
+  .nt-c span { font-size: 11px; color: var(--muted); }
+  .nt-c i { font-style: normal; font-family: var(--narrow); font-size: 11px; font-weight: 700; color: var(--ink-2); }
+  .nt-c.good i { color: var(--win); }
+  .nt-c.bad i { color: var(--loss); }
+  .nbi { cursor: pointer; }
+  .nbi-m { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .nbi-s { font-size: 11.5px; color: var(--muted); }
+  table.nbx tr.x { display: none; }
+  table.nbx.all tr.x { display: table-row; }
   /* ---- football: live table, fixture difficulty, two players side by side ---- */
   .lt-note { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--live); margin-top: 12px; }
   tr.lt-on td { background: var(--live-soft); }
@@ -5250,7 +5270,7 @@
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
       f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
-      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML })[top.type](top).then(function (html) {
+      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML, nbaCmp: nbaCmpPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -11520,12 +11540,19 @@ O
         (qq <= 4 ? 'Q' + qq : 'OT' + (qq - 4)) + '</text>';
     }
     var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Ym(p.h - p.a).toFixed(1); }).join('');
+    // the biggest unanswered runs, shaded where they happened
+    var runs = nbaRuns(pts);
+    var bands = runs.map(function (r) {
+      var x0 = X(r.start.t), x1 = Math.max(X(r.end.t), x0 + 2), col = r.side === 'h' ? kit.home : kit.away;
+      return '<rect x="' + x0.toFixed(1) + '" y="' + T + '" width="' + (x1 - x0).toFixed(1) + '" height="' + (H - T - B) + '" fill="' + col + '" opacity=".13"/>' +
+        '<text class="nf-run" x="' + ((x0 + x1) / 2).toFixed(1) + '" y="' + (r.side === 'h' ? T + 7 : H - B - 3) + '" text-anchor="middle" fill="' + col + '">' + r.n + '-0</text>';
+    }).join('');
     var area = line + 'L' + X(pts[pts.length - 1].t).toFixed(1) + ' ' + mid.toFixed(1) + 'L' + X(0).toFixed(1) + ' ' + mid.toFixed(1) + 'Z';
     var cid = 'nf' + String(id).replace(/\W/g, '');
     var margin = '<svg class="nf-svg" data-flow="' + esc(id) + '" data-kind="m" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="分差走势">' +
       '<defs><clipPath id="' + cid + 'h"><rect x="0" y="0" width="' + W + '" height="' + mid.toFixed(1) + '"/></clipPath>' +
       '<clipPath id="' + cid + 'a"><rect x="0" y="' + mid.toFixed(1) + '" width="' + W + '" height="' + (H - mid).toFixed(1) + '"/></clipPath></defs>' +
-      grid + '<line class="nf-zero" x1="' + L + '" x2="' + (W - R) + '" y1="' + mid.toFixed(1) + '" y2="' + mid.toFixed(1) + '"/>' +
+      grid + bands + '<line class="nf-zero" x1="' + L + '" x2="' + (W - R) + '" y1="' + mid.toFixed(1) + '" y2="' + mid.toFixed(1) + '"/>' +
       '<path d="' + area + '" fill="' + kit.home + '" opacity=".38" clip-path="url(#' + cid + 'h)"/>' +
       '<path d="' + area + '" fill="' + kit.away + '" opacity=".38" clip-path="url(#' + cid + 'a)"/>' +
       '<path class="nf-line" d="' + line + '"/>' +
@@ -11556,7 +11583,10 @@ O
       '<div class="nf-box">' + margin + chance + '<div class="nf-tip" hidden></div></div>' +
       '<div class="nf-sum">' + (en
         ? 'Biggest lead: ' + esc(hn) + ' ' + big.h + ' · ' + esc(an) + ' ' + big.a + ' · ' + changes + ' lead changes · ' + ties + ' ties'
-        : '最大领先：' + esc(hn) + ' ' + big.h + ' 分 · ' + esc(an) + ' ' + big.a + ' 分 · 领先变换 ' + changes + ' 次 · 平局 ' + ties + ' 次') + '</div></div>';
+        : '最大领先：' + esc(hn) + ' ' + big.h + ' 分 · ' + esc(an) + ' ' + big.a + ' 分 · 领先变换 ' + changes + ' 次 · 平局 ' + ties + ' 次') +
+      (runs.length ? '<br>' + (en ? 'Runs: ' : '得分高潮：') + runs.map(function (r) {
+        return esc(r.side === 'h' ? hn : an) + ' ' + r.n + '-0' + (en ? ' (' + nbaRunWhen(r) + ')' : '（' + nbaRunWhen(r) + '）');
+      }).join(' · ') : '') + '</div></div>';
   }
   function nbaFlowPoint(svg, clientX) {
     var f = nbaFlows[svg.getAttribute('data-flow')];
@@ -11852,7 +11882,7 @@ O
 
   function nbaTeamPageHTML(pg) {
     var id = pg.id, base = API + NBA + 'teams/' + id;
-    return Promise.all([getJSON(base), getJSON(base + '/roster'), getJSON(base + '/schedule')]).then(function (r) {
+    return Promise.all([getJSON(base), getJSON(base + '/roster'), getJSON(base + '/schedule'), nbaTeamRanks(), nbaInjuries()]).then(function (r) {
       var t = (r[0] && r[0].team) || {};
       if (!t.id) return '<div class="err">球队资料没取到，返回再点一次试试。</div>';
       var sched = r[2] || {};
@@ -11889,6 +11919,8 @@ O
           .sort(function (a, b) { return new Date(a.date) - new Date(b.date); }).slice(0, 3);
         if (past.length) html += '<h4>' + (played.length ? '近期赛果' : '上赛季最后 5 场') + '</h4><div class="card pg-card">' + past.map(row).join('') + '</div>';
         if (next.length) html += '<h4>接下来</h4><div class="card pg-card">' + next.map(row).join('') + '</div>';
+        html += nbaTeamRanksHTML(r[3], t.id);
+        html += nbaTeamInjuryHTML(r[4], t.id);
         var squad = ((r[1] && r[1].athletes) || []).slice().sort(function (a, b) { return (Number(a.jersey) || 99) - (Number(b.jersey) || 99); });
         if (squad.length) {
           html += '<h4>阵容</h4><div class="card pg-card">' + squad.map(function (a) {
@@ -11911,7 +11943,7 @@ O
 
   function nbaPlayerPageHTML(pg) {
     var base = API + 'common/v3/sports/basketball/nba/athletes/' + pg.id;
-    return Promise.all([getJSON(base), getJSON(base + '/overview'), getJSON(base + '/gamelog')]).then(function (r) {
+    return Promise.all([getJSON(base), getJSON(base + '/overview'), getJSON(base + '/gamelog'), getJSON(base + '/stats')]).then(function (r) {
       var a = (r[0] && r[0].athlete) || {};
       if (!a.id) return '<div class="err">球员资料没取到，返回再点一次试试。</div>';
       var tm = a.team || {};
@@ -11944,6 +11976,7 @@ O
             }).join('') + '</tr>';
           }).join('') + '</tbody></table></div></div>';
       }
+      html += nbaCareerHTML(r[3]);
 
       var gl = r[2] || {};
       var byEv = {};
@@ -11952,24 +11985,25 @@ O
       });
       var gLab = gl.labels || [];
       var games = Object.keys(gl.events || {}).map(function (k) { return gl.events[k]; })
-        .sort(function (x, y) { return new Date(y.gameDate) - new Date(x.gameDate); }).slice(0, 5);
+        .sort(function (x, y) { return new Date(y.gameDate) - new Date(x.gameDate); });
       if (games.length) {
         var cols = [['PTS', '得分'], ['REB', '篮板'], ['AST', '助攻'], ['FG', '投篮']];
-        html += '<h4>最近 5 场</h4><div class="card pg-card"><div class="table-scroll"><table class="ps"><thead><tr><th class="tm">对手</th>' +
+        html += '<h4>比赛记录</h4><div class="card pg-card"><div class="table-scroll"><table class="ps nbx"><thead><tr><th class="tm">对手</th>' +
           '<th>比分</th>' + cols.map(function (c) { return '<th>' + c[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
-          games.map(function (g) {
+          games.map(function (g, gi) {
             var s = byEv[g.id] || [];
             var d = new Date(g.gameDate);
             var op = g.opponent || {};
             var res = String(g.gameResult || '').toUpperCase();
-            return '<tr><td class="tm"><span class="pg-d">' + (isNaN(d) ? '' : esc(fmtDay(d))) + '</span>' +
+            return '<tr' + (gi >= 5 ? ' class="x"' : '') + '><td class="tm"><span class="pg-d">' + (isNaN(d) ? '' : esc(fmtDay(d))) + '</span>' +
               '<span class="pg-ha">' + (g.atVs === '@' ? '客' : '主') + '</span>' + esc(nbaCN(op.displayName, op.abbreviation)) + '</td>' +
               '<td>' + esc(g.score || '') + (res ? ' <span class="f ' + esc(res) + '">' + esc(res) + '</span>' : '') + '</td>' +
               cols.map(function (c) {
                 var v = s[gLab.indexOf(c[0])];
                 return '<td' + (c[0] === 'PTS' ? ' class="pts"' : '') + '>' + esc(v == null ? '–' : v) + '</td>';
               }).join('') + '</tr>';
-          }).join('') + '</tbody></table></div></div>';
+          }).join('') + '</tbody></table></div>' +
+          (games.length > 5 ? '<button type="button" class="com-more nb-more">' + (LANG === 'en' ? 'All ' + games.length + ' games' : '全部 ' + games.length + ' 场') + '</button>' : '') + '</div>';
       }
       var awards = (r[1] && r[1].awards) || [];
       if (awards.length) {
@@ -11979,6 +12013,7 @@ O
         }).join('') + '</div>';
       }
       if (!splits.length && !games.length) html += '<div class="empty" style="margin-top:14px">这名球员暂时没有数据。</div>';
+      html += nbaCmpPickerHTML(a);
       return html;
     });
   }
@@ -12120,6 +12155,325 @@ O
     });
   });
 
+  /* ---------- basketball, as the NBA app and ESPN have it: runs, a fuller table,
+     where a team ranks, a career by season, the injury list, two players side by side ---------- */
+
+  /* A run is points one side scores while the other scores none. The
+     biggest three of eight or more are the ones worth marking. */
+  function nbaRuns(pts) {
+    var runs = [], cur = null;
+    for (var i = 1; i < pts.length; i++) {
+      var dh = pts[i].h - pts[i - 1].h, da = pts[i].a - pts[i - 1].a;
+      if (!dh && !da) continue;
+      var side = dh > 0 && !da ? 'h' : da > 0 && !dh ? 'a' : '';
+      if (!side) { if (cur) runs.push(cur); cur = null; continue; }
+      var n = side === 'h' ? dh : da;
+      if (cur && cur.side === side) { cur.n += n; cur.end = pts[i]; }
+      else { if (cur) runs.push(cur); cur = { side: side, n: n, start: pts[i], end: pts[i] }; }
+    }
+    if (cur) runs.push(cur);
+    return runs.filter(function (r) { return r.n >= 8; })
+      .sort(function (a, b) { return b.n - a.n || a.start.t - b.start.t; }).slice(0, 3);
+  }
+  function nbaRunWhen(r) {
+    var a = nbaPeriodCN(r.start.per), b = nbaPeriodCN(r.end.per);
+    return a === b ? a : a + '–' + b;
+  }
+
+  /* ---- the table: home, road, the last ten, who has clinched what ---- */
+  var nbaTableView = 'conf';
+  var NBA_DIV_CN = { atlantic: '大西洋赛区', central: '中部赛区', southeast: '东南赛区', northwest: '西北赛区', pacific: '太平洋赛区', southwest: '西南赛区' };
+  var NBA_CLINCH = [['z', '锁定头号种子'], ['y', '赛区第一'], ['x', '锁定季后赛'], ['pb', '锁定附加赛'], ['e', '已淘汰']];
+  function nbaClinch(code) {
+    code = String(code || '').toLowerCase();
+    if (!code || code === '-') return '';
+    // "*" marks the league's best record, which is a top seed too; "xp" is a playoff place
+    if (code === '*') code = 'z';
+    if (code === 'xp') code = 'x';
+    return code;
+  }
+  function nbaDivStandings() {
+    if (nbaCache.div) return Promise.resolve(nbaCache.div);
+    return nbaStandings().then(function (cur) {
+      var yr = nbaCache.stale ? new Date().getFullYear() : 0;
+      return getJSON(API + 'v2/sports/basketball/nba/standings?level=3' + (yr ? '&season=' + yr : '')).then(function (d) {
+        if (d) nbaCache.div = d;
+        return d;
+      });
+    });
+  }
+  function nbaTableRows(entries, byDiv) {
+    var favIds = favNba.map(function (f) { return String(f.id); });
+    var rows = (entries || []).map(function (e) {
+      var st = {};
+      (e.stats || []).forEach(function (x) { st[x.type || x.name] = x.displayValue; st[x.name] = x.displayValue; });
+      return { seed: parseInt(st.playoffseed, 10) || 99, pct: parseFloat(st.winpercent) || 0, s: st, team: e.team || {} };
+    });
+    rows.sort(byDiv ? function (a, b) { return b.pct - a.pct || a.seed - b.seed; } : function (a, b) { return a.seed - b.seed; });
+    return '<div class="card"><div class="table-scroll"><table class="nbt"><thead><tr>' +
+      '<th class="rk" style="text-align:left">#</th><th class="tm">球队</th>' +
+      '<th>胜</th><th>负</th><th>胜率</th><th>胜差</th><th>主场</th><th>客场</th><th>近 10</th><th>近况</th></tr></thead><tbody>' +
+      rows.map(function (r, i) {
+        var zone = byDiv ? '' : r.seed <= 6 ? 'z-top' : r.seed <= 10 ? 'z-mid' : '';
+        var fav = favIds.indexOf(String(r.team.id)) !== -1 ? ' fav' : '';
+        var cl = nbaClinch(r.s.clincher);
+        return '<tr class="' + zone + fav + '" data-nbt="' + esc(r.team.id || '') + '"><td class="rk">' +
+          (byDiv ? i + 1 : r.seed === 99 ? '-' : r.seed) + '</td>' +
+          '<td class="tm">' + crest(r.team, 20) + '<span class="nm">' + esc(nbaCN(r.team.displayName)) + '</span>' +
+          (cl ? '<sup class="nbt-cl">' + esc(cl) + '</sup>' : '') + '</td>' +
+          '<td>' + esc(r.s.wins || '0') + '</td><td>' + esc(r.s.losses || '0') + '</td>' +
+          '<td>' + esc(r.s.winpercent || '-') + '</td><td>' + esc(r.s.gamesbehind || '-') + '</td>' +
+          '<td>' + esc(r.s.home || '-') + '</td><td>' + esc(r.s.road || '-') + '</td>' +
+          '<td>' + esc(r.s.lasttengames || '-') + '</td><td>' + esc(r.s.streak || '-') + '</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+  }
+  function nbaTableViewTabs() {
+    return '<div class="rnd-tabs nbt-view">' + [['conf', '东西部'], ['div', '赛区']].map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === nbaTableView ? ' on' : '') + '" data-nbv="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function nbaClinchKey(groups) {
+    var seen = {};
+    (groups || []).forEach(function (g) {
+      [].concat((g.standings || {}).entries || [], [].concat.apply([], (g.children || []).map(function (c) { return (c.standings || {}).entries || []; })))
+        .forEach(function (e) {
+          (e.stats || []).forEach(function (x) { if (x.name === 'clincher') seen[nbaClinch(x.displayValue)] = 1; });
+        });
+    });
+    var key = NBA_CLINCH.filter(function (c) { return seen[c[0]]; });
+    return key.length ? '<div class="nbt-key">' + key.map(function (c) { return '<span><b>' + c[0] + '</b> ' + c[1] + '</span>'; }).join('') + '</div>' : '';
+  }
+
+  /* ---- where a team ranks: all thirty in one request, placed here ---- */
+  var NBA_TSTAT = [
+    ['offensive', 0, 'avgPoints', '得分'], ['offensive', 1, 'avgPoints', '失分', 1], ['differential', 0, 'avgPointsDifferential', '净胜分'],
+    ['general', 0, 'avgRebounds', '篮板'], ['offensive', 0, 'avgAssists', '助攻'], ['defensive', 0, 'avgSteals', '抢断'],
+    ['defensive', 0, 'avgBlocks', '盖帽'], ['offensive', 0, 'avgTurnovers', '失误', 1], ['offensive', 0, 'fieldGoalPct', '投篮%'],
+    ['offensive', 0, 'threePointFieldGoalPct', '三分%'], ['offensive', 0, 'freeThrowPct', '罚球%'], ['offensive', 1, 'fieldGoalPct', '对手投篮%', 1]
+  ];
+  // the dictionary reads 抢断 as football's tackles, so these carry their own English
+  var NBA_TSTAT_EN = ['Points', 'Allowed', 'Margin', 'Rebounds', 'Assists', 'Steals', 'Blocks', 'Turnovers', 'FG%', '3P%', 'FT%', 'Opp FG%'];
+  var NBA_CMP_EN = { GP: 'Games', MIN: 'Minutes', PTS: 'Points', REB: 'Rebounds', AST: 'Assists', STL: 'Steals', BLK: 'Blocks', TO: 'Turnovers', PF: 'Fouls' };
+  function nbaTeamRanks() {
+    var hit = nbaCache.ranks;
+    if (hit && Date.now() - hit.t < 60 * 60000) return Promise.resolve(hit.d);
+    return getJSON(API + 'common/v3/sports/basketball/nba/statistics/byteam?limit=30&seasontype=2').then(function (d) {
+      if (!d || !d.teams || !d.teams.length) return null;
+      var names = {};
+      (d.categories || []).forEach(function (c) { if ((c.names || []).length && !names[c.name]) names[c.name] = c.names; });
+      var vals = {};   // team id -> stat index -> value
+      d.teams.forEach(function (t) {
+        var id = String((t.team || {}).id || ''), mine = {};
+        NBA_TSTAT.forEach(function (s, i) {
+          var cats = (t.categories || []).filter(function (c) { return c.name === s[0]; });
+          var own = cats.filter(function (c) { return !/^Opponent/i.test(c.displayName || ''); })[0];
+          var opp = cats.filter(function (c) { return /^Opponent/i.test(c.displayName || ''); })[0];
+          var c = s[1] ? opp : own, k = (names[s[0]] || []).indexOf(s[2]);
+          var v = c && k > -1 ? Number(c.values[k]) : NaN;
+          if (!isNaN(v)) mine[i] = v;
+        });
+        vals[id] = mine;
+      });
+      var out = { season: ((d.requestedSeason || {}).displayName) || '', teams: {} };
+      Object.keys(vals).forEach(function (id) {
+        out.teams[id] = NBA_TSTAT.map(function (s, i) {
+          var v = vals[id][i];
+          if (v == null) return null;
+          var better = 0;
+          Object.keys(vals).forEach(function (o) {
+            var w = vals[o][i];
+            if (w != null && (s[4] ? w < v : w > v)) better++;
+          });
+          return { v: v, rank: better + 1 };
+        });
+      });
+      nbaCache.ranks = { t: Date.now(), d: out };
+      return out;
+    });
+  }
+  function nbaTeamRanksHTML(rk, id) {
+    var mine = rk && rk.teams[String(id)];
+    if (!mine) return '';
+    return '<h4>球队数据<small>' + esc(rk.season) + (LANG === 'en' ? ' regular season' : ' 常规赛') + '</small></h4><div class="nt-grid">' +
+      NBA_TSTAT.map(function (s, i) {
+        var x = mine[i];
+        if (!x) return '';
+        var v = s[2] === 'avgPointsDifferential' ? (x.v > 0 ? '+' : '') + x.v.toFixed(1) : x.v.toFixed(1);
+        return '<div class="nt-c' + (x.rank <= 5 ? ' good' : x.rank >= 26 ? ' bad' : '') + '"><b>' + esc(v) + '</b><span>' + (LANG === 'en' ? NBA_TSTAT_EN[i] : s[3]) + '</span>' +
+          '<i>' + (LANG === 'en' ? '#' + x.rank : '第 ' + x.rank) + '</i></div>';
+      }).join('') + '</div><div class="fl-note">名次是在 30 支球队里的排位；失分、失误、对手投篮% 越少排得越前。</div>';
+  }
+
+  /* ---- the injury list, league-wide in one request ---- */
+  var NBA_BODY_CN = {
+    knee: '膝盖', foot: '脚部', hip: '髋部', achilles: '跟腱', ankle: '脚踝', hamstring: '腿筋', toe: '脚趾', wrist: '手腕',
+    undisclosed: '未公开', shoulder: '肩膀', back: '背部', thumb: '拇指', finger: '手指', calf: '小腿', 'lower leg': '小腿',
+    ribs: '肋部', quadriceps: '股四头肌', groin: '腹股沟', elbow: '肘部', hand: '手部', concussion: '脑震荡', illness: '生病',
+    neck: '颈部', abdomen: '腹部', oblique: '腹斜肌', face: '面部', eye: '眼部', head: '头部', leg: '腿部', chest: '胸部',
+    shin: '胫骨', heel: '脚跟', 'rest': '休息', personal: '个人原因', suspension: '禁赛', 'not injury related': '非伤病原因'
+  };
+  function nbaInjuries() {
+    var hit = nbaCache.inj;
+    if (hit && Date.now() - hit.t < 10 * 60000) return Promise.resolve(hit.d);
+    return getJSON(API + NBA + 'injuries').then(function (d) {
+      if (!d) return null;
+      var by = {};
+      (d.injuries || []).forEach(function (t) { by[String(t.id)] = t.injuries || []; });
+      nbaCache.inj = { t: Date.now(), d: by };
+      return by;
+    });
+  }
+  function nbaTeamInjuryHTML(by, id) {
+    var list = by && by[String(id)];
+    if (!list || !list.length) return '';
+    var en = LANG === 'en';
+    return '<h4>伤病名单</h4><div class="card pg-card">' + list.map(function (i) {
+      var a = i.athlete || {}, det = i.details || {};
+      var aid = '';
+      (a.links || []).forEach(function (l) { var m = /\/id\/(\d+)/.exec(l.href || ''); if (m && !aid) aid = m[1]; });
+      var body = det.type || '';
+      var where = en ? [det.side && det.side !== 'Not Specified' ? det.side : '', body].filter(Boolean).join(' ')
+        : { Left: '左', Right: '右' }[det.side] ? { Left: '左', Right: '右' }[det.side] + (NBA_BODY_CN[body.toLowerCase()] || body).replace(/部$/, '')
+          : NBA_BODY_CN[body.toLowerCase()] || body;
+      var st = i.status || '';
+      var stCN = en ? st : ({ 'Day-To-Day': '出战成疑', 'Out': '缺阵', 'Questionable': '出战成疑', 'Doubtful': '大概率缺阵',
+        'Probable': '大概率出战', 'Suspension': '禁赛', 'Injured Reserve': '伤病名单' })[st] || st;
+      var back = '';
+      if (det.returnDate) {
+        var d = new Date(det.returnDate + 'T12:00:00Z');
+        if (!isNaN(d)) {
+          var sameYr = d.getFullYear() === new Date().getFullYear();
+          back = en ? 'back ' + (sameYr ? '' : d.getFullYear() + '/') + (d.getMonth() + 1) + '/' + d.getDate()
+            : '预计 ' + (sameYr ? '' : d.getFullYear() + ' 年 ') + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日回归';
+        }
+      }
+      return '<div class="pg-pl nbi"' + (aid ? ' data-nbp="' + esc(aid) + '"' : '') + '>' + nbaFace((a.headshot || {}).href, 'ps-ph') +
+        '<span class="nbi-m"><span class="pg-pn">' + esc(a.displayName || '') + '</span>' +
+        '<span class="nbi-s">' + esc([where, back].filter(Boolean).join(' · ')) + '</span></span>' +
+        '<span class="tag' + (st === 'Out' ? ' cold' : '') + '">' + esc(stCN) + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  /* ---- a career, one season a line ---- */
+  function nbaCareerHTML(d) {
+    var cat = ((d && d.categories) || []).filter(function (c) { return c.name === 'averages'; })[0];
+    var seasons = ((cat && cat.statistics) || []).slice().reverse();
+    if (seasons.length < 2) return '';
+    var lab = cat.labels || [];
+    var bySlug = {};
+    Object.keys((d && d.teams) || {}).forEach(function (k) { bySlug[k] = d.teams[k]; });
+    var cols = [['GP', '场次'], ['MIN', '时间'], ['PTS', '得分'], ['REB', '篮板'], ['AST', '助攻'], ['FG%', '投篮%'], ['3P%', '三分%']];
+    return '<h4>生涯逐季</h4><div class="card pg-card"><div class="table-scroll"><table class="ps nbx"><thead><tr><th class="tm">' + (LANG === 'en' ? 'Season' : '赛季') + '</th>' +
+      cols.map(function (c) { return '<th>' + c[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      seasons.map(function (s, i) {
+        var tm = bySlug[s.teamSlug] || {};
+        return '<tr' + (i >= 6 ? ' class="x"' : '') + '><td class="tm"><span class="pg-d">' + esc((s.season || {}).displayName || '') + '</span>' +
+          esc(tm.abbreviation || '') + '</td>' + cols.map(function (c) {
+            var v = (s.stats || [])[lab.indexOf(c[0])];
+            return '<td' + (c[0] === 'PTS' ? ' class="pts"' : '') + '>' + esc(v == null ? '–' : v) + '</td>';
+          }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>' +
+      (seasons.length > 6 ? '<button type="button" class="com-more nb-more">全部 ' + seasons.length + ' 个赛季</button>' : '') + '</div>';
+  }
+
+  /* ---- two players side by side ---- */
+  var NBA_CMP_ROWS = [['GP', '场次'], ['MIN', '时间'], ['PTS', '得分'], ['REB', '篮板'], ['AST', '助攻'], ['STL', '抢断'], ['BLK', '盖帽'],
+    ['FG%', '投篮%'], ['3P%', '三分%'], ['FT%', '罚球%'], ['TO', '失误', 1], ['PF', '犯规', 1]];
+  var NBA_CMP_SPLIT = [['Regular Season', '常规赛'], ['Postseason', '季后赛'], ['Career', '生涯']];
+  function nbaCmpPickerHTML(a) {
+    return '<h4>球员对比</h4><div class="nbc-pick" data-nbc-a="' + esc(a.id) + '" data-team="' + esc((a.team || {}).id || '') + '">' +
+      '<button type="button" class="pg-fav nbc-open">选一名球员对比</button></div>';
+  }
+  function nbaCmpListFill(box) {
+    var tid = box.dataset.team, me = box.dataset.nbcA;
+    box.innerHTML = '<div class="skeleton" style="padding:8px 0">正在读取名单…</div>';
+    Promise.all([tid ? getJSON(API + NBA + 'teams/' + tid + '/roster') : Promise.resolve(null), nbaLeaders()]).then(function (r) {
+      if (!box.isConnected) return;
+      var seen = {}, mates = [], stars = [];
+      seen[me] = 1;
+      ((r[0] && r[0].athletes) || []).forEach(function (x) {
+        if (!seen[x.id]) { seen[x.id] = 1; mates.push({ id: x.id, name: x.displayName, sub: nbaPosCN(x.position), face: (x.headshot || {}).href }); }
+      });
+      ((((r[1] || {}).leaders || {}).categories) || []).forEach(function (c) {
+        (c.leaders || []).forEach(function (l) {
+          var x = l.athlete || {}, tm = l.team || x.team || {};
+          if (x.id && !seen[x.id]) { seen[x.id] = 1; stars.push({ id: x.id, name: x.displayName, sub: nbaCN(tm.displayName, tm.abbreviation), face: (x.headshot || {}).href }); }
+        });
+      });
+      function list(title, xs) {
+        return xs.length ? '<div class="pg-grp">' + title + '</div>' + xs.map(function (x) {
+          return '<button type="button" class="pg-pl" data-nbc-b="' + esc(x.id) + '">' + nbaFace(x.face, 'ps-ph') +
+            '<span class="pg-pn">' + esc(x.name || '') + '</span><span class="pg-pm">' + esc(x.sub || '') + '</span></button>';
+        }).join('') : '';
+      }
+      box.innerHTML = '<div class="card pg-card fbc-list">' + list('同队', mates) + list('数据榜上的球员', stars) + '</div>';
+    });
+  }
+  function nbaCmpPageHTML(pg) {
+    var base = API + 'common/v3/sports/basketball/nba/athletes/';
+    return Promise.all([getJSON(base + pg.a), getJSON(base + pg.a + '/overview'), getJSON(base + pg.b), getJSON(base + pg.b + '/overview')]).then(function (r) {
+      var A = (r[0] && r[0].athlete) || {}, B = (r[2] && r[2].athlete) || {};
+      if (!A.id || !B.id) return '<div class="err">球员资料没取到，返回再点一次试试。</div>';
+      function split(ov, name) {
+        var st = (ov && ov.statistics) || {}, lab = st.labels || [];
+        var s = (st.splits || []).filter(function (x) { return x.displayName === name && x.stats && x.stats.length; })[0];
+        if (!s) return null;
+        var m = {};
+        lab.forEach(function (l, i) { m[l] = s.stats[i]; });
+        return m;
+      }
+      function head(x) {
+        var face = (x.headshot && x.headshot.href) || 'https://a.espncdn.com/i/headshots/nba/players/full/' + x.id + '.png';
+        return '<div class="fbc-h" data-nbp="' + esc(x.id) + '"><span class="fbc-ph">' + PS_FACE + '<img alt="" src="' + esc(face) + '" onerror="this.remove()"></span>' +
+          '<b>' + esc(x.displayName || '') + '</b><span>' + esc([nbaPosCN(x.position), nbaCN((x.team || {}).displayName, (x.team || {}).abbreviation)].filter(Boolean).join(' · ')) + '</span></div>';
+      }
+      function block(ta, tb) {
+        return NBA_CMP_ROWS.map(function (k) {
+          var hv = parseFloat(ta[k[0]]), av = parseFloat(tb[k[0]]);
+          if (isNaN(hv) && isNaN(av)) return '';
+          hv = hv || 0; av = av || 0;
+          var sum = hv + av, hw = sum ? hv / sum * 100 : 50;
+          var hb = k[2] ? hv < av : hv > av, ab = k[2] ? av < hv : av > hv;
+          if (k[0] === 'GP' || k[0] === 'MIN') hb = ab = false;
+          return '<div class="stat"><span class="sv' + (hb ? ' fbc-b' : '') + '">' + esc(ta[k[0]] || '0') + '</span><span class="sl">' + (LANG === 'en' && NBA_CMP_EN[k[0]] || k[1]) + '</span>' +
+            '<span class="sv r' + (ab ? ' fbc-b' : '') + '">' + esc(tb[k[0]] || '0') + '</span><span class="sbar"><span class="lw"><i style="width:' + hw.toFixed(1) +
+            '%;background:var(--ser-a)"></i></span><span class="rw"><i style="width:' + (100 - hw).toFixed(1) + '%;background:var(--ser-b)"></i></span></span></div>';
+        }).join('');
+      }
+      var views = NBA_CMP_SPLIT.map(function (s) { return { k: s[0], label: s[1], a: split(r[1], s[0]), b: split(r[3], s[0]) }; })
+        .filter(function (v) { return v.a && v.b; });
+      if (!views.length) return '<div class="fbc-heads">' + head(A) + '<span class="fbc-vs">VS</span>' + head(B) + '</div>' +
+        '<div class="empty" style="margin-top:14px">两人暂时没有可比的数据。</div>';
+      return '<div class="fbc-heads">' + head(A) + '<span class="fbc-vs">VS</span>' + head(B) + '</div>' +
+        '<h4>场均数据</h4>' + (views.length > 1 ? '<div class="rnd-tabs">' + views.map(function (v, i) {
+          return '<button type="button" class="rnd-tab' + (i ? '' : ' on') + '" data-fbcv="' + i + '">' + v.label + '</button>';
+        }).join('') + '</div>' : '') + views.map(function (v, i) {
+          return '<div data-fbcw="' + i + '"' + (i ? ' hidden' : '') + '>' + block(v.a, v.b) + '</div>';
+        }).join('') + '<div class="fl-note">常规赛、季后赛是各自最近一个赛季的数据。</div>';
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('.nbc-open, [data-nbc-b], .nb-more, [data-nbv]');
+    if (!el) return;
+    e.stopPropagation();
+    if (el.classList.contains('nbc-open')) { nbaCmpListFill(el.closest('.nbc-pick')); return; }
+    if (el.classList.contains('nb-more')) {
+      var tb = el.parentNode.querySelector('table.nbx');
+      if (tb) tb.classList.add('all');
+      el.remove();
+      return;
+    }
+    if (el.dataset.nbv) {
+      if (el.dataset.nbv === nbaTableView) return;
+      nbaTableView = el.dataset.nbv;
+      renderNbaTable();
+      return;
+    }
+    var box = el.closest('.nbc-pick');
+    pgOpen({ type: 'nbaCmp', a: box.dataset.nbcA, b: el.dataset.nbcB });
+  }, true);
+
   function renderNbaTable() {
     var host = panelFor('panel-table');
     if (nbaBoard !== 'table') { nbaBoardShow(host); return; }
@@ -12131,30 +12485,23 @@ O
       var favIds = favNba.map(function (f) { return String(f.id); });
       host.innerHTML = nbaBoardTabsHTML() + honourCard(honours) +
         (nbaCache.stale ? '<div class="note">新赛季还没开打，下面是上赛季的最终排名。</div>' : '') +
+        nbaTableViewTabs() + '<div class="nbt-body">' + (nbaTableView === 'div' ? '<div class="skeleton">正在获取…</div>' :
         groups.map(function (g) {
-          var rows = (((g.standings || {}).entries) || []).map(function (e) {
-            var st = {};
-            (e.stats || []).forEach(function (x) { st[x.name] = x.displayValue; });
-            return { seed: parseInt(st.playoffSeed, 10) || 99, s: st, team: e.team || {} };
-          }).sort(function (a, b) { return a.seed - b.seed; });
-          return '<div class="group-name">' + (/east/i.test(g.name) ? '东部' : '西部') + '</div>' +
-            '<div class="card"><div class="table-scroll"><table><thead><tr>' +
-            '<th class="rk" style="text-align:left">#</th><th class="tm">球队</th>' +
-            '<th>胜</th><th>负</th><th>胜率</th><th>胜差</th><th>近况</th></tr></thead><tbody>' +
-            rows.map(function (r2) {
-              var zone = r2.seed <= 6 ? 'z-top' : r2.seed <= 10 ? 'z-mid' : '';
-              var fav = favIds.indexOf(String(r2.team.id)) !== -1 ? ' fav' : '';
-              return '<tr class="' + zone + fav + '" data-nbt="' + esc(r2.team.id || '') + '"><td class="rk">' +
-                (r2.seed === 99 ? '-' : r2.seed) + '</td>' +
-                '<td class="tm">' + crest(r2.team, 20) + '<span class="nm">' +
-                esc(nbaCN(r2.team.displayName)) + '</span></td>' +
-                '<td>' + esc(r2.s.wins || '0') + '</td><td>' + esc(r2.s.losses || '0') + '</td>' +
-                '<td>' + esc(r2.s.winPercent || '-') + '</td><td>' + esc(r2.s.gamesBehind || '-') + '</td>' +
-                '<td>' + esc(r2.s.streak || '-') + '</td></tr>';
-            }).join('') + '</tbody></table></div></div>';
+          return '<div class="group-name">' + (/east/i.test(g.name) ? '东部' : '西部') + '</div>' + nbaTableRows((g.standings || {}).entries, false);
         }).join('') +
         '<div class="legend"><span><i style="background:var(--accent)"></i>季后赛席位</span>' +
-        '<span><i style="background:var(--hairline-strong)"></i>附加赛区</span></div>';
+        '<span><i style="background:var(--hairline-strong)"></i>附加赛区</span></div>') + '</div>' + nbaClinchKey(groups);
+      if (nbaTableView !== 'div') return;
+      nbaDivStandings().then(function (d) {
+        var body = host.querySelector('.nbt-body');
+        if (!body || nbaTableView !== 'div' || nbaBoard !== 'table' || sport !== 'basketball') return;
+        var divs = [];
+        (((d || {}).children) || []).forEach(function (c) { (c.children || []).forEach(function (x) { divs.push(x); }); });
+        body.innerHTML = divs.length ? divs.map(function (x) {
+          var k = String(x.name || '').toLowerCase().replace(/\s*division$/, '');
+          return '<div class="group-name">' + esc(NAMES_EN ? x.name : NBA_DIV_CN[k] || x.name) + '</div>' + nbaTableRows((x.standings || {}).entries, true);
+        }).join('') : '<div class="err">赛区排名没取到，切走再切回来试一次。</div>';
+      });
     });
   }
 

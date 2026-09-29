@@ -1707,6 +1707,29 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- UFC: judges' cards, the ending, bonuses and the scales, the night, shared opponents ---- */
+  .usc-key { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin: 2px 0 4px; }
+  .usc-key .a, .usc td.a { color: var(--ser-a); }
+  .usc-key .b, .usc td.b { color: var(--ser-b); }
+  table.usc { min-width: 0; font-size: 12.5px; }
+  table.usc td, table.usc th { text-align: center; font-family: var(--narrow); }
+  table.usc td.tm, table.usc th.tm { text-align: left; font-family: inherit; }
+  .uw-miss { color: var(--loss); font-weight: 600; }
+  .uw-lim { color: var(--muted); }
+  .ubt { font-size: 10px; padding: 1px 5px; margin-top: 3px; display: inline-block; }
+  .bout .mid .ubt { display: block; margin: 3px auto 0; width: max-content; }
+  .ur-bar { display: flex; height: 10px; border-radius: 2px; overflow: hidden; gap: 2px; margin: 4px 0 6px; }
+  .ur-bar i.ko { background: var(--loss); }
+  .ur-bar i.sub { background: var(--ser-a); }
+  .ur-bar i.dec { background: var(--hairline-strong); }
+  .uco { padding: 2px 12px; }
+  .uco-r { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+  .uco-r:last-child { border-bottom: none; }
+  .uco-n { font-family: var(--serif); font-weight: 600; font-size: 13.5px; text-align: center; cursor: pointer; }
+  .uco-c { font-size: 11.5px; color: var(--muted); line-height: 1.8; }
+  .uco-c.r { text-align: right; }
+  .uco-c .f { margin-right: 4px; }
+  .rank-reign { font-size: 11.5px; color: var(--brass); padding: 0 0 8px 44px; margin-top: -4px; }
   /* ---- F1: the title sums, the boards, teammates, race pace, qualifying ---- */
   .tt { padding: 12px 14px; }
   .tt-left { font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
@@ -14801,10 +14824,20 @@ O
   function ufcSurname(name) {
     return plain(String(name || '')).replace(/[^a-z ]/g, '').trim().split(/\s+/).pop() || '';
   }
+  function ufcSurnameKeys(name) {
+    var w = plain(String(name || '')).replace(/[^a-z ]/g, '').trim().split(/\s+/);
+    var last = w.pop() || '';
+    return /^(jr|sr|ii|iii|iv)$/.test(last) && w.length ? [w[w.length - 1] + last, last, w[w.length - 1]] : [last];
+  }
   function ufcFightId(nameA, nameB, when) {
     return archiveGet('ufc-fights.json').then(function (d) {
-      var key = [ufcSurname(nameA), ufcSurname(nameB)].filter(Boolean).sort().join('|');
-      var rows = ((d || {}).fights || {})[key] || [];
+      // "Rosas Jr." is filed as "rosasjr": a suffix is tried joined to the name before it, then without it
+      var fights = (d || {}).fights || {}, rows = [];
+      ufcSurnameKeys(nameA).forEach(function (a) {
+        ufcSurnameKeys(nameB).forEach(function (b) {
+          if (!rows.length) rows = fights[[a, b].filter(Boolean).sort().join('|')] || [];
+        });
+      });
       if (!rows.length) return null;
       if (rows.length === 1) return rows[0].id;
       // a rematch: take whichever sitting is closest to the card's date
@@ -14820,9 +14853,9 @@ O
   function ufcRounds(fightId) {
     var key = 'rr' + fightId;
     if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
-    return getJSON('https://d29dxerjsp82wz.cloudfront.net/api/v3/fight/live/' + fightId + '.json')
-      .then(function (d) {
-        var detail = (d || {}).LiveFightDetail || {};
+    return ufcFightFeed(fightId)
+      .then(function (f) {
+        var detail = f || {};
         var out = {
           fighters: (detail.Fighters || []).map(function (f) {
             return {
@@ -15191,7 +15224,8 @@ O
         ufcAthlete(parts[2]), ufcAthlete(parts[3]),
         ufcCareer(parts[2]), ufcCareer(parts[3]),
         ufcDefence(sideA.name), ufcDefence(sideB.name),
-        ufcOdds(parts[0], parts[1])
+        ufcOdds(parts[0], parts[1]),
+        ufcFightId(names[0], names[1], when).then(function (fid) { return fid ? ufcFightFeed(fid) : null; }).catch(function () { return null; })
       ]).then(function (r) {
         if (!box.isConnected) return;
         r[2].defence = r[4];
@@ -15200,9 +15234,10 @@ O
            basketball tie. It is the one line that says who is expected to
            win, and everything below it is the argument. */
         box.innerHTML = ufcOddsHTML(r[6], sideA, sideB, true) +
-          tapeHTML(r[0], r[1], sideA, sideB) +
-          careerHTML(r[2], r[3], sideA.name, sideB.name) +
+          tapeHTML(r[0], r[1], sideA, sideB) + ufcWeighHTML(r[7], sideA.name, sideB.name) +
+          careerHTML(r[2], r[3], sideA.name, sideB.name) + '<div class="uco-slot"></div>' +
           boutClipsHTML(names, when);
+        ufcCommonFill(box.querySelector('.uco-slot'), parts[2], parts[3], sideA.name, sideB.name);
       });
       return;
     }
@@ -15221,7 +15256,8 @@ O
         .catch(function () { return null; }),
       ufcDefence(sideA.name), ufcDefence(sideB.name),
       ufcOdds(parts[0], parts[1]),
-      ufcBodies()
+      ufcBodies(),
+      ufcFightId(names[0], names[1], when).then(function (fid) { return fid ? ufcFightFeed(fid) : null; }).catch(function () { return null; })
     ]).then(function (r) {
       if (!box.isConnected) return;
       r[2].defence = r[5];
@@ -15231,6 +15267,8 @@ O
       box.innerHTML =
         boutHeroHTML(r[0], r[1], sideA, sideB, r[8]) +
         ufcOddsHTML(r[7], sideA, sideB) +
+        ufcEndingHTML(r[9], names[0] || '', names[1] || '') +
+        ufcScoresHTML(r[9], names[0] || '', names[1] || '') +
         boutTabsHTML(r[0], r[1], r[4], names[0] || '', names[1] || '') +
         careerHTML(r[2], r[3], sideA.name, sideB.name) +
         boutClipsHTML(names, when);
@@ -15475,6 +15513,7 @@ O
       if (bc) html += '<div class="kv"><span class="k">转播</span><span>' + esc(bc) + '</span></div>';
 
       var segOf = ufcSegments(bouts), lastSeg = null;
+      html += '<div class="ufc-recap"></div>';
       html += '<h4>对阵卡</h4><div class="card">' + bouts.map(function (c, i) {
         var seg = segOf(c), segHead = '';
         if (seg && (!lastSeg || seg.name !== lastSeg)) { segHead = ufcSegHTML(seg, c); lastSeg = seg.name; }
@@ -15536,7 +15575,303 @@ O
         var row = box.querySelector('.bout[data-bout="' + key + '"]');
         if (row) toggleBoutStats(row);
       });
+      ufcCardExtras(box, ev, bouts);
       if (ufcCardLive(ev, bouts)) ufcWatch(btn, box, ev);
+    });
+  }
+
+  /* ---------- UFC, as Tapology, Sherdog and ESPN have it: the judges' cards, how it
+     ended, bonuses and the scales, the night in numbers, shared opponents, the reigns ---------- */
+
+  var UFC_POS_CN = [
+    [/half guard/i, '半防守位'], [/full guard|closed guard|\bguard\b/i, '防守位'], [/side control/i, '侧压'], [/mount/i, '骑乘位'],
+    [/back control|rear/i, '背后控制'], [/north.south/i, '南北位'], [/clinch/i, '缠抱'], [/distance/i, '站立距离'],
+    [/ground/i, '地面'], [/turtle/i, '龟缩位'], [/against the cage|cage/i, '贴笼']
+  ];
+  var UFC_STRIKE_CN = [
+    [/head kick/i, '高扫'], [/body kick/i, '中段踢'], [/leg kick/i, '低扫'], [/spinning back fist/i, '转身背拳'],
+    [/spinning/i, '转身技'], [/flying knee/i, '飞膝'], [/knee/i, '膝击'], [/elbow/i, '肘击'], [/uppercut/i, '上勾拳'],
+    [/hook/i, '勾拳'], [/cross/i, '直拳'], [/jab/i, '刺拳'], [/punch/i, '拳击'], [/kick/i, '踢击'], [/slam/i, '摔砸']
+  ];
+  var UFC_TARGET_CN = { head: '头部', body: '身体', leg: '腿部', legs: '腿部' };
+  function ufcTermCN(s, table) {
+    if (!s || LANG === 'en') return s || '';
+    for (var i = 0; i < table.length; i++) if (table[i][0].test(s)) return table[i][1];
+    return s;
+  }
+
+  /* ---- the fight's own record, from the UFC's feed: kept whole now, not only the rounds ---- */
+  function ufcFightFeed(fightId) {
+    var key = 'ff' + fightId;
+    if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
+    return getJSON('https://d29dxerjsp82wz.cloudfront.net/api/v3/fight/live/' + fightId + '.json').then(function (d) {
+      var f = (d || {}).LiveFightDetail || null;
+      if (f && f.Result && f.Result.Method) ufcCache[key] = f;
+      return f;
+    });
+  }
+  function ufcFullName(f) { return [((f.Name || {}).FirstName || ''), ((f.Name || {}).LastName || '')].filter(Boolean).join(' '); }
+  // the two corners in the order the ESPN card shows them
+  function ufcCorners(f, nameA) {
+    var fs = (f && f.Fighters) || [];
+    if (fs.length < 2) return null;
+    var want = ufcSurname(nameA);
+    return ufcSurname(ufcFullName(fs[1])) === want && ufcSurname(ufcFullName(fs[0])) !== want ? [fs[1], fs[0]] : [fs[0], fs[1]];
+  }
+  function ufcLimit(f) {
+    var wc = (f && f.WeightClass) || {};
+    if (wc.CatchWeight) return Number(wc.CatchWeight) || null;
+    var m = /(\d+)\s*$/.exec(String(wc.Weight || ''));
+    return m ? Number(m[1]) : null;
+  }
+  // over the limit by more than the pound a non-title bout allows
+  function ufcMissed(f, x) {
+    var lim = ufcLimit(f), w = Number(x && x.WeighIn);
+    return lim && w && w > lim + 1 ? w - lim : 0;
+  }
+
+  /* ---- how it ended ---- */
+  function ufcEndingHTML(f, nameA, nameB) {
+    var r = (f && f.Result) || {};
+    if (!r.Method) return '';
+    var en = LANG === 'en';
+    var rows = [];
+    var when = r.EndingRound ? (en ? 'Round ' + r.EndingRound : '第 ' + r.EndingRound + ' 回合') + (r.EndingTime ? ' ' + r.EndingTime : '') : '';
+    if (when) rows.push([en ? 'When' : '时间', when]);
+    if (r.EndingPosition) rows.push([en ? 'Position' : '位置', ufcTermCN(String(r.EndingPosition).replace(/^from\s+/i, ''), UFC_POS_CN)]);
+    if (r.EndingSubmission) rows.push([en ? 'Submission' : '降服技', en ? r.EndingSubmission : (FINISH_CN.filter(function (p) { return p[0].test(r.EndingSubmission); })[0] || [0, r.EndingSubmission])[1]]);
+    if (r.EndingStrike) rows.push([en ? 'Strike' : '终结招式', ufcTermCN(r.EndingStrike, UFC_STRIKE_CN) + (r.EndingTarget ? ' · ' + (en ? r.EndingTarget : UFC_TARGET_CN[String(r.EndingTarget).toLowerCase()] || r.EndingTarget) : '')]);
+    if (r.EndingNotes && en) rows.push(['Notes', r.EndingNotes]);
+    var ref = f.Referee && [f.Referee.FirstName, f.Referee.LastName].filter(Boolean).join(' ');
+    if (ref) rows.push([en ? 'Referee' : '裁判', ref]);
+    if (!rows.length) return '';
+    return '<h4>结束方式</h4>' + rows.map(function (x) {
+      return '<div class="kv"><span class="k">' + x[0] + '</span><span>' + esc(x[1]) + '</span></div>';
+    }).join('') + ufcWeighHTML(f, nameA, nameB);
+  }
+  // the scales, and anyone who missed them
+  function ufcWeighHTML(f, nameA, nameB) {
+    var cs = ufcCorners(f, nameA), en = LANG === 'en';
+    if (!cs || !(cs[0].WeighIn || cs[1].WeighIn)) return '';
+    var lim = ufcLimit(f);
+    return '<div class="kv"><span class="k">' + (en ? 'Weigh-in' : '称重') + '</span><span>' + cs.map(function (x, i) {
+      var miss = ufcMissed(f, x);
+      return esc(i ? nameB : nameA) + ' ' + (x.WeighIn || '—') + (en ? ' lb' : ' 磅') +
+        (miss ? '<b class="uw-miss">' + (en ? ' (missed by ' + miss + ')' : '（超重 ' + miss + ' 磅）') + '</b>' : '');
+    }).join(' · ') + (lim ? '<span class="uw-lim">' + (en ? ' · limit ' + lim : ' · 上限 ' + lim) + '</span>' : '') + '</span></div>';
+  }
+
+  /* ---- the judges: every round, every card ---- */
+  function ufcScoresHTML(f, nameA, nameB) {
+    var r = (f && f.Result) || {};
+    var judges = r.RoundScores || [];
+    var cs = ufcCorners(f, nameA);
+    if (!judges.length || !cs) return '';
+    var ia = cs[0].FighterId, ib = cs[1].FighterId;
+    var nR = 0;
+    judges.forEach(function (j) { nR = Math.max(nR, (j.Rounds || []).length); });
+    var en = LANG === 'en';
+    var tallyA = 0, tallyB = 0;
+    var rows = judges.map(function (j) {
+      var ta = 0, tb = 0;
+      var cells = (j.Rounds || []).slice().sort(function (x, y) { return x.RoundNumber - y.RoundNumber; }).map(function (rd) {
+        var sa = 0, sb = 0;
+        (rd.Fighters || []).forEach(function (x) { if (x.FighterId === ia) sa = x.Score; else if (x.FighterId === ib) sb = x.Score; });
+        ta += sa; tb += sb;
+        return '<td class="' + (sa > sb ? 'a' : sb > sa ? 'b' : '') + '">' + sa + '-' + sb + '</td>';
+      });
+      if (ta > tb) tallyA++; else if (tb > ta) tallyB++;
+      while (cells.length < nR) cells.push('<td></td>');
+      return '<tr><td class="tm">' + esc([j.JudgeFirstName, j.JudgeLastName].filter(Boolean).join(' ')) + '</td>' + cells.join('') +
+        '<td class="pts ' + (ta > tb ? 'a' : tb > ta ? 'b' : '') + '">' + ta + '-' + tb + '</td></tr>';
+    });
+    var head = '<tr><th class="tm">' + (en ? 'Judge' : '裁判') + '</th>';
+    for (var i = 1; i <= nR; i++) head += '<th>R' + i + '</th>';
+    head += '<th>' + (en ? 'Total' : '总分') + '</th></tr>';
+    var verdict = tallyA && tallyB ? (en ? 'Split: the judges disagreed' : '分歧判定：裁判意见不一') :
+      (tallyA + tallyB < judges.length ? (en ? 'Majority: one card was level' : '多数判定：有一位裁判打平') : '');
+    return '<h4>裁判评分卡</h4><div class="usc-key"><span class="a">' + esc(nameA) + '</span><span class="b">' + esc(nameB) + '</span></div>' +
+      '<div class="table-scroll"><table class="ps usc"><thead>' + head + '</thead><tbody>' + rows.join('') + '</tbody></table></div>' +
+      (verdict ? '<div class="fl-note">' + verdict + '</div>' : '');
+  }
+
+  /* ---- the whole night: how the fights ended, the quickest, the bonuses ----
+     The results are ESPN's, the bonuses and the scales the UFC's. The UFC's
+     event is found from any bout on the card. */
+  function ufcEventFeed(bouts, when) {
+    var pairs = bouts.map(function (c) {
+      var cs = c.competitors || [];
+      return [((cs[0] || {}).athlete || {}).displayName, ((cs[1] || {}).athlete || {}).displayName];
+    }).filter(function (p) { return p[0] && p[1]; });
+    function tryAt(i) {
+      if (i >= pairs.length || i > 3) return Promise.resolve(null);
+      return ufcFightId(pairs[i][0], pairs[i][1], when).then(function (fid) {
+        return fid ? ufcFightFeed(fid) : null;
+      }).then(function (f) {
+        var id = f && f.Event && f.Event.EventId;
+        if (!id) return tryAt(i + 1);
+        var key = 'ev' + id;
+        if (ufcCache[key]) return ufcCache[key];
+        return getJSON('https://d29dxerjsp82wz.cloudfront.net/api/v3/event/live/' + id + '.json').then(function (d) {
+          var e = (d || {}).LiveEventDetail || null;
+          // a card still being fought is asked again; a finished one never changes
+          if (e && (e.FightCard || []).length && /final/i.test(e.Status || '')) ufcCache[key] = e;
+          return e;
+        });
+      }).catch(function () { return tryAt(i + 1); });
+    }
+    return tryAt(0);
+  }
+  function ufcPairKey(a, b) { return [ufcSurname(a), ufcSurname(b)].sort().join('|'); }
+  function ufcCardExtras(box, ev, bouts) {
+    ufcEventFeed(bouts, ev.date).then(function (e) {
+      if (!box.isConnected) return;
+      var by = {};
+      ((e && e.FightCard) || []).forEach(function (f) {
+        var fs = f.Fighters || [];
+        if (fs.length === 2) by[ufcPairKey(ufcFullName(fs[0]), ufcFullName(fs[1]))] = f;
+      });
+      var en = LANG === 'en', fotn = [], potn = [], missed = [];
+      [].forEach.call(box.querySelectorAll('.bout'), function (row) {
+        var nm = [].map.call(row.querySelectorAll('.fnm'), function (x) { return x.textContent.replace(/^\s+/, '').trim(); });
+        var f = nm.length === 2 && by[ufcPairKey(nm[0], nm[1])];
+        if (!f) return;
+        var cs = ufcCorners(f, nm[0]) || [];
+        // the marks go on the row itself, so a second tap still finds the bout's numbers right after it
+        var fresh = !row.querySelector('.ubt');
+        if (f.Result && f.Result.FightOfTheNight) {
+          fotn.push(nm.join(' vs '));
+          var mid = row.querySelector('.mid');
+          if (fresh && mid) mid.insertAdjacentHTML('beforeend', '<span class="tag hot ubt">' + (en ? 'Fight of the Night' : '最佳比赛') + '</span>');
+        }
+        var wraps = row.querySelectorAll('.fwrap');
+        cs.forEach(function (x, i) {
+          var tag = '';
+          if (x.PerformanceOfTheNight || x.KOOfTheNight || x.SubmissionOfTheNight) { tag += '<span class="tag hot ubt">' + (en ? 'Performance' : '最佳表现') + '</span>'; potn.push(nm[i]); }
+          var miss = ufcMissed(f, x);
+          if (miss) { tag += '<span class="tag cold ubt">' + (en ? 'Missed weight' : '超重') + '</span>'; missed.push(nm[i] + ' +' + miss); }
+          if (tag && fresh && wraps[i]) wraps[i].insertAdjacentHTML('beforeend', tag);
+        });
+      });
+      var slot = box.querySelector('.ufc-recap');
+      if (slot) slot.innerHTML = ufcRecapHTML(bouts, fotn, potn, missed);
+    });
+  }
+  function ufcRecapHTML(bouts, fotn, potn, missed) {
+    var done = bouts.filter(function (c) { return ((c.status || {}).type || {}).state === 'post'; });
+    var en = LANG === 'en';
+    var n = { ko: 0, sub: 0, dec: 0 }, quick = null;
+    done.forEach(function (c) {
+      var m = methodOf(c), k = m === 'KO/TKO' ? 'ko' : m === '降服' ? 'sub' : m === '判定' ? 'dec' : '';
+      if (k) n[k]++;
+      if (k === 'ko' || k === 'sub') {
+        var rd = (c.status || {}).period || 1, clk = clockSeconds((c.status || {}).displayClock || '');
+        var t = (rd - 1) * 300 + clk;
+        if (clk && (!quick || t < quick.t)) {
+          var cs = c.competitors || [], w = cs.filter(function (x) { return x.winner; })[0];
+          quick = { t: t, rd: rd, clk: (c.status || {}).displayClock, who: w && ((w.athlete || {}).displayName), k: k };
+        }
+      }
+    });
+    var tot = n.ko + n.sub + n.dec;
+    var html = '';
+    if (tot >= 3) {
+      var fin = Math.round((n.ko + n.sub) / tot * 100);
+      html += '<div class="ur-bar">' + [['ko', n.ko], ['sub', n.sub], ['dec', n.dec]].filter(function (x) { return x[1]; }).map(function (x) {
+        return '<i class="' + x[0] + '" style="flex:' + x[1] + '"></i>';
+      }).join('') + '</div><div class="ufm-l">' +
+        '<span><i class="ko"></i>KO/TKO ' + n.ko + '</span><span><i class="sub"></i>' + (en ? 'Submission ' : '降服 ') + n.sub + '</span>' +
+        '<span><i class="dec"></i>' + (en ? 'Decision ' : '判定 ') + n.dec + '</span><span>' + (en ? 'Finish rate ' : '终结率 ') + fin + '%</span></div>';
+      if (quick && quick.who) html += '<div class="kv"><span class="k">' + (en ? 'Quickest' : '最快终结') + '</span><span>' + esc(quick.who) + ' · R' + quick.rd + ' ' + esc(quick.clk) +
+        (quick.k === 'ko' ? ' KO/TKO' : (en ? ' submission' : ' 降服')) + '</span></div>';
+    }
+    if (fotn.length) html += '<div class="kv"><span class="k">' + (en ? 'Fight of the Night' : '最佳比赛') + '</span><span>' + esc(fotn.join(en ? '; ' : '；')) + '</span></div>';
+    if (potn.length) html += '<div class="kv"><span class="k">' + (en ? 'Performance' : '最佳表现') + '</span><span>' + esc(potn.join(en ? ', ' : '、')) + '</span></div>';
+    if (missed.length) html += '<div class="kv"><span class="k">' + (en ? 'Missed weight' : '称重超重') + '</span><span>' + esc(missed.join(en ? ', ' : '、')) + (en ? ' lb' : ' 磅') + '</span></div>';
+    return html ? '<h4>' + (en ? 'The night' : '赛事总结') + '</h4>' + html : '';
+  }
+
+  /* ---- shared opponents: who both have fought, and how it went ---- */
+  function ufcHistory(id) {
+    var key = 'hist' + id;
+    if (ufcCache[key]) return Promise.resolve(ufcCache[key]);
+    return getJSON(API + 'common/v3/sports/mma/athletes/' + id).then(function (d) {
+      var evs = (d && d.eventsMap) || {};
+      var out = Object.keys(evs).map(function (k) { return evs[k]; }).filter(function (f) { return f.gameResult; }).map(function (f) {
+        var op = f.opponent || {}, m = /a:(\d+)/.exec(op.uid || '');
+        return { opp: m ? m[1] : plain(op.displayName || ''), name: op.displayName || '', res: String(f.gameResult).toUpperCase(),
+          how: ufcResultCN((f.status || {}).result), date: f.gameDate };
+      });
+      if (d) ufcCache[key] = out;
+      return out;
+    });
+  }
+  function ufcCommonFill(slot, idA, idB, nameA, nameB) {
+    Promise.all([ufcHistory(idA), ufcHistory(idB)]).then(function (r) {
+      if (!slot.isConnected) return;
+      var a = r[0] || [], b = r[1] || [];
+      var inB = {};
+      b.forEach(function (x) { (inB[x.opp] = inB[x.opp] || []).push(x); });
+      var seen = {}, rows = [];
+      a.forEach(function (x) {
+        if (!inB[x.opp] || seen[x.opp] || x.opp === String(idB)) return;
+        seen[x.opp] = 1;
+        rows.push({ name: x.name, id: x.opp, a: a.filter(function (y) { return y.opp === x.opp; }), b: inB[x.opp] });
+      });
+      if (!rows.length) { slot.innerHTML = ''; return; }
+      function cell(list) {
+        return list.sort(function (p, q) { return Date.parse(q.date) - Date.parse(p.date); }).map(function (y) {
+          return '<span class="f ' + esc(y.res) + '">' + esc(y.res) + '</span><span class="uco-h">' + esc(y.how || '') + '</span>';
+        }).join('<br>');
+      }
+      slot.innerHTML = '<h4>共同对手</h4><div class="usc-key"><span class="a">' + esc(nameA) + '</span><span class="b">' + esc(nameB) + '</span></div>' +
+        '<div class="card uco">' + rows.map(function (x) {
+          return '<div class="uco-r"><div class="uco-c">' + cell(x.a) + '</div><div class="uco-n"' + (/^\d+$/.test(x.id) ? ' data-ufcf="' + esc(x.id) + '"' : '') + '>' + esc(x.name) + '</div>' +
+            '<div class="uco-c r">' + cell(x.b) + '</div></div>';
+        }).join('') + '</div>';
+    });
+  }
+
+  /* ---- the champions' reigns, off Wikipedia's current list ---- */
+  var ufcReignCache = null;
+  function ufcReigns() {
+    if (ufcReignCache) return ufcReignCache;
+    ufcReignCache = Promise.all([3, 4].map(function (sec) {
+      return wikiParse('List of UFC champions', '&prop=text&section=' + sec);
+    })).then(function (r) {
+      var out = {};
+      r.forEach(function (d) {
+        var html = d && d.parse && d.parse.text;
+        if (!html) return;
+        var tb = wikiDoc(html).querySelector('table');
+        if (!tb) return;
+        [].forEach.call(tb.querySelectorAll('tr'), function (tr) {
+          var c = tr.children;
+          if (c.length < 4 || c[0].tagName !== 'TH' || /division/i.test(wikiText(c[0]))) return;
+          if (/interim/i.test(wikiText(c[0]))) return;
+          var name = wikiText(c[1]), since = Date.parse(wikiText(c[2])), def = parseInt(wikiText(c[3]), 10);
+          if (name && !isNaN(since)) out[ufcSurname(name)] = { since: since, defenses: isNaN(def) ? null : def };
+        });
+      });
+      if (!Object.keys(out).length) { ufcReignCache = null; return null; }
+      return out;
+    }).catch(function () { ufcReignCache = null; return null; });
+    return ufcReignCache;
+  }
+  function ufcReignFill(host) {
+    ufcReigns().then(function (map) {
+      if (!map) return;
+      [].forEach.call(host.querySelectorAll('.rank-row.champ'), function (row) {
+        var nm = row.querySelector('.rnm'), x = nm && map[ufcSurname(nm.textContent)];
+        if (!x || (row.nextElementSibling && row.nextElementSibling.classList.contains('rank-reign'))) return;
+        var days = Math.floor((Date.now() - x.since) / 86400000), d = new Date(x.since), en = LANG === 'en';
+        var el = document.createElement('div');
+        el.className = 'rank-reign';
+        el.textContent = en
+          ? 'Champion since ' + d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' · ' + days + ' days' + (x.defenses != null ? ' · ' + x.defenses + ' defence' + (x.defenses === 1 ? '' : 's') : '')
+          : '自 ' + d.getFullYear() + ' 年 ' + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日起 · 在位 ' + days + ' 天' + (x.defenses != null ? ' · 卫冕 ' + x.defenses + ' 次' : '');
+        row.parentNode.insertBefore(el, row.nextSibling);
+      });
     });
   }
 
@@ -15567,6 +15902,7 @@ O
               '<span class="rrec">' + esc(f.record || '') + '</span></div>';
           }).join('') + '</div>';
       }).join('') + archiveFoot(d);
+      ufcReignFill(host);
     });
   }
 

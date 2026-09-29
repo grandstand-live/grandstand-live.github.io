@@ -1707,6 +1707,55 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- F1: the title sums, the boards, teammates, race pace, qualifying ---- */
+  .tt { padding: 12px 14px; }
+  .tt-left { font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
+  .tt-left b, .tt-lead b { font-family: var(--narrow); color: var(--ink); }
+  .tt-side { margin-top: 12px; }
+  .tt-k { font-family: var(--narrow); font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+  .tt-lead { font-size: 13.5px; margin: 3px 0 6px; }
+  .tt-won { font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--accent); margin-top: 4px; }
+  .tt-bars { display: grid; gap: 5px; }
+  .tt-row { display: grid; grid-template-columns: 76px 1fr 38px; align-items: center; gap: 8px; cursor: pointer; }
+  .tt-n { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tt-bar { position: relative; height: 10px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+  .tt-bar i { position: absolute; top: 0; bottom: 0; }
+  .tt-bar .now { left: 0; background: var(--accent); }
+  .tt-bar .can { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .tt-bar .line { width: 1.5px; background: var(--ink); }
+  .tt-v { font-family: var(--narrow); font-size: 12px; text-align: right; color: var(--ink-2); }
+  .tt-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .tt-clinch { font-size: 12.5px; color: var(--ink); margin-top: 6px; padding: 6px 8px; border-radius: 3px; background: var(--accent-soft); }
+  .f1st { padding: 0 10px; margin-top: 8px; }
+  .f1st-v { font-family: var(--narrow); font-weight: 700; color: var(--ink); }
+  .tm8 { padding: 10px 12px 8px; margin-top: 10px; }
+  .tm8-h { display: flex; align-items: center; gap: 7px; font-family: var(--narrow); font-weight: 700; font-size: 12px; letter-spacing: .05em; color: var(--muted); }
+  .tm8-h i { width: 4px; height: 14px; border-radius: 1px; background: var(--hairline-strong); }
+  .tm8-n { display: flex; justify-content: space-between; margin: 6px 0 2px; }
+  .tm8-n b { font-family: var(--serif); font-size: 14.5px; color: var(--ink); cursor: pointer; }
+  .tm8-n b:first-child { box-shadow: inset 0 -2px var(--ser-a); }
+  .tm8-n b:last-child { box-shadow: inset 0 -2px var(--ser-b); }
+  .tm8-g { font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+  .tm8-g b { font-family: var(--narrow); }
+  .tm8-g span, .tm8-x { color: var(--muted); font-size: 11.5px; }
+  .f1p { padding: 4px 10px; }
+  .f1p-r { display: grid; grid-template-columns: 20px 4px 34px 1fr 62px 48px; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; }
+  .f1p-r .f1-r-p { text-align: right; color: var(--muted); font-family: var(--narrow); }
+  .f1p-c { height: 14px; border-radius: 1px; }
+  .f1p-n { font-family: var(--narrow); font-weight: 700; }
+  .f1p-b { position: relative; height: 10px; border-radius: 2px; background: var(--surface-2); }
+  .f1p-b i { position: absolute; top: 0; bottom: 0; }
+  .f1p-b .iqr { opacity: .55; border-radius: 2px; }
+  .f1p-b .med { width: 2px; margin-left: -1px; background: var(--ink); }
+  .f1p-t { font-family: var(--narrow); text-align: right; }
+  .f1p-g { font-family: var(--narrow); text-align: right; color: var(--muted); }
+  table.f1q { min-width: 0; font-size: 12px; }
+  table.f1q td, table.f1q th { padding-left: 3px; padding-right: 3px; }
+  table.f1q td.tm { white-space: nowrap; }
+  table.f1q tr.cut td { border-bottom: 1.5px dashed var(--loss); }
+  .f1q-c { display: inline-block; width: 3px; height: 12px; border-radius: 1px; margin-right: 5px; vertical-align: -2px; background: var(--hairline-strong); }
+  .f1q-g { color: var(--muted); font-family: var(--narrow); }
+  .f1q-ideal { margin-top: 6px; }
   /* ---- basketball: runs, the fuller table, team ranks, injuries, a career ---- */
   .nf-run { font-family: var(--narrow); font-size: 8px; font-weight: 700; }
   .nbt-view { margin-top: 10px; }
@@ -6739,7 +6788,7 @@
           if (!r[0] || !r[0].length || !r[1] || !r[1].length) return null;
           var who = {};
           (r[1] || []).forEach(function (d) { who[d.driver_number] = d; });
-          return r[0].slice().sort(function (a, b) {
+          var list = r[0].slice().sort(function (a, b) {
             return (a.position || 99) - (b.position || 99);
           }).map(function (x) {
             var d = who[x.driver_number] || {};
@@ -6747,10 +6796,13 @@
               pos: x.position, name: f1RadioName(d.full_name) || String(x.driver_number),
               team: d.team_name || '', colour: d.team_colour || '',
               time: f1Last(x.duration), gap: f1Last(x.gap_to_leader),
+              parts: Array.isArray(x.duration) && x.duration.length === 3 ? x.duration : null,
               laps: x.number_of_laps,
               out: x.dsq ? '取消成绩' : x.dns ? '未发车' : x.dnf ? '退赛' : ''
             };
           });
+          list.sk = s.session_key;
+          return list;
         });
       }));
     }).then(function (rows) {
@@ -6789,6 +6841,11 @@
       }).map(function (x) { return { pos: x.order, name: (x.athlete || {}).displayName || '' }; });
       tabs += '<button type="button" class="rnd-tab' + (on ? ' on' : '') + '" data-rnd="' + i + '">' +
         esc(SESSION_CN[t] || t) + '</button>';
+      // qualifying in its three parts, when OpenF1 has them
+      if (!isRace && s.rows && s.rows.some(function (r) { return r.parts; })) {
+        panels += '<div class="rnd-panel f1-res" data-rnd="' + i + '"' + (on ? '' : ' hidden') + '>' + f1QualHTML(s.rows) + '</div>';
+        return;
+      }
       panels += '<div class="rnd-panel f1-res" data-rnd="' + i + '"' + (on ? '' : ' hidden') + '>' +
         '<div class="f1-r f1-r-head"><span class="f1-r-p">#</span><span class="f1-r-c"></span>' +
           '<span class="f1-r-n">车手</span>' +
@@ -9039,7 +9096,7 @@ O
     if (!slot || !key) return;
     Promise.all([f1RaceData(key), f1DriverMap()]).then(function (r) {
       if (!slot.isConnected) return;
-      var html = f1AnalysisHTML(r[0], r[1], id) + f1FastHTML(r[0], r[1]) + '<div class="f1g-slot"></div>';
+      var html = f1AnalysisHTML(r[0], r[1], id) + f1PaceHTML(r[0], r[1]) + f1FastHTML(r[0], r[1]) + '<div class="f1g-slot"></div>';
       if (!html) return;
       slot.innerHTML = html;
       var fl = slot.querySelector('.fl');
@@ -9361,13 +9418,342 @@ O
     else if (el.dataset.f1c) pgOpen({ type: 'f1Circuit', ev: el.dataset.f1c });
   }, true);
 
+  /* ---------- F1, as ESPN, RaceFans and the timing sites have it: the title sums,
+     the season's numbers, teammates set against each other, race pace, qualifying in parts ---------- */
+
+  var f1Board = 'table';
+  function f1BoardTabsHTML() {
+    return '<div class="rnd-tabs sc-tabs">' + [['table', '积分榜'], ['stats', '数据榜'], ['mates', '队友对决']].map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === f1Board ? ' on' : '') + '" data-f1b="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function jolStand(kind) {
+    var y = new Date().getFullYear();
+    return jolpica(y + '/' + kind + 'Standings/').then(function (d) {
+      var L = ((((d || {}).MRData || {}).StandingsTable || {}).StandingsLists || [])[0];
+      return L || null;
+    });
+  }
+
+  /* ---- the title: what is left to win, and who can still win it ----
+     A race pays 25 at most and a sprint 8; a team can take the first two
+     places, 43 and 15. What has been run is read off the results, so a
+     sprint already held on this weekend is not counted twice. */
+  function f1TitleMaths() {
+    return Promise.all([f1Schedule(), f1SeasonDetail(), jolStand('driver'), jolStand('constructor')]).then(function (r) {
+      var races = r[0] || [], detail = r[1] || {};
+      if (!races.length || !r[2]) return null;
+      var raced = {}, sprinted = {};
+      (detail.results || []).forEach(function (x) { raced[x.round] = 1; });
+      (detail.sprint || []).forEach(function (x) { sprinted[x.round] = 1; });
+      var left = races.filter(function (x) { return !raced[x.round]; }).map(function (x) {
+        return { round: x.round, name: x.raceName, race: 1, sprint: x.Sprint && !sprinted[x.round] ? 1 : 0 };
+      });
+      function side(list, rMax, sMax, isDriver) {
+        var rows = (list || []).map(function (s) {
+          var who = isDriver ? s.Driver : s.Constructor;
+          return {
+            pts: Number(s.points) || 0, wins: Number(s.wins) || 0,
+            name: isDriver ? [who.givenName, who.familyName].join(' ') : who.name, key: isDriver ? jolKey(who) : ''
+          };
+        }).sort(function (a, b) { return b.pts - a.pts || b.wins - a.wins; });
+        var max = left.reduce(function (n, x) { return n + x.race * rMax + x.sprint * sMax; }, 0);
+        var next = left[0] ? left[0].race * rMax + left[0].sprint * sMax : 0;
+        return { rows: rows, max: max, next: next };
+      }
+      return {
+        left: left,
+        d: side((r[2] || {}).DriverStandings, 25, 8, true),
+        c: side((r[3] || {}).ConstructorStandings, 43, 15, false)
+      };
+    });
+  }
+  function f1TitleSide(t, s, isDriver) {
+    var rows = s.rows;
+    if (rows.length < 2) return '';
+    var nm = function (x) { return isDriver ? driverCN(x.name) : teamCN(x.name) || x.name; };
+    var lead = rows[0], second = rows[1], gap = lead.pts - second.pts;
+    var what = isDriver ? '车手' : '车队';
+    var alive = rows.filter(function (x, i) { return i && x.pts + s.max >= lead.pts; });
+    var en = LANG === 'en';
+    var html = '<div class="tt-side"><div class="tt-k">' + (en ? (isDriver ? 'Drivers\' title' : 'Constructors\' title') : what + '冠军') + '</div>';
+    if (!alive.length) {
+      return html + '<div class="tt-won">' + esc(nm(lead)) + (en ? (t.left.length ? ' has already clinched it' : ' are champions')
+        : t.left.length ? ' 已经提前锁定' + what + '总冠军' : ' 获得' + what + '总冠军') + '</div></div>';
+    }
+    html += '<div class="tt-lead">' + (en ? '<b>' + esc(nm(lead)) + '</b> on ' + lead.pts + ', <b>' + gap + '</b> clear of ' + esc(nm(second))
+      : '<b>' + esc(nm(lead)) + '</b> ' + lead.pts + ' 分，领先 ' + esc(nm(second)) + ' <b>' + gap + '</b> 分') + '</div>';
+    // the bar: each contender's points now, and how far they could still go
+    var top = lead.pts + s.max;
+    html += '<div class="tt-bars">' + [lead].concat(alive).slice(0, 5).map(function (x) {
+      var now = x.pts / top * 100, can = Math.min(100, (x.pts + s.max) / top * 100);
+      return '<div class="tt-row"' + (isDriver ? ' data-f1d="' + esc(x.key) + '" data-f1dn="' + esc(x.name) + '"' : '') + '><span class="tt-n">' + esc(nm(x)) + '</span>' +
+        '<span class="tt-bar"><i class="now" style="width:' + now.toFixed(1) + '%"></i><i class="can" style="left:' + now.toFixed(1) + '%;width:' + (can - now).toFixed(1) + '%"></i>' +
+        '<i class="line" style="left:' + (lead.pts / top * 100).toFixed(1) + '%"></i></span>' +
+        '<span class="tt-v">' + (x === lead ? x.pts : '−' + (lead.pts - x.pts)) + '</span></div>';
+    }).join('') + '</div>';
+    var out = rows.length - 1 - alive.length;
+    html += '<div class="tt-note">' + (en ? (alive.length + 1) + ' can still win it mathematically' + (out > 0 ? '; the other ' + out + ' are out of it' : '') + '.'
+      : '还有 ' + (alive.length + 1) + ' ' + (isDriver ? '位车手' : '支车队') + '在数学上能夺冠' + (out > 0 ? '，其余 ' + out + (isDriver ? ' 位' : ' 支') + '已经出局' : '') + '。') + '</div>';
+    /* Clinching at the next round: after it, what is left must be less than
+       the lead over every rival. Against the second-placed it comes to a
+       number of points to outscore them by; the others are named if alive. */
+    var after = s.max - s.next;
+    if (s.next && gap + s.next > after) {
+      var need = after - gap + 1;
+      var line = en
+        ? esc(nm(lead)) + ' clinches at the next round by ' + (need > 0 ? 'outscoring ' + esc(nm(second)) + ' by ' + need + ' or more'
+          : 'losing no more than ' + (-need) + ' to ' + esc(nm(second))) + (alive.length > 1 ? ', and ' + alive.slice(1).map(function (x) { return esc(nm(x)); }).join(', ') + ' likewise' : '') + '.'
+        : (need > 0
+          ? '下一站只要比 ' + esc(nm(second)) + ' 至少多拿 ' + need + ' 分，' + esc(nm(lead)) + ' 就能提前封王'
+          : '下一站只要被 ' + esc(nm(second)) + ' 追回的分数不超过 ' + (-need) + ' 分，' + esc(nm(lead)) + ' 就能提前封王') +
+          (alive.length > 1 ? '（' + alive.slice(1).map(function (x) { return esc(nm(x)); }).join('、') + ' 也要同样被拉开）' : '') + '。';
+      html += '<div class="tt-clinch">' + line + '</div>';
+    }
+    return html + '</div>';
+  }
+  function f1TitleHTML(t) {
+    if (!t || !t.d.rows.length) return '';
+    var races = t.left.filter(function (x) { return x.race; }).length, sprints = t.left.filter(function (x) { return x.sprint; }).length;
+    return '<div class="f1-h">冠军形势</div><div class="card tt">' +
+      (t.left.length ? '<div class="tt-left">' + (LANG === 'en'
+        ? '<b>' + races + '</b> race' + (races > 1 ? 's' : '') + (sprints ? ' and <b>' + sprints + '</b> sprint' + (sprints > 1 ? 's' : '') : '') +
+          ' left: up to <b>' + t.d.max + '</b> points for a driver, <b>' + t.c.max + '</b> for a team.'
+        : '还剩 <b>' + races + '</b> 站正赛' + (sprints ? '、<b>' + sprints + '</b> 场冲刺赛' : '') +
+          '：车手最多还能拿 <b>' + t.d.max + '</b> 分，车队 <b>' + t.c.max + '</b> 分。') + '</div>' : '') +
+      f1TitleSide(t, t.d, true) + f1TitleSide(t, t.c, false) +
+      '<div class="fl-note">深色是现有积分，浅色是还能拿到的上限，竖线是领跑者现在的分数。同分时比分站冠军数。</div></div>';
+  }
+
+  /* ---- the season's numbers, one board each ---- */
+  var F1_STAT = [
+    ['wins', '分站冠军'], ['poles', '杆位'], ['podiums', '领奖台'], ['fastest', '最快圈'], ['top10', '前十完赛'],
+    ['avgQ', '平均排位', 1], ['avgF', '平均完赛名次', 1], ['gained', '超越位置'], ['dnf', '退赛次数']
+  ];
+  var f1StatCat = 'wins';
+  function f1Drivers(detail) {
+    var by = {};
+    (detail.results || []).forEach(function (r) {
+      (r.Results || []).forEach(function (x) {
+        var k = jolKey(x.Driver);
+        var d = by[k] = by[k] || { key: k, name: [x.Driver.givenName, x.Driver.familyName].join(' '), num: x.Driver.permanentNumber || x.number, teams: {} };
+        var tn = (x.Constructor || {}).name || '';
+        d.teams[tn] = (d.teams[tn] || 0) + 1;
+        d.team = tn;   // the latest team they drove for
+      });
+    });
+    return Object.keys(by).map(function (k) { return by[k]; });
+  }
+  function f1StatsHTML(detail, drivers) {
+    if (!detail || !(detail.results || []).length) return '<div class="empty">本赛季还没有成绩。</div>';
+    var list = f1Drivers(detail).map(function (d) { d.s = cmpSeason(detail, d.key); return d; });
+    var cat = F1_STAT.filter(function (c) { return c[0] === f1StatCat; })[0] || F1_STAT[0];
+    var asc = !!cat[2];
+    var rows = list.filter(function (d) {
+      var v = d.s[cat[0]];
+      return asc ? v != null && d.s.starts >= 3 : v > 0;
+    }).sort(function (a, b) { return asc ? a.s[cat[0]] - b.s[cat[0]] : b.s[cat[0]] - a.s[cat[0]]; });
+    var chips = '<div class="rnd-tabs">' + F1_STAT.map(function (c) {
+      return '<button type="button" class="rnd-tab' + (c[0] === cat[0] ? ' on' : '') + '" data-f1s="' + c[0] + '">' + c[1] + '</button>';
+    }).join('') + '</div>';
+    var byNum = {};
+    Object.keys(drivers || {}).forEach(function (n) { byNum[n] = drivers[n]; });
+    var rank = 0, prev = null;
+    return chips + (rows.length ? '<div class="card f1st">' + rows.map(function (d, i) {
+      var v = d.s[cat[0]];
+      if (v !== prev) { rank = i + 1; prev = v; }
+      var col = (byNum[d.num] || {}).team_colour;
+      return '<div class="f1-r" data-f1d="' + esc(d.key) + '" data-f1dn="' + esc(d.name) + '"><span class="f1-r-p">' + rank + '</span>' +
+        '<span class="f1-r-c"' + (col ? ' style="background:#' + esc(col) + '"' : '') + '></span>' +
+        '<span class="f1-r-n"><b>' + esc(driverCN(d.name) || d.name) + '</b><span>' + esc(teamCN(d.team) || d.team) + '</span></span>' +
+        '<span class="f1-r-g f1st-v">' + (asc ? v.toFixed(1) : cat[0] === 'gained' && v > 0 ? '+' + v : v) + '</span></div>';
+    }).join('') + '</div>' : '<div class="empty">这一项本赛季还没有人上榜。</div>') +
+      '<div class="fl-note">' + (asc ? '平均数只算出赛 3 站以上的车手；平均完赛名次不算退赛。' : cat[0] === 'gained' ? '超越位置：每站完赛名次比发车位提升的总和，不算退赛的比赛。' : '只列出至少有一次的车手。') + '</div>';
+  }
+
+  /* ---- teammates, every team at once ---- */
+  function f1MatesHTML(detail, drivers, cons) {
+    if (!detail || !(detail.results || []).length) return '<div class="empty">本赛季还没有成绩。</div>';
+    var teams = {};
+    (detail.results || []).forEach(function (r) {
+      (r.Results || []).forEach(function (x) {
+        var tn = (x.Constructor || {}).name || '', k = jolKey(x.Driver);
+        var t = teams[tn] = teams[tn] || { name: tn, drivers: {} };
+        var d = t.drivers[k] = t.drivers[k] || { key: k, name: [x.Driver.givenName, x.Driver.familyName].join(' '), num: x.Driver.permanentNumber || x.number, starts: 0, pts: 0 };
+        d.starts++;
+        d.pts += Number(x.points) || 0;
+      });
+    });
+    (detail.sprint || []).forEach(function (r) {
+      (r.SprintResults || []).forEach(function (x) {
+        var t = teams[(x.Constructor || {}).name || ''], d = t && t.drivers[jolKey(x.Driver)];
+        if (d) d.pts += Number(x.points) || 0;
+      });
+    });
+    var order = {};
+    ((cons || {}).ConstructorStandings || []).forEach(function (s, i) { order[s.Constructor.name] = i; });
+    var list = Object.keys(teams).map(function (k) { return teams[k]; }).sort(function (a, b) {
+      return (order[a.name] != null ? order[a.name] : 99) - (order[b.name] != null ? order[b.name] : 99);
+    });
+    function bar(label, a, b, fa, fb, lowGood) {
+      var sum = a + b, w = sum ? a / sum * 100 : 50;
+      var ab = lowGood ? a < b : a > b, bb = lowGood ? b < a : b > a;
+      return '<div class="stat"><span class="sv' + (ab ? ' fbc-b' : '') + '">' + fa + '</span><span class="sl">' + label + '</span>' +
+        '<span class="sv r' + (bb ? ' fbc-b' : '') + '">' + fb + '</span><span class="sbar"><span class="lw"><i style="width:' + w.toFixed(1) +
+        '%;background:var(--ser-a)"></i></span><span class="rw"><i style="width:' + (100 - w).toFixed(1) + '%;background:var(--ser-b)"></i></span></span></div>';
+    }
+    return list.map(function (t) {
+      var ds = Object.keys(t.drivers).map(function (k) { return t.drivers[k]; }).sort(function (a, b) { return b.starts - a.starts; });
+      if (ds.length < 2) return '';
+      var A = ds[0], B = ds[1];
+      // the left-hand driver is the one ahead on points
+      if (B.pts > A.pts) { var sw = A; A = B; B = sw; }
+      var sa = cmpSeason(detail, A.key), sb = cmpSeason(detail, B.key);
+      var q = cmpH2H(sa, sb, 'qual'), rc = cmpH2H(sa, sb, 'race');
+      var gaps = cmpQualGaps(detail, A.key, B.key, []).map(function (g) { return g.gap; }).sort(function (x, y) { return x - y; });
+      var med = gaps.length ? (gaps.length % 2 ? gaps[gaps.length >> 1] : (gaps[gaps.length / 2 - 1] + gaps[gaps.length / 2]) / 2) : null;
+      var col = ((drivers || {})[A.num] || (drivers || {})[B.num] || {}).team_colour;
+      var extra = ds.length > 2 ? '<div class="tm8-x">' + (LANG === 'en'
+        ? 'Also raced: ' + ds.slice(2).map(function (d) { return esc(d.name) + ' (' + d.starts + ')'; }).join(', ')
+        : '另有 ' + ds.slice(2).map(function (d) { return esc(driverCN(d.name) || d.name) + '（' + d.starts + ' 站）'; }).join('、') + ' 替补出赛') + '</div>' : '';
+      return '<div class="card tm8"><div class="tm8-h"><i' + (col ? ' style="background:#' + esc(col) + '"' : '') + '></i>' + esc(teamCN(t.name) || t.name) + '</div>' +
+        '<div class="tm8-n"><b data-f1d="' + esc(A.key) + '" data-f1dn="' + esc(A.name) + '">' + esc(driverCN(A.name) || A.name) + '</b>' +
+        '<b data-f1d="' + esc(B.key) + '" data-f1dn="' + esc(B.name) + '">' + esc(driverCN(B.name) || B.name) + '</b></div>' +
+        bar('排位赛', q[0], q[1], q[0], q[1]) + bar('正赛', rc[0], rc[1], rc[0], rc[1]) + bar('积分', A.pts, B.pts, A.pts, B.pts) +
+        (med != null ? '<div class="tm8-g">' + (LANG === 'en'
+          ? 'Median qualifying gap: ' + (Math.abs(med) < 0.0005 ? 'level' : esc(med > 0 ? A.name : B.name) + ' <b>' + Math.abs(med).toFixed(3) + 's</b> quicker') +
+            '<span> (' + gaps.length + ' rounds, in the last part both reached)</span>'
+          : '排位差距中位数：' + (Math.abs(med) < 0.0005 ? '两人持平' : esc(driverCN(med > 0 ? A.name : B.name) || '') + ' 快 <b>' + Math.abs(med).toFixed(3) + '</b> 秒') +
+            '<span>（' + gaps.length + ' 站，比两人都跑到的最后一节）</span>') + '</div>' : '') + extra + '</div>';
+    }).join('') + '<div class="fl-note">排位、正赛是谁排在前面的次数；积分含冲刺赛。</div>';
+  }
+
+  function f1BoardFill(host) {
+    var view = f1Board;
+    host.innerHTML = f1BoardTabsHTML() + '<div class="skeleton">正在获取…</div>';
+    Promise.all([f1SeasonDetail(), f1DriverMap(), view === 'mates' ? jolStand('constructor') : null]).then(function (r) {
+      if (view !== f1Board || sport !== 'f1' || tab !== 'table') return;
+      host.innerHTML = f1BoardTabsHTML() + (view === 'stats' ? f1StatsHTML(r[0], r[1]) : f1MatesHTML(r[0], r[1], r[2]));
+    });
+  }
+
+  /* ---- race pace: each driver's typical clean lap ----
+     Clean means not the first lap, not in or out of the pits, not under a
+     safety car and not badly held up: a lap more than 7% off the driver's
+     own median is dropped. What is left says how fast the car was, not
+     where the strategy put it. */
+  function f1PaceHTML(data, drivers) {
+    var neutral = f1Neutral(data.rc), bad = {};
+    neutral.forEach(function (s) { for (var l = s.a; l <= s.b + 1; l++) bad[l] = 1; });
+    var inLap = {};
+    (data.pitList || []).forEach(function (p) { inLap[p.driver_number + ':' + p.lap_number] = 1; });
+    var by = {};
+    (data.laps || []).forEach(function (l) {
+      if (!l.lap_duration || l.lap_number < 2 || l.is_pit_out_lap || bad[l.lap_number] || inLap[l.driver_number + ':' + l.lap_number]) return;
+      (by[l.driver_number] = by[l.driver_number] || []).push(l.lap_duration);
+    });
+    function q(a, p) { var i = (a.length - 1) * p, lo = Math.floor(i); return a[lo] + (a[Math.ceil(i)] - a[lo]) * (i - lo); }
+    var rows = Object.keys(by).map(function (n) {
+      var a = by[n].sort(function (x, y) { return x - y; });
+      var m0 = q(a, 0.5);
+      a = a.filter(function (v) { return v <= m0 * 1.07; });
+      if (a.length < 5) return null;
+      return { n: n, laps: a.length, med: q(a, 0.5), lo: q(a, 0.25), hi: q(a, 0.75) };
+    }).filter(Boolean).sort(function (a, b) { return a.med - b.med; });
+    if (rows.length < 5) return '';
+    var best = rows[0].med;
+    var span = Math.min(Math.max.apply(null, rows.map(function (r) { return r.hi; })) - Math.min.apply(null, rows.map(function (r) { return r.lo; })), 4);
+    var x0 = Math.min.apply(null, rows.map(function (r) { return r.lo; }));
+    function X(v) { return Math.max(0, Math.min(100, (v - x0) / span * 100)); }
+    return '<div class="f1-h">正赛节奏</div><div class="card f1p">' + rows.map(function (r, i) {
+      var d = drivers[r.n] || {}, col = '#' + (d.team_colour || '888888');
+      return '<div class="f1p-r"><span class="f1-r-p">' + (i + 1) + '</span><span class="f1p-c" style="background:' + col + '"></span>' +
+        '<span class="f1p-n">' + esc(d.name_acronym || r.n) + '</span>' +
+        '<span class="f1p-b"><i class="iqr" style="left:' + X(r.lo).toFixed(1) + '%;width:' + Math.max(1, X(r.hi) - X(r.lo)).toFixed(1) + '%;background:' + col + '"></i>' +
+        '<i class="med" style="left:' + X(r.med).toFixed(1) + '%"></i></span>' +
+        '<span class="f1p-t">' + esc(f1Lap(r.med)) + '</span><span class="f1p-g">' + (i ? '+' + (r.med - best).toFixed(3) : '') + '</span></div>';
+    }).join('') + '</div><div class="fl-note">每位车手干净圈的中位数圈速：去掉第一圈、进出站圈、安全车期间和比自己中位数慢 7% 以上的圈。色条是中间一半的圈速范围，竖线是中位数。</div>';
+  }
+
+  /* ---- qualifying in its parts, and the lap each could have put together ---- */
+  function f1QualHTML(rows) {
+    var withQ2 = rows.filter(function (r) { return r.parts && r.parts[1] != null; }).length;
+    var withQ3 = rows.filter(function (r) { return r.parts && r.parts[2] != null; }).length;
+    var pole = rows[0] && rows[0].parts ? f1Last(rows[0].parts) : null;
+    function t(v) { return v == null ? '<td class="z">—</td>' : '<td>' + esc(f1Lap(v).replace(/^0:/, '')) + '</td>'; }
+    return '<div class="table-scroll"><table class="ps f1q"><thead><tr><th class="rk">#</th><th class="tm">车手</th><th>Q1</th><th>Q2</th><th>Q3</th><th>差距</th></tr></thead><tbody>' +
+      rows.map(function (r, i) {
+        var p = r.parts || [], best = f1Last(p);
+        var cut = (i + 1 === withQ3 && withQ3) || (i + 1 === withQ2 && withQ2) ? ' class="cut"' : '';
+        return '<tr' + cut + ' data-f1d="' + esc(f1DriverKey(r.name)) + '" data-f1dn="' + esc(r.name || '') + '"><td class="rk">' + (r.pos || '—') + '</td>' +
+          '<td class="tm"><i class="f1q-c"' + (r.colour ? ' style="background:#' + esc(r.colour) + '"' : '') + '></i>' + esc(driverCN(r.name) || r.name) + '</td>' +
+          t(p[0]) + t(p[1]) + t(p[2]) +
+          '<td class="f1q-g">' + (i && best && pole ? '+' + (best - pole).toFixed(3) : r.out ? esc(r.out) : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<div class="fl-note">' + (LANG === 'en'
+        ? 'Dashed lines are the cuts: ' + (rows.length - withQ2) + ' out after Q1, ' + (withQ2 - withQ3) + ' more after Q2. Gaps are from each driver\'s last part.'
+        : '虚线是淘汰线：Q1 后 ' + (rows.length - withQ2) + ' 人出局，Q2 后再出局 ' + (withQ2 - withQ3) + ' 人。差距按各自最后一节的成绩算。') + '</div>' +
+      (rows.sk ? '<div class="f1q-ideal" data-sk="' + esc(rows.sk) + '"><button type="button" class="com-more f1q-go">算理论最快圈</button></div>' : '');
+  }
+  function f1IdealFill(box) {
+    box.innerHTML = '<div class="skeleton" style="padding:8px 0">正在读取每一圈的分段…</div>';
+    Promise.all([of1('laps?session_key=' + box.dataset.sk), of1('drivers?session_key=' + box.dataset.sk)]).then(function (r) {
+      if (!box.isConnected) return;
+      var who = {}, per = {};
+      (r[1] || []).forEach(function (d) { who[d.driver_number] = d; });
+      (r[0] || []).forEach(function (l) {
+        var p = per[l.driver_number] = per[l.driver_number] || { lap: null, s: [null, null, null] };
+        if (l.lap_duration && !l.is_pit_out_lap && (!p.lap || l.lap_duration < p.lap)) p.lap = l.lap_duration;
+        [l.duration_sector_1, l.duration_sector_2, l.duration_sector_3].forEach(function (v, i) { if (v && (!p.s[i] || v < p.s[i])) p.s[i] = v; });
+      });
+      var rows = Object.keys(per).map(function (n) {
+        var p = per[n];
+        if (!p.lap || p.s.some(function (v) { return !v; })) return null;
+        var ideal = p.s[0] + p.s[1] + p.s[2];
+        return { n: n, lap: p.lap, ideal: Math.min(ideal, p.lap), d: who[n] || {} };
+      }).filter(Boolean).sort(function (a, b) { return a.ideal - b.ideal; });
+      if (!rows.length) { box.innerHTML = '<div class="empty">这节排位的分段成绩没取到。</div>'; return; }
+      box.innerHTML = '<div class="f1-h">理论最快圈<small>三个分段各自的最好成绩相加</small></div><div class="table-scroll"><table class="ps f1q">' +
+        '<thead><tr><th class="rk">#</th><th class="tm">车手</th><th>最快圈</th><th>理论最快</th><th>少跑了</th></tr></thead><tbody>' +
+        rows.map(function (x, i) {
+          var lost = x.lap - x.ideal;
+          return '<tr><td class="rk">' + (i + 1) + '</td><td class="tm"><i class="f1q-c" style="background:#' + esc(x.d.team_colour || '888888') + '"></i>' +
+            esc(driverCN(f1RadioName(x.d.full_name)) || x.d.name_acronym || x.n) + '</td><td>' + esc(f1Lap(x.lap).replace(/^0:/, '')) + '</td>' +
+            '<td class="pts">' + esc(f1Lap(x.ideal).replace(/^0:/, '')) + '</td><td>' + (lost > 0.0005 ? lost.toFixed(3) : '—') + '</td></tr>';
+        }).join('') + '</tbody></table></div><div class="fl-note">「少跑了」是最快圈和理论最快圈的差：三个分段的最好成绩没能拼在同一圈里。</div>';
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-f1b], [data-f1s], .f1q-go');
+    if (!el) return;
+    e.stopPropagation();
+    if (el.classList.contains('f1q-go')) { f1IdealFill(el.parentNode); return; }
+    if (el.dataset.f1s) {
+      f1StatCat = el.dataset.f1s;
+      var host = panelFor('panel-table');
+      Promise.all([f1SeasonDetail(), f1DriverMap()]).then(function (r) {
+        if (f1Board === 'stats') host.innerHTML = f1BoardTabsHTML() + f1StatsHTML(r[0], r[1]);
+      });
+      return;
+    }
+    if (el.dataset.f1b === f1Board) return;
+    f1Board = el.dataset.f1b;
+    renderF1Table();
+  }, true);
+
   function renderF1Table() {
     var host = panelFor('panel-table');
-    host.innerHTML = '<div class="skeleton">正在获取积分榜…</div>';
+    if (f1Board !== 'table') { f1BoardFill(host); return; }
+    host.innerHTML = f1BoardTabsHTML() + '<div class="skeleton">正在获取积分榜…</div>';
     f1Standings().then(function (d) {
       var groups = (d && d.children) || [];
-      if (!groups.length) { host.innerHTML = '<div class="err">积分榜没取到。</div>'; return; }
-      host.innerHTML = groups.map(function (g) {
+      if (!groups.length) { host.innerHTML = f1BoardTabsHTML() + '<div class="err">积分榜没取到。</div>'; return; }
+      f1TitleMaths().then(function (t) {
+        var slot = host.querySelector('.tt-slot');
+        if (slot && f1Board === 'table') slot.innerHTML = f1TitleHTML(t);
+      });
+      host.innerHTML = f1BoardTabsHTML() + '<div class="tt-slot"></div>' + groups.map(function (g) {
         var isDriver = /driver/i.test(g.name || '');
         var rows = ((g.standings && g.standings.entries) || []).map(function (e) {
           var s = {};

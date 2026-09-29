@@ -804,6 +804,41 @@ async function watch(env) {
     }
   }
 
+  // ---- boxing: a followed boxer's result, once the site's own file has it.
+  // The file comes from Wikipedia, a few hours after the fight; nothing there
+  // says when the first bell goes, so there is no "under way" push.
+  const boxFollow = subs.filter((s) => (s.f.box || []).length);
+  if (boxFollow.length) {
+    let card = null;
+    try {
+      const r = await fetch(ORIGINS[0] + '/data/boxing.json', { cf: { cacheTtl: 300 } });
+      if (r.ok) card = await r.json();
+    } catch (e) {}
+    const norm = (n) => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    const METHOD_EN = { '一致判定': 'Unanimous decision', '分歧判定': 'Split decision', '多数判定': 'Majority decision',
+      '技术判定': 'Technical decision', '完场': 'Result', '平局': 'Draw' };
+    for (const b of (card && card.recent) || []) {
+      if (b.winner !== 'a' && b.winner !== 'b') continue;
+      const an = norm((b.a || {}).name), bn = norm((b.b || {}).name);
+      const who = boxFollow.filter((s) => s.f.box.some((f) => [an, bn].includes(norm(f.name))));
+      if (!who.length) continue;
+      const key = 'box:' + an + '~' + bn + '~' + String(b.start || '').slice(0, 10);
+      const prev = await seen(key);
+      if (prev) continue;
+      // only a fight from the last few days; an old one first seen now is just noted
+      const fresh = Date.now() - Date.parse(b.start || 0) < 4 * DAY;
+      if (fresh) {
+        const w = b.winner === 'a' ? b.a : b.b, l = b.winner === 'a' ? b.b : b.a;
+        who.forEach((s) => {
+          const en = s.lang === 'en';
+          const how = [en ? (METHOD_EN[b.method] || b.method) : b.method, b.round ? 'R' + b.round : ''].filter(Boolean).join(' ');
+          out.push([s, { title: say('ufcWin', s.lang, w.name, l.name), body: [how, b.event].filter(Boolean).join(' · '), tag: key, url: '/?go=fight' }]);
+        });
+      }
+      await note(key, 'post', '', fresh ? 'final' : 'old');
+    }
+  }
+
   if (out.length) {
     const keys = await vapidKeys(env);
     // a handful at a time, so one slow push service holds up nothing else

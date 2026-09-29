@@ -1707,6 +1707,30 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- boxing: champions, pound for pound, a boxer's page ---- */
+  [data-boxer] { cursor: pointer; }
+  .bx-card { padding: 0 12px; }
+  .bx-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hairline); }
+  .bx-row:last-child { border-bottom: none; }
+  .bx-row.vacant { color: var(--muted); }
+  .bx-rk { flex: 0 0 20px; text-align: right; font-family: var(--narrow); font-weight: 700; color: var(--muted); }
+  .bx-ph { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; position: relative; background: var(--surface-2); }
+  .bx-ph svg, .bx-ph img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .bx-ph img { object-fit: cover; object-position: top; }
+  .bx-m { flex: 1; min-width: 0; }
+  .bx-n { font-family: var(--serif); font-weight: 600; font-size: 14px; color: var(--ink); }
+  .bx-s { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  .bx-belts { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+  .bx-belt {
+    font-style: normal; font-family: var(--narrow); font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+    padding: 1px 5px; border-radius: 2px; background: var(--brass); color: white;
+  }
+  .bx-belt.ring { background: var(--ink-2); }
+  .bx-others { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .pg-nf.bx-big { width: 110px; height: 110px; border-radius: 50%; overflow: hidden; margin-left: 0; background: var(--surface-2); }
+  .pg-nf.bx-big svg { left: 18px; top: 16px; }
+  .pg-nf.bx-big img { object-fit: cover; object-position: top; }
+  .ufh-s.muted { color: var(--muted); }
   /* ---- LoL: a game's numbers, the gold line, a team's page ---- */
   tr[data-lolt], [data-lolt] { cursor: pointer; }
   .lg-head { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
@@ -3354,7 +3378,7 @@
     basketball: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的球队']],
     esports: [['fixtures', '赛程'], ['table', '积分榜'], ['mine', '我的战队']],
     fight: [['fixtures', '赛历'], ['table', '排名'], ['mine', '我的选手']],
-    boxing: [['fixtures', '赛程'], ['mine', '我的拳手']],
+    boxing: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的拳手']],
     esports_other: [['fixtures', '赛程'], ['table', '战绩榜'], ['mine', '我的战队']],
     single: [['fixtures', '赛程']]
   };
@@ -3464,10 +3488,13 @@
     if (sport === 'fight') {
       renderFightChips();
       if (fightLeague === 'boxing') {
-        $('panel-table').hidden = true;
+        $('panel-table').hidden = next !== 'table';
         if (next === 'mine') {
           $('panel-fixtures').hidden = true; $('panel-mine').hidden = false;
           renderMyBoxers();
+        } else if (next === 'table') {
+          $('panel-fixtures').hidden = true; $('panel-mine').hidden = true;
+          renderBoxRanks();
         } else {
           $('panel-mine').hidden = true; $('panel-fixtures').hidden = false;
           renderBoxing();
@@ -5163,7 +5190,7 @@
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
       f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
-      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML })[top.type](top).then(function (html) {
+      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -14686,7 +14713,7 @@ O
     // an upcoming bout has no record on file, but the market has a read on it
     var under = x.record ||
       (x.winPct !== null && x.winPct !== undefined ? '胜率 ' + x.winPct + '%' : '');
-    var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '">' +
+    var body = '<span class="fwrap"><span class="fnm' + (dim ? ' dim' : '') + '"' + (x.name ? ' data-boxer="' + esc(x.name) + '"' : '') + '>' +
       (x.winner ? '<span class="win-pip"></span> ' : '') + esc(x.name || 'TBD') + '</span>' +
       (under ? '<span class="frec">' + esc(under) + '</span>' : '') + '</span>';
     return '<span class="side ' + (isLeft ? 'home' : 'away') + '">' +
@@ -14815,10 +14842,22 @@ O
           '<span><b>' + esc(b.b.name) + '</b> ' + p[1] + '%</span></div>';
       }
       var names = [(b.a && b.a.name) || '', (b.b && b.b.name) || ''].filter(Boolean).join(' vs ');
+      html += '<div class="bx-belts-slot"></div>';
       html += clipSearchHTML(
         names + ' highlights ' + (isNaN(when) ? '' : dayEN(when)),
         names + ' 集锦 ' + (isNaN(when) ? '' : dayCN(when)), '集锦');
       box.innerHTML = html;
+      // which belts each man walks in with, off the champions table
+      boxChampions().then(function (ch) {
+        var slot = box.querySelector('.bx-belts-slot');
+        if (!slot || !ch) return;
+        var rows = [b.a, b.b].map(function (x) {
+          var list = boxBeltsOf(ch, (x || {}).name);
+          return list.length ? '<div class="kv"><span class="k">' + esc(x.name) + '</span><span>' +
+            esc(list.map(function (l) { return (/ring/i.test(l.org) ? 'The Ring' : l.org) + ' ' + boxDivCN(l.div); }).join(' · ')) + '</span></div>' : '';
+        }).join('');
+        if (rows) slot.innerHTML = '<h4>现役腰带</h4>' + rows;
+      });
     });
   }
   function boxGroup(list) {
@@ -14837,6 +14876,352 @@ O
   }
   // faces are looked up by name while rendering a row, so they load first
   var boxFaces = {};
+  /* ---------- boxing: the champions, pound for pound, and a boxer's page ----------
+     All three read Wikipedia's own pages in the browser (the API allows it):
+     the champions table by weight class, the pound-for-pound lists of four
+     rankers, and a boxer's infobox and professional record. */
+  var WIKI_API = 'https://en.wikipedia.org/w/api.php';
+  var boxWiki = {};
+  function wikiParse(page, extra) {
+    return getJSON(WIKI_API + '?action=parse&format=json&formatversion=2&origin=*&redirects=1&page=' +
+      encodeURIComponent(page) + (extra || ''));
+  }
+  // parsed HTML, with the style blocks and footnote marks that would leak into text taken out
+  function wikiDoc(html) {
+    var doc = new DOMParser().parseFromString('<div id="w">' + html + '</div>', 'text/html');
+    [].forEach.call(doc.querySelectorAll('style, sup.reference, .mw-editsection, .reference'), function (e) { e.remove(); });
+    return doc;
+  }
+  function wikiText(el) {
+    return el ? el.textContent.replace(/\[\s*(\d+|[a-z]|nb \d+)\s*\]/g, '').replace(/\s+/g, ' ').trim() : '';
+  }
+  function wikiTitle(a) {
+    var m = /^\/wiki\/([^#?]+)/.exec((a && a.getAttribute('href')) || '');
+    return m ? decodeURIComponent(m[1]).replace(/_/g, ' ') : '';
+  }
+  var BOX_DIV_CN = [
+    [/bridger/i, '桥量级'], [/super\s*heavy/i, '超重量级'], [/cruiser|junior\s*heavy/i, '次重量级'],
+    [/light\s*heavy/i, '轻重量级'], [/super\s*middle/i, '超中量级'], [/junior\s*middle|super\s*welter/i, '超次中量级'],
+    [/junior\s*welter|super\s*light/i, '超轻量级'], [/junior\s*light|super\s*feather/i, '超羽量级'],
+    [/junior\s*feather|super\s*bantam/i, '超雏量级'], [/junior\s*bantam|super\s*fly/i, '超蝇量级'],
+    [/junior\s*fly|light\s*fly/i, '轻蝇量级'], [/mini\s*-?\s*fly|minimum\s*weight|straw\s*weight/i, '草量级'],
+    [/heavy\s*weight/i, '重量级'], [/middle\s*weight/i, '中量级'], [/welter\s*weight/i, '次中量级'],
+    [/light\s*weight/i, '轻量级'], [/feather\s*weight/i, '羽量级'], [/bantam\s*weight/i, '雏量级'], [/fly\s*weight/i, '蝇量级']
+  ];
+  // an infobox lists every class a boxer has fought at, oldest first: the last is where he is now
+  function boxNowDiv(s) {
+    var all = String(s || '').match(/[A-Za-z\/ -]*?weight/gi);
+    return all && all.length ? boxDivCN(all[all.length - 1].trim()) : null;
+  }
+  function boxDivCN(s) {
+    s = String(s || '');
+    if (LANG === 'en') return s;
+    for (var i = 0; i < BOX_DIV_CN.length; i++) if (BOX_DIV_CN[i][0].test(s)) return BOX_DIV_CN[i][1];
+    return s;
+  }
+
+  /* ---- the champions: one table a weight class, WBA · WBC · IBF · WBO · The Ring,
+     a holder of several belts spanning several columns ---- */
+  function boxChampions() {
+    if (boxWiki.champs) return boxWiki.champs;
+    boxWiki.champs = wikiParse('List of current world boxing champions', '&prop=text').then(function (d) {
+      var html = d && d.parse && d.parse.text;
+      if (!html) { boxWiki.champs = null; return null; }
+      var doc = wikiDoc(html), out = [];
+      [].forEach.call(doc.querySelectorAll('h3'), function (h) {
+        var name = wikiText(h).replace(/\(.*$/, '').trim();
+        var node = (h.parentNode.classList && h.parentNode.classList.contains('mw-heading') ? h.parentNode : h).nextElementSibling;
+        while (node && node.tagName !== 'TABLE' && !/^H[23]$/.test(node.tagName) &&
+          !(node.classList && node.classList.contains('mw-heading'))) node = node.nextElementSibling;
+        if (!name || !node || node.tagName !== 'TABLE') return;
+        var rows = node.querySelectorAll('tr');
+        if (rows.length < 2) return;
+        var heads = [].map.call(rows[0].querySelectorAll('th, td'), wikiText);
+        var col = 0, holders = [];
+        [].forEach.call(rows[1].querySelectorAll('th, td'), function (c) {
+          var span = Number(c.getAttribute('colspan')) || 1;
+          var orgs = heads.slice(col, col + span);
+          col += span;
+          var a = c.querySelector('a[href^="/wiki/"]'), text = wikiText(c);
+          if (!a || /vacant/i.test(text)) { holders.push({ orgs: orgs, vacant: true }); return; }
+          var nm = wikiText(a), rest = text.replace(nm, '').trim();
+          var rec = (/\d+\s*[–-]\s*\d+[^()]*?(\(\d+\)\s*)?\(\d+\s*KO\)/.exec(rest) || [''])[0];
+          holders.push({ orgs: orgs, name: nm, title: wikiTitle(a), record: rec.trim(), since: rest.replace(rec, '').trim() });
+        });
+        if (holders.length) out.push({ name: name, holders: holders });
+      });
+      return out;
+    }, function () { boxWiki.champs = null; return null; });
+    return boxWiki.champs;
+  }
+  // every belt one boxer holds, by name
+  function boxBeltsOf(champs, name) {
+    var key = boxerKey(name), out = [];
+    (champs || []).forEach(function (dv) {
+      dv.holders.forEach(function (h) { if (!h.vacant && boxerKey(h.name) === key) out = out.concat(h.orgs.map(function (o) { return { org: o, div: dv.name }; })); });
+    });
+    return out;
+  }
+  function boxFaceHTML(name, cls) {
+    var f = boxFaces[name];
+    return '<span class="' + (cls || 'bx-ph') + '">' + PS_FACE + (f ? '<img alt="" loading="lazy" src="' + esc(f) + '" onerror="this.remove()">' : '') + '</span>';
+  }
+  function boxChampsHTML(champs) {
+    if (!champs || !champs.length) return '<div class="empty">拳王名单暂时没取到。</div>';
+    return champs.map(function (dv) {
+      return '<div class="group-name">' + esc(boxDivCN(dv.name)) + '</div><div class="card bx-card">' + dv.holders.map(function (h) {
+        var belts = '<span class="bx-belts">' + h.orgs.map(function (o) {
+          return '<i class="bx-belt' + (/ring/i.test(o) ? ' ring' : '') + '">' + esc(/ring/i.test(o) ? 'The Ring' : o) + '</i>';
+        }).join('') + '</span>';
+        if (h.vacant) return '<div class="bx-row vacant">' + belts + '<span class="bx-n">空缺</span></div>';
+        var undisputed = ['WBA', 'WBC', 'IBF', 'WBO'].every(function (o) { return h.orgs.indexOf(o) !== -1; });
+        return '<div class="bx-row" data-boxer="' + esc(h.title || h.name) + '">' + boxFaceHTML(h.name) +
+          '<div class="bx-m"><div class="bx-n">' + esc(h.name) + (undisputed ? ' <span class="tag">统一拳王</span>' : '') + '</div>' +
+          '<div class="bx-s">' + esc([h.record, h.since ? (LANG === 'en' ? 'since ' : '') + h.since + (LANG === 'en' ? '' : ' 起') : ''].filter(Boolean).join(' · ')) + '</div>' +
+          belts + '</div></div>';
+      }).join('') + '</div>';
+    }).join('');
+  }
+
+  /* ---- pound for pound: The Ring, ESPN, TBRB and BoxRec side by side ---- */
+  var boxP4PSide = 'men';
+  function boxP4P() {
+    if (boxWiki.p4p) return boxWiki.p4p;
+    boxWiki.p4p = Promise.all([1, 2].map(function (sec) {
+      return wikiParse('Boxing pound for pound rankings', '&prop=text&section=' + sec).then(function (d) {
+        var html = d && d.parse && d.parse.text;
+        if (!html) return [];
+        var doc = wikiDoc(html), table = doc.querySelector('table');
+        if (!table) return [];
+        var rows = [].slice.call(table.querySelectorAll('tr'));
+        // two header rows: the columns, then the four rankers
+        var rankers = [];
+        rows.slice(0, 3).forEach(function (r) {
+          [].forEach.call(r.querySelectorAll('th'), function (th) {
+            var t = wikiText(th);
+            if (/ring|espn|tbrb|boxrec/i.test(t) && rankers.indexOf(t) === -1) rankers.push(t);
+          });
+        });
+        return rows.map(function (r) {
+          var cells = r.querySelectorAll('td');
+          if (cells.length < 5) return null;
+          var a = r.querySelector('a[href^="/wiki/"]');
+          var name = wikiText(r.querySelector('th, td'));
+          var nums = [].slice.call(cells).slice(-rankers.length).map(function (c) { return parseInt(wikiText(c), 10) || null; });
+          var all = [].map.call(r.querySelectorAll('th, td'), wikiText);
+          return { name: a ? wikiText(a) : name, title: wikiTitle(a), record: all[1] || '', weight: all[2] || '', belts: all[3] || '', ranks: nums, rankers: rankers };
+        }).filter(function (x) { return x && x.name; });
+      });
+    })).then(function (r) { return { men: r[0], women: r[1] }; }, function () { boxWiki.p4p = null; return null; });
+    return boxWiki.p4p;
+  }
+  function boxP4PHTML(d) {
+    var list = (d && d[boxP4PSide]) || [];
+    var tabs = '<div class="rnd-tabs">' + [['men', '男子'], ['women', '女子']].map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === boxP4PSide ? ' on' : '') + '" data-bx-p4p="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+    if (!list.length) return tabs + '<div class="empty">P4P 排名暂时没取到。</div>';
+    var rankers = list[0].rankers || [];
+    return tabs + '<div class="card bx-card">' + list.map(function (x, i) {
+      var ring = x.ranks[0] || i + 1;
+      return '<div class="bx-row" data-boxer="' + esc(x.title || x.name) + '"><span class="bx-rk">' + ring + '</span>' + boxFaceHTML(x.name) +
+        '<div class="bx-m"><div class="bx-n">' + esc(x.name) + '</div><div class="bx-s">' + esc([boxDivCN(x.weight), x.record].filter(Boolean).join(' · ')) + '</div>' +
+        '<div class="bx-others">' + rankers.slice(1).map(function (rk, k) {
+          var v = x.ranks[k + 1];
+          return '<span>' + esc(rk.replace(/\s*\[.*$/, '')) + ' ' + (v ? '#' + v : '—') + '</span>';
+        }).join('') + '</div></div></div>';
+    }).join('') + '</div><div class="fl-note">按 The Ring 排序，其余三家的名次附在下面。来源：维基百科。</div>';
+  }
+
+  var boxBoard = 'champs';
+  function renderBoxRanks() {
+    var host = panelFor('panel-table');
+    host.innerHTML = boxBoardTabs() + '<div class="skeleton">正在读取…</div>';
+    var view = boxBoard;
+    archiveGet('boxers.json').then(function (bf) { boxFaces = (bf || {}).faces || boxFaces || {}; }, function () {}).then(function () {
+      return view === 'champs' ? boxChampions().then(boxChampsHTML) : boxP4P().then(boxP4PHTML);
+    }).then(function (html) {
+      if (view !== boxBoard) return;
+      host.innerHTML = boxBoardTabs() + html + '<div class="fl-note">来源：维基百科。</div>';
+      boxFillFaces($('panel-table'));
+    });
+  }
+  /* The portrait file only covers men with a recent fight; the rest are asked
+     of Wikipedia in one call, fifty titles at a time, and kept for the session. */
+  var boxWikiFaces = {};
+  function boxFillFaces(root) {
+    if (!root) return;
+    var rows = [].filter.call(root.querySelectorAll('.bx-row[data-boxer]'), function (r) { return !r.querySelector('.bx-ph img'); });
+    var want = [];
+    rows.forEach(function (r) {
+      var t = r.dataset.boxer;
+      if (boxWikiFaces[t]) put(r, boxWikiFaces[t]);
+      else if (boxWikiFaces[t] !== '' && want.indexOf(t) === -1) want.push(t);
+    });
+    function put(r, url) {
+      var ph = r.querySelector('.bx-ph');
+      if (ph && url && !ph.querySelector('img')) ph.insertAdjacentHTML('beforeend', '<img alt="" loading="lazy" src="' + esc(url) + '" onerror="this.remove()">');
+    }
+    for (var i = 0; i < want.length; i += 50) ask(want.slice(i, i + 50));
+    function ask(list) {
+      getJSON(WIKI_API + '?action=query&format=json&formatversion=2&origin=*&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=120&titles=' +
+        encodeURIComponent(list.join('|'))).then(function (d) {
+        var q = (d && d.query) || {}, back = {};
+        // the title asked for, through any normalising and redirects, to the page that answered
+        list.forEach(function (t) { back[t] = t; });
+        (q.normalized || []).forEach(function (n) { Object.keys(back).forEach(function (k) { if (back[k] === n.from) back[k] = n.to; }); });
+        (q.redirects || []).forEach(function (n) { Object.keys(back).forEach(function (k) { if (back[k] === n.from) back[k] = n.to; }); });
+        var by = {};
+        (q.pages || []).forEach(function (p) { by[p.title] = (p.thumbnail && p.thumbnail.source) || ''; });
+        // many have no free photo at all; that is remembered too, and not asked again
+        list.forEach(function (t) { boxWikiFaces[t] = by[back[t]] || ''; });
+        rows.forEach(function (r) { if (boxWikiFaces[r.dataset.boxer]) put(r, boxWikiFaces[r.dataset.boxer]); });
+      });
+    }
+  }
+  function boxBoardTabs() {
+    return '<div class="rnd-tabs sc-tabs">' + [['champs', '拳王'], ['p4p', 'P4P']].map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === boxBoard ? ' on' : '') + '" data-bx-board="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+
+  /* ---- a boxer's page: the infobox and the professional record ---- */
+  var BOX_TYPE_CN = { KO: 'KO', TKO: 'TKO', UD: '一致判定', SD: '分歧判定', MD: '多数判定', TD: '技术判定', RTD: '弃权', DQ: '取消资格', NC: '无效', PTS: '点数', SD2: '分歧判定' };
+  function boxTypeKey(t) {
+    t = String(t || '').toUpperCase();
+    return /^T?KO|RTD/.test(t) ? 'ko' : /UD|SD|MD|TD|PTS/.test(t) ? 'dec' : 'other';
+  }
+  /* Wikipedia's "Round, time": "3 (12), 2:19" is stopped in the third of
+     twelve at 2:19; a plain "12" is a fight that went the distance */
+  function boxRoundText(s, dec) {
+    s = String(s || '').trim();
+    var m = /^(\d+)\s*\((\d+)\)(?:,\s*([\d:]+))?/.exec(s);
+    var en = LANG === 'en';
+    if (m) return en ? 'R' + m[1] + ' of ' + m[2] + (m[3] ? ' ' + m[3] : '') : '第 ' + m[1] + ' 回合' + (m[3] ? ' ' + m[3] : '') + '（' + m[2] + ' 回合制）';
+    if (/^\d+$/.test(s)) return en ? s + ' rounds' : s + ' 回合' + (dec ? '打满' : '');
+    return s;
+  }
+  function boxerPageHTML(pg) {
+    return wikiParse(pg.title, '&prop=sections').then(function (s) {
+      var secs = (s && s.parse && s.parse.sections) || [];
+      var real = (s && s.parse && s.parse.title) || pg.title;
+      // a name that lands on a disambiguation page gets one more try as "(boxer)"
+      if (!secs.some(function (x) { return /boxing record/i.test(x.line); }) && !pg.retried && !/\(boxer\)/.test(pg.title)) {
+        return boxerPageHTML({ title: pg.title + ' (boxer)', retried: true, first: pg.title });
+      }
+      var rec = secs.filter(function (x) { return /^Professional boxing record$/i.test(x.line); })[0] ||
+        secs.filter(function (x) { return /professional.*record/i.test(x.line); })[0];
+      return Promise.all([
+        wikiParse(real, '&prop=text&section=0'),
+        rec ? wikiParse(real, '&prop=text&section=' + rec.index) : Promise.resolve(null),
+        getJSON(WIKI_API + '?action=query&format=json&formatversion=2&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=480&titles=' + encodeURIComponent(real)),
+        boxChampions()
+      ]).then(function (r) { return boxerHTML(real, r); });
+    }).then(null, function () { return '<div class="err">拳手资料没取到，返回再点一次试试。</div>'; });
+  }
+  function boxerHTML(title, r) {
+    var lead = r[0] && r[0].parse && r[0].parse.text;
+    if (!lead) return '<div class="err">维基百科上没找到这名拳手。</div>';
+    var doc = wikiDoc(lead);
+    var info = {};
+    var ib = doc.querySelector('table.infobox');
+    if (ib) [].forEach.call(ib.querySelectorAll('tr'), function (tr) {
+      var th = tr.querySelector('th'), td = tr.querySelector('td');
+      if (th && td) info[wikiText(th).toLowerCase()] = wikiText(td);
+    });
+    var name = title.replace(/\s*\([^)]*\)\s*$/, '');
+    var thumb = ((((r[2] || {}).query || {}).pages || [])[0] || {}).thumbnail;
+    var face = boxFaces[name] || (thumb && thumb.source) || '';
+    var belts = boxBeltsOf(r[3], name);
+    var age = (/age\s*(\d+)/i.exec(info.born || '') || [])[1];
+    var height = (/(\d{3})\s*cm/.exec(info.height || '') || [])[1];
+    var reach = (/(\d{3})\s*cm/.exec(info.reach || '') || [])[1];
+    var html = '<div class="pg-head has-fig"><span class="pg-nf bx-big">' + PS_FACE + (face ? '<img alt="" src="' + esc(face) + '" onerror="this.remove()">' : '') + '</span>' +
+      '<div class="pg-hd"><div class="pg-name">' + esc(name) + '</div>' +
+      (info.nickname ? '<div class="pg-sub">“' + esc(info.nickname.split(/\s{2,}|,/)[0]) + '”</div>' : '') +
+      '<div class="pg-sub">' + esc([nationCN(info.nationality) || info.nationality, info.wins ? info.wins + '-' + (info.losses || 0) + (Number(info.draws) ? '-' + info.draws : '') : ''].filter(Boolean).join(' · ')) + '</div>' +
+      (belts.length ? '<div class="pg-sub"><b>' + esc(belts.map(function (b) { return (/ring/i.test(b.org) ? 'The Ring' : b.org) + ' ' + boxDivCN(b.div); }).join(' · ')) + '</b></div>' : '') +
+      '</div></div>';
+    var stance = String(info.stance || '').toLowerCase();
+    html += '<div class="f1-tiles">' + f1Tile(age ? age + ' 岁' : null, '年龄') + f1Tile(height ? height + ' cm' : null, '身高') +
+      f1Tile(reach ? reach + ' cm' : null, '臂展') +
+      f1Tile(info.stance ? (LANG === 'en' ? info.stance : (STANCE_CN[stance] || info.stance)) : null, '站架') +
+      f1Tile(boxNowDiv(info.weight || info['weight(s)'] || info.division), '级别') + '</div>';
+
+    // the professional record, newest first as Wikipedia keeps it
+    var fights = [];
+    var recHTML = r[1] && r[1].parse && r[1].parse.text;
+    if (recHTML) {
+      var rd = wikiDoc(recHTML);
+      [].forEach.call(rd.querySelectorAll('table'), function (t) {
+        var head = [].map.call((t.querySelector('tr') || document.createElement('tr')).querySelectorAll('th'), wikiText);
+        var at = function (k) { for (var i = 0; i < head.length; i++) if (k.test(head[i])) return i; return -1; };
+        var iRes = at(/^result/i), iOpp = at(/^opponent/i), iType = at(/^type/i), iRnd = at(/^round/i), iDate = at(/^date/i), iLoc = at(/^location/i), iNote = at(/^notes/i);
+        if (iRes < 0 || iOpp < 0) return;
+        [].slice.call(t.querySelectorAll('tr'), 1).forEach(function (tr) {
+          var c = tr.querySelectorAll('td, th');
+          if (c.length < head.length - 1) return;
+          var opp = c[iOpp];
+          fights.push({
+            res: wikiText(c[iRes]), opp: wikiText(opp), oppTitle: wikiTitle(opp && opp.querySelector('a[href^="/wiki/"]')),
+            type: iType >= 0 ? wikiText(c[iType]) : '', rnd: iRnd >= 0 ? wikiText(c[iRnd]) : '',
+            date: iDate >= 0 ? wikiText(c[iDate]) : '', loc: iLoc >= 0 ? wikiText(c[iLoc]) : '', note: iNote >= 0 ? wikiText(c[iNote]) : ''
+          });
+        });
+      });
+    }
+    var tally = { W: { ko: 0, dec: 0, other: 0, n: 0 }, L: { ko: 0, dec: 0, other: 0, n: 0 } };
+    fights.forEach(function (f) {
+      var k = /^win/i.test(f.res) ? 'W' : /^loss/i.test(f.res) ? 'L' : '';
+      if (!k) return;
+      tally[k][boxTypeKey(f.type)]++; tally[k].n++;
+    });
+    function bar(t, label) {
+      if (!t.n) return '';
+      var parts = [['ko', 'KO/TKO'], ['dec', '判定'], ['other', '其他']].filter(function (p) { return t[p[0]]; });
+      return '<div class="ufm"><div class="ufm-k">' + label + ' ' + t.n + '</div><div class="ufm-bar">' + parts.map(function (p) {
+        return '<i class="' + p[0] + '" style="flex:' + t[p[0]] + '"></i>';
+      }).join('') + '</div><div class="ufm-l">' + parts.map(function (p) {
+        return '<span><i class="' + p[0] + '"></i>' + p[1] + ' ' + t[p[0]] + '</span>';
+      }).join('') + '</div></div>';
+    }
+    if (fights.length) {
+      var ko = tally.W.n ? Math.round(tally.W.ko / tally.W.n * 100) : 0;
+      html += '<div class="f1-h">胜负方式<small>KO 率 ' + ko + '%</small></div>' + bar(tally.W, '胜') + bar(tally.L, '负');
+      html += '<div class="f1-h">职业战绩<small>' + fights.length + ' 场</small></div><div class="card pg-card">' + fights.map(function (f) {
+        var r0 = /^win/i.test(f.res) ? 'W' : /^loss/i.test(f.res) ? 'L' : /^draw/i.test(f.res) ? 'D' : 'NC';
+        var title = /title|championship|belt|undisputed/i.test(f.note);
+        var type = String(f.type || '').toUpperCase();
+        var how = [LANG === 'en' ? type : (BOX_TYPE_CN[type] || type), boxRoundText(f.rnd, boxTypeKey(type) === 'dec')].filter(Boolean).join(' · ');
+        return '<div class="ufh"><span class="f ' + (r0 === 'NC' ? 'D' : r0) + '">' + r0 + '</span>' +
+          '<div class="ufh-m"><div class="ufh-o"' + (f.oppTitle ? ' data-boxer="' + esc(f.oppTitle) + '"' : '') + '>' + esc(f.opp) +
+            (title ? ' <span class="tag">冠军战</span>' : '') + '</div>' +
+          '<div class="ufh-s">' + esc(how) + '</div>' + (f.note ? '<div class="ufh-s muted">' + esc(f.note) + '</div>' : '') + '</div>' +
+          '<div class="ufh-e"><span>' + esc(f.date) + '</span><span>' + esc(f.loc.split(',').slice(-1)[0] || '') + '</span></div></div>';
+      }).join('') + '</div>';
+    } else {
+      html += '<div class="empty" style="margin-top:12px">维基百科上这名拳手还没有职业战绩表。</div>';
+    }
+    return html + '<div class="fl-note">来源：维基百科。</div>';
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-boxer], [data-bx-board], [data-bx-p4p]');
+    if (!el) return;
+    if (el.dataset.bxBoard) {
+      if (el.dataset.bxBoard !== boxBoard) { boxBoard = el.dataset.bxBoard; renderBoxRanks(); }
+      return;
+    }
+    if (el.dataset.bxP4p) {
+      boxP4PSide = el.dataset.bxP4p;
+      var host = el.closest('#panel-table') || $('panel-table');
+      boxP4P().then(function (d) { host.innerHTML = boxBoardTabs() + boxP4PHTML(d); boxFillFaces(host); });
+      return;
+    }
+    e.stopPropagation();
+    pgOpen({ type: 'boxer', title: el.dataset.boxer });
+  }, true);
+
   function renderBoxing() {
     var host = panelFor('panel-fixtures');
     host.innerHTML = '<div class="skeleton">正在读取…</div>';
@@ -14956,7 +15341,7 @@ O
           '<img src="' + esc(faces[f.name] || FACE_FALLBACK) + '" alt="" loading="lazy"' +
           ' onerror="this.src=\'' + FACE_FALLBACK + '\'"></span>' +
           (f.flag ? '<img class="flag-sm" src="' + esc(f.flag) + '" alt="">' : '') +
-          '<span class="nm">' + esc(f.name) + '</span>' +
+          '<span class="nm" data-boxer="' + esc(f.name) + '">' + esc(f.name) + '</span>' +
           '<span class="lg">' + esc(me.record || f.record || '') + '</span></div>' + rows + '</div>';
       }).join('') + archiveFoot(d);
     });
@@ -15964,7 +16349,8 @@ O
       football: favorites.map(function (f) { return { league: f.league, id: String(f.id), name: f.name }; }),
       nba: favNba.map(function (f) { return { id: String(f.id), name: f.name }; }),
       f1: favDrivers.length > 0,
-      ufc: favFighters.map(function (f) { return { id: String(f.id), name: f.name }; })
+      ufc: favFighters.map(function (f) { return { id: String(f.id), name: f.name }; }),
+      box: favBoxers.map(function (f) { return { name: f.name }; })
     };
   }
   /* serviceWorker.ready never settles while no worker is installed — the
@@ -16055,7 +16441,7 @@ O
         html += '<div class="set-me"><span>' + (pushState ? '已开启' : '未开启') + '</span>' +
           '<button type="button" class="set-link" data-act="' + (pushState ? 'push-off' : 'push-on') + '">' + (pushState ? '关闭' : '开启') + '</button>' +
           (pushState ? '<button type="button" class="set-link" data-act="push-test">发一条试试</button>' : '') + '</div>' +
-          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果，关注的 UFC 选手开打和结果。</div>';
+          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果，关注的 UFC 选手开打和结果，关注的拳手的比赛结果。</div>';
       }
     }
     return html + '<button type="button" class="set-done">完成</button></div>';

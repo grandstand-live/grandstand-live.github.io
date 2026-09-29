@@ -87,6 +87,7 @@ window.fetch = async (url, opts) => {
     const id = new URL(u).searchParams.get('id');
     return fakeLol[id] ? new Response(JSON.stringify(fakeLol[id]), { status: 200 }) : new Response('{}', { status: 404 });
   }
+  if (u === 'https://grandstand-live.github.io/data/boxing.json' && fakeBox) return new Response(JSON.stringify(fakeBox), { status: 200 });
   if (u === 'https://grandstand-live.github.io/data/cs2.json' && fakeCs2) return new Response(JSON.stringify(fakeCs2), { status: 200 });
   if (u.startsWith('https://api.resend.com/')) {
     mails.push(JSON.parse(opts.body));
@@ -95,7 +96,7 @@ window.fetch = async (url, opts) => {
   if (u.includes('espn.com') || u.includes('lolesports.com') || u.includes('github.io')) return new Response('{"events":[]}', { status: 200 });
   return realFetch(url, opts);
 };
-let fakeF1 = null, fakeCs2 = null, fakeUfc = null;
+let fakeF1 = null, fakeCs2 = null, fakeUfc = null, fakeBox = null;
 const fakeLol = {}, mails = [];
 
 const src = await (await realFetch('./worker.js?' + Date.now())).text();
@@ -282,6 +283,24 @@ check(got.length === 1 && got[0].title === 'Joshua Van 胜 Alexandre Pantoja' &&
 got = await tickAndRead();
 check(got.length === 0, 'UFC result only once');
 await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/ufc' });
+
+// ---- the minute tick: a followed boxer's result, once the site's file has it
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/box', keys: { p256dh: uaPub, auth } },
+  follows: { box: [{ name: 'Ryan García' }] }, lang: 'zh'
+});
+fakeBox = { recent: [
+  { start: new Date(Date.now() - 86400000).toISOString(), event: 'Ryan Garcia vs. Conor Benn', winner: 'a', method: 'TKO', round: 2,
+    a: { name: 'Ryan Garcia' }, b: { name: 'Conor Benn' } },
+  { start: new Date(Date.now() - 30 * 86400000).toISOString(), event: 'An old one', winner: 'b', method: '一致判定', round: 12,
+    a: { name: 'Ryan Garcia' }, b: { name: 'Someone Else' } }
+] };
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === 'Ryan Garcia 胜 Conor Benn' && got[0].body === 'TKO R2 · Ryan Garcia vs. Conor Benn',
+  'boxing result pushed, accents aside, an old fight not', got.map((g) => g.title + ' / ' + g.body).join(' ; '));
+got = await tickAndRead();
+check(got.length === 0, 'boxing result only once');
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/box' });
 
 // ---- server-side settling of a football call
 await call('POST', '/api/picks', { sport: 'football', id: '9001', side: 'home', when: Date.now() + 3600000, league: 'eng.1', home: '利物浦', away: '曼城' }, tok);

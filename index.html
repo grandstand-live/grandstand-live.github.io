@@ -1707,6 +1707,38 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- football: live table, fixture difficulty, two players side by side ---- */
+  .lt-note { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--live); margin-top: 12px; }
+  tr.lt-on td { background: var(--live-soft); }
+  .lt-mv { font-size: 9px; margin-left: 3px; font-family: var(--narrow); }
+  .lt-mv.up { color: var(--win); }
+  .lt-mv.dn { color: var(--loss); }
+  .lt-sc { margin-left: 6px; font-family: var(--narrow); font-weight: 700; font-size: 11.5px; color: var(--live); }
+  .fd { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin: 4px 0 2px; }
+  .fd-c {
+    display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px 5px; border-radius: 3px;
+    font-size: 10.5px; line-height: 1.3; cursor: pointer; background: var(--surface-2); color: var(--muted);
+  }
+  .fd-c b { font-family: var(--narrow); font-size: 12px; color: inherit; }
+  .fd-c .crest { margin-bottom: 2px; }
+  .fd-c.lv1 { background: #1f7a45; color: #fff; }
+  .fd-c.lv2 { background: #7cc393; color: #10301c; }
+  .fd-c.lv3 { background: var(--surface-2); color: var(--ink); }
+  .fd-c.lv4 { background: #e58b7c; color: #3b0d06; }
+  .fd-c.lv5 { background: #a8281d; color: #fff; }
+  .fd + .fl-note { margin: 2px 0 8px; }
+  .fbc-pick .pg-fav { margin: 4px 0 0; }
+  .fbc-list { max-height: 60vh; overflow-y: auto; }
+  .fbc-heads { display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 4px; }
+  .fbc-h { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; cursor: pointer; }
+  .fbc-ph { width: 68px; height: 68px; border-radius: 50%; overflow: hidden; position: relative; background: var(--surface-2); margin-bottom: 4px; }
+  .fbc-ph svg, .fbc-ph img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .fbc-ph img { object-fit: cover; object-position: top; }
+  .fbc-h b { font-family: var(--serif); font-size: 14.5px; color: var(--ink); }
+  .fbc-h > span:last-child { font-size: 11.5px; color: var(--muted); }
+  .fbc-vs { align-self: center; margin-top: -18px; font-family: var(--narrow); font-weight: 700; color: var(--muted); }
+  .sv.fbc-b { color: var(--accent); }
+  table.fm { min-width: 0; }
   /* ---- boxing: champions, pound for pound, a boxer's page ---- */
   [data-boxer] { cursor: pointer; }
   .bx-card { padding: 0 12px; }
@@ -4263,6 +4295,7 @@
         return before[ev.id] !== undefined && before[ev.id] !== scoreKeyOf(ev);
       }).map(function (ev) { return ev.id; });
       renderFixturesKeep(changed);
+      if (tab === 'table' && scView === 'table' && standingsCache[league]) scShow(panelFor('panel-table'), standingsCache[league]);
       scheduleAutoRefresh();
     });
   }
@@ -4828,10 +4861,14 @@
       // goals and cards, then the full match stats — only populated once it kicks off
       html += timelineHTML(data.keyEvents, homeId);
       html += commentaryHTML(data.commentary, id);
-      html += statsHTML(data.boxscore && data.boxscore.teams, homeId,
-        t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
       var kit = twoColors(t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
-      if (t) html += shotMapHTML(data.commentary, t.home.team || {}, t.away.team || {}, kit);
+      var xg = homeId ? fbMatchXG(data, homeId) : null;
+      var stats = statsHTML(data.boxscore && data.boxscore.teams, homeId,
+        t && t.home.team && t.home.team.color, t && t.away.team && t.away.team.color);
+      if (xg && stats) stats = stats.replace('<h4>全场数据</h4>', '<h4>全场数据</h4>' + fbXGRow(xg, kit));
+      html += stats;
+      if (t) html += fbMomentumHTML(data.commentary, t.home.team || {}, t.away.team || {}, kit);
+      if (t) html += shotMapHTML(data.commentary, t.home.team || {}, t.away.team || {}, kit, xg);
 
       // win probability, from the sportsbook line (ESPN's predictor rarely covers soccer)
       var pick = (data.pickcenter && data.pickcenter[0]) || null;
@@ -4964,7 +5001,7 @@
     return '';
   }
 
-  function shotMapHTML(list, home, away, kit) {
+  function shotMapHTML(list, home, away, kit, xg) {
     var hName = (home && home.displayName) || '', aName = (away && away.displayName) || '';
     var shots = [];
     (list || []).forEach(function (c) {
@@ -4989,6 +5026,18 @@
     // goals drawn last, so they sit on top of the misses around them
     var order = { blk: 0, off: 1, on: 2, goal: 3 };
     shots.sort(function (a, b) { return order[a.kind] - order[b.kind]; });
+    /* With the match xG known, each shot gets its share of its side's:
+       the model says which chances were the better ones, ESPN how much
+       they came to in all. */
+    if (xg) {
+      ['h', 'a'].forEach(function (sd) {
+        var mine = shots.filter(function (s) { return s.side === sd; });
+        mine.forEach(function (s) { s.xg = fbShotXG(s.p, s.c.text); });
+        var raw = mine.reduce(function (n, s) { return n + s.xg; }, 0);
+        var k = raw > 0 ? xg[sd] / raw : 1;
+        mine.forEach(function (s) { s.xg = Math.min(0.99, s.xg * k); });
+      });
+    }
 
     var marks = shots.map(function (s) {
       var col = s.side === 'h' ? kit.home : kit.away;
@@ -5000,7 +5049,9 @@
       var q = at(s.p.fieldPositionX, s.p.fieldPositionY, s.side);
       var cx = q[0].toFixed(1), cy = q[1].toFixed(1);
       var zh = comTr(s.c.text);
-      var cap = ((s.c.time && s.c.time.displayValue) || '') + ' ' + (zh || s.c.text || '');
+      var cap = ((s.c.time && s.c.time.displayValue) || '') + ' ' + (zh || s.c.text || '') +
+        (s.xg != null ? ' · xG ' + s.xg.toFixed(2) : '');
+      var sz = s.xg != null ? 0.75 + Math.sqrt(s.xg) * 0.9 : 1;
       var out = '<g class="shot" data-cap="' + esc(cap) + '">';
       if (s.kind === 'goal' && s.p.fieldPosition2X != null) {
         var e = at(s.p.fieldPosition2X, s.p.fieldPosition2Y, s.side);
@@ -5008,14 +5059,14 @@
           '" stroke="' + edge + '" stroke-width=".45" stroke-dasharray="1 .8"></line>';
       }
       if (s.kind === 'goal') {
-        out += '<circle cx="' + cx + '" cy="' + cy + '" r="2.3" fill="' + col + '" stroke="' + edge + '" stroke-width=".5"></circle>' +
-          '<circle cx="' + cx + '" cy="' + cy + '" r="1" fill="' + readableOn(col) + '"></circle>';
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (2.3 * sz).toFixed(2) + '" fill="' + col + '" stroke="' + edge + '" stroke-width=".5"></circle>' +
+          '<circle cx="' + cx + '" cy="' + cy + '" r="' + (1 * sz).toFixed(2) + '" fill="' + readableOn(col) + '"></circle>';
       } else if (s.kind === 'on') {
-        out += '<circle cx="' + cx + '" cy="' + cy + '" r="1.45" fill="' + col + '" stroke="' + edge + '" stroke-width=".35"></circle>';
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (1.45 * sz).toFixed(2) + '" fill="' + col + '" stroke="' + edge + '" stroke-width=".35"></circle>';
       } else if (s.kind === 'off') {
-        out += '<circle cx="' + cx + '" cy="' + cy + '" r="1.3" fill="none" stroke="' + edge + '" stroke-width=".55"></circle>';
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (1.3 * sz).toFixed(2) + '" fill="none" stroke="' + edge + '" stroke-width=".55"></circle>';
       } else {
-        out += '<circle cx="' + cx + '" cy="' + cy + '" r=".95" fill="' + edge + '" opacity=".5"></circle>';
+        out += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (0.95 * sz).toFixed(2) + '" fill="' + edge + '" opacity=".5"></circle>';
       }
       // a finger-sized target around every mark
       return out + '<circle cx="' + cx + '" cy="' + cy + '" r="3.2" fill="transparent"></circle></g>';
@@ -5024,7 +5075,8 @@
     function tally(side) {
       var mine = shots.filter(function (s) { return s.side === side; });
       var on = mine.filter(function (s) { return s.kind === 'on' || s.kind === 'goal'; }).length;
-      return '射门 ' + mine.length + ' · 射正 ' + on;
+      // with xG to show, 射正 gives way: it is in the numbers above
+      return '射门 ' + mine.length + (xg ? ' · xG ' + xg[side].toFixed(2) : ' · 射正 ' + on);
     }
     function cap(team, side, color) {
       return '<span class="xi-team"><i style="background:' + color + '"></i>' +
@@ -5034,7 +5086,8 @@
       '<div class="pitch shotmap"><svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="射门分布" ' +
       'style="display:block;overflow:visible">' + pitchBase(W, H) + marks + '</svg></div>' +
       '<div class="shot-key"><span><i class="k-goal"></i>进球</span><span><i class="k-on"></i>射正</span>' +
-      '<span><i class="k-off"></i>射偏</span><span><i class="k-blk"></i>被封堵</span></div>' +
+      '<span><i class="k-off"></i>射偏</span><span><i class="k-blk"></i>被封堵</span>' +
+      (xg ? '<span>点越大 xG 越高（估算）</span>' : '') + '</div>' +
       '<div class="shot-cap hint">点一个点，看是谁、怎么射的。</div>';
   }
 
@@ -5085,13 +5138,13 @@
   var scView = 'table';
   var leadersCache = {};
   function scTabsHTML() {
-    return '<div class="rnd-tabs sc-tabs">' + [['table', '积分榜'], ['goals', '射手榜'], ['assists', '助攻榜']].map(function (o) {
+    return '<div class="rnd-tabs sc-tabs">' + [['table', '积分榜'], ['home', '主场'], ['away', '客场'], ['form', '近况'], ['goals', '射手榜'], ['assists', '助攻榜']].map(function (o) {
       return '<button type="button" class="rnd-tab' + (o[0] === scView ? ' on' : '') + '" data-sc="' + o[0] + '">' + o[1] + '</button>';
     }).join('') + '</div>';
   }
   function scShow(host, tableHTML) {
     host.innerHTML = scTabsHTML() + '<div class="sc-body">' +
-      (scView === 'table' ? tableHTML : '<div class="skeleton">正在获取…</div>') + '</div>';
+      (scView === 'table' ? (fbLiveTable(league) || tableHTML) : '<div class="skeleton">正在获取…</div>') + '</div>';
     if (scView !== 'table') scFill(host.querySelector('.sc-body'));
   }
   function scStat(ath, name) {
@@ -5101,6 +5154,13 @@
   }
   function scFill(box) {
     var lg = league, kind = scView;
+    if (/^(home|away|form)$/.test(kind)) {
+      fbSeason(lg).then(function (evs) {
+        if (!box.isConnected || lg !== league || kind !== scView) return;
+        box.innerHTML = evs ? fbSeasonHTML(evs, kind) : '<div class="err">没取到，切走再切回来试一次。</div>';
+      });
+      return;
+    }
     var hit = leadersCache[lg];
     var got = hit && Date.now() - hit.t < 10 * 60000 ? Promise.resolve(hit.d)
       : getJSON(API + 'site/v2/sports/soccer/' + lg + '/statistics').then(function (d) {
@@ -5190,7 +5250,7 @@
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
       f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
-      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML })[top.type](top).then(function (html) {
+      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -5225,7 +5285,8 @@
       getJSON(sbURL(lg) + 'teams/' + id),
       getJSON(sbURL(lg) + 'teams/' + id + '/roster'),
       getJSON(sbURL(lg) + 'teams/' + id + '/schedule'),
-      getJSON(sbURL(lg) + 'teams/' + id + '/schedule?fixture=true')
+      getJSON(sbURL(lg) + 'teams/' + id + '/schedule?fixture=true'),
+      ensureRanks(lg)
     ]).then(function (r) {
       var t = (r[0] && r[0].team) || {};
       if (!t.id) return '<div class="err">球队资料没取到，返回再点一次试试。</div>';
@@ -5267,9 +5328,10 @@
       var past = ((r[2] && r[2].events) || []).filter(function (e) { return state(e) === 'post'; })
         .sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).slice(0, 5);
       var next = ((r[3] && r[3].events) || []).filter(function (e) { return state(e) !== 'post'; })
-        .sort(function (a, b) { return new Date(a.date) - new Date(b.date); }).slice(0, 3);
+        .sort(function (a, b) { return new Date(a.date) - new Date(b.date); }).slice(0, 5);
       if (past.length) html += '<h4>近期赛果</h4><div class="card pg-card">' + past.map(evRow).join('') + '</div>';
-      if (next.length) html += '<h4>接下来</h4><div class="card pg-card">' + next.map(evRow).join('') + '</div>';
+      if (next.length) html += '<h4>接下来</h4>' + fbFixtureDifficultyHTML(next, id, r[4]) +
+        '<div class="card pg-card">' + next.map(evRow).join('') + '</div>';
 
       var squad = (r[1] && r[1].athletes) || [];
       if (squad.length) {
@@ -5384,6 +5446,7 @@
           }).join('') + '</tbody></table></div></div>';
       }
       if (!splits.length && !games.length) html += '<div class="empty" style="margin-top:14px">这名球员暂时没有本赛季的数据。</div>';
+      html += fbCmpPickerHTML(pg, a);
       return html;
     });
   }
@@ -5492,6 +5555,371 @@
     else if (el.dataset.fbt) pgOpen({ type: 'team', id: el.dataset.fbt, lg: lg });
   });
 
+  /* ---------- football, as FotMob and SofaScore do it: xG, momentum, the live table,
+     home and away and form tables, fixture difficulty, two players side by side ---------- */
+
+  /* ESPN gives xG only as its "leaders": the goalkeeper's goals-expected-
+     against is the other side's xG for the match, which is what we want. */
+  function fbMatchXG(data, homeId) {
+    var xgc = {};
+    (data.leaders || []).forEach(function (t) {
+      var tid = String((t.team || {}).id || '');
+      (t.leaders || []).forEach(function (cat) {
+        (cat.leaders || []).forEach(function (l) {
+          (l.statistics || []).forEach(function (s) {
+            if (s.name === 'expectedGoalsConceded') xgc[tid] = Number(s.value != null ? s.value : s.displayValue) || 0;
+          });
+        });
+      });
+    });
+    var ids = Object.keys(xgc);
+    if (ids.length < 2) return null;
+    var h = String(homeId), a = ids.filter(function (x) { return x !== h; })[0];
+    if (xgc[h] == null || a == null) return null;
+    // home's xG is what the away keeper faced, and the other way round
+    return { h: xgc[a], a: xgc[h] };
+  }
+  function fbXGRow(xg, kit) {
+    var sum = xg.h + xg.a, hw = sum > 0 ? xg.h / sum * 100 : 50;
+    return '<div class="stat"><span class="sv">' + xg.h.toFixed(2) + '</span><span class="sl">xG 预期进球</span>' +
+      '<span class="sv r">' + xg.a.toFixed(2) + '</span><span class="sbar"><span class="lw"><i style="width:' + hw.toFixed(1) +
+      '%;background:' + kit.home + '"></i></span><span class="rw"><i style="width:' + (100 - hw).toFixed(1) + '%;background:' + kit.away + '"></i></span></span></div>';
+  }
+
+  /* One shot's chance, from where it was hit: the angle the goal mouth
+     makes from there and the distance to it, a header counting for less,
+     a penalty for its usual 0.76. A plain model — the match totals it is
+     scaled to are ESPN's. */
+  function fbShotXG(p, text) {
+    if (/penalty/i.test((p.type || {}).text || '') || /converts the penalty|^penalty (saved|missed)/i.test(text || '')) return 0.76;
+    var dx = (100 - Math.min(100, +p.fieldPositionX)) * 1.05, dy = (+p.fieldPositionY - 50) * 0.68;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var ang = Math.atan2(7.32 * dx, dx * dx + dy * dy - 3.66 * 3.66);
+    if (ang < 0) ang += Math.PI;
+    var x = 1 / (1 + Math.exp(-(-1.4 + 1.9 * ang - 0.08 * d)));
+    if (/header/i.test(text || '')) x *= 0.55;
+    return Math.max(0.01, Math.min(0.95, x));
+  }
+
+  /* ---- attacking momentum: who had the game, minute by minute ----
+     Built from the commentary's own events — shots by how close they came,
+     corners, a dangerous free kick — each fading over a few minutes, the
+     difference between the sides drawn up for one and down for the other. */
+  var FB_PRESS = [
+    [/^goal/i, 5], [/penalty/i, 4], [/on target/i, 3], [/off target|missed|woodwork|post/i, 2], [/blocked/i, 1.5],
+    [/corner/i, 1], [/take on/i, 0.4], [/offside/i, 0.3]
+  ];
+  function fbMinute(disp) {
+    var m = /(\d+)'?(?:\s*\+\s*(\d+))?/.exec(String(disp || ''));
+    return m ? { base: Number(m[1]), extra: Number(m[2] || 0) } : null;
+  }
+  function fbMomentumHTML(list, home, away, kit) {
+    var hn = (home && home.displayName) || '', an = (away && away.displayName) || '';
+    var evs = [], s1 = 0;
+    (list || []).forEach(function (c) {
+      var p = c && c.play, tm = ((p && p.team) || {}).displayName || '';
+      var side = tm === hn ? 'h' : tm === an ? 'a' : '';
+      var t = fbMinute((c.time || {}).displayValue);
+      if (!side || !t) return;
+      var type = ((p.type || {}).text || '') + ' ' + (c.text || '');
+      var w = 0;
+      for (var i = 0; i < FB_PRESS.length; i++) if (FB_PRESS[i][0].test((p.type || {}).text || '')) { w = FB_PRESS[i][1]; break; }
+      if (!w && /corner/i.test(type)) w = 1;
+      if (!w) return;
+      if (t.base <= 45 && t.extra) s1 = Math.max(s1, t.extra);
+      evs.push({ side: side, t: t, w: w, goal: /^goal/i.test((p.type || {}).text || '') && !/own goal/i.test(type) });
+    });
+    if (evs.length < 8) return '';
+    // first-half stoppage is laid out after 45, and the second half moved along by it
+    evs.forEach(function (e) { e.m = e.t.base <= 45 ? Math.min(e.t.base + e.t.extra, 45 + s1) : e.t.base + e.t.extra + s1; });
+    var end = Math.max(90 + s1, Math.max.apply(null, evs.map(function (e) { return e.m; })));
+    var ph = [], pa = [];
+    for (var m = 0; m <= end; m++) { ph[m] = 0; pa[m] = 0; }
+    evs.forEach(function (e) { (e.side === 'h' ? ph : pa)[Math.max(0, Math.round(e.m))] += e.w; });
+    var diff = [], vh = 0, va = 0, top = 0.001;
+    for (var k = 0; k <= end; k++) {
+      vh = vh * 0.72 + ph[k]; va = va * 0.72 + pa[k];
+      diff[k] = vh - va;
+      top = Math.max(top, Math.abs(diff[k]));
+    }
+    var W = 320, H = 112, L = 4, R = 4, mid = H / 2 - 4, half = mid - 6;
+    var X = function (mm) { return L + mm / end * (W - L - R); };
+    var bw = Math.max(1, (W - L - R) / (end + 1) - 0.6);
+    var bars = diff.map(function (v, i) {
+      if (Math.abs(v) < top * 0.04) return '';
+      var hgt = Math.abs(v) / top * half;
+      return '<rect x="' + (X(i) - bw / 2).toFixed(1) + '" y="' + (v > 0 ? mid - hgt : mid).toFixed(1) + '" width="' + bw.toFixed(1) +
+        '" height="' + hgt.toFixed(1) + '" fill="' + (v > 0 ? kit.home : kit.away) + '" opacity=".75"/>';
+    }).join('');
+    var goals = evs.filter(function (e) { return e.goal; }).map(function (e) {
+      var y = e.side === 'h' ? 5 : H - 13;
+      return '<circle cx="' + X(e.m).toFixed(1) + '" cy="' + y + '" r="3" fill="var(--surface)" stroke="' + (e.side === 'h' ? kit.home : kit.away) + '" stroke-width="1.4"/>';
+    }).join('');
+    var ticks = [45 + s1, 90 + s1].filter(function (x) { return x < end; }).map(function (x) {
+      return '<line class="nf-q" x1="' + X(x).toFixed(1) + '" x2="' + X(x).toFixed(1) + '" y1="4" y2="' + (H - 12) + '"/>';
+    }).join('') + '<text class="nf-ax" x="' + X((45 + s1) / 2).toFixed(1) + '" y="' + (H - 2) + '" text-anchor="middle">' + (LANG === 'en' ? '1st half' : '上半场') + '</text>' +
+      '<text class="nf-ax" x="' + X((45 + s1 + Math.min(end, 90 + s1)) / 2).toFixed(1) + '" y="' + (H - 2) + '" text-anchor="middle">' + (LANG === 'en' ? '2nd half' : '下半场') + '</text>';
+    return '<h4>进攻势头</h4><div class="nf-key"><span><i style="background:' + kit.home + '"></i>' + esc(cn(home.displayName, home.shortDisplayName)) + '</span>' +
+      '<span><i style="background:' + kit.away + '"></i>' + esc(cn(away.displayName, away.shortDisplayName)) + '</span><span>○ 进球</span></div>' +
+      '<svg class="nf-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="进攻势头">' +
+      '<line class="nf-zero" x1="' + L + '" x2="' + (W - R) + '" y1="' + mid + '" y2="' + mid + '"/>' + ticks + bars + goals + '</svg>' +
+      '<div class="fl-note">按文字直播里的射门、角球等事件算出的压迫程度，柱子越高，那几分钟越是一边倒。</div>';
+  }
+
+  /* ---- the live table: the official one, played on with the scores as they stand ---- */
+  var standingsRaw = {};
+  function fbLiveTable(lg) {
+    var groups = standingsRaw[lg];
+    if (!groups || lg !== league) return '';
+    var live = (events || []).filter(function (ev) {
+      return ((teamsOf(ev).comp.status || {}).type || {}).state === 'in';
+    });
+    if (!live.length) return '';
+    var adj = {};
+    live.forEach(function (ev) {
+      var t = teamsOf(ev), hs = Number(t.home.score) || 0, as = Number(t.away.score) || 0;
+      [[t.home, hs, as], [t.away, as, hs]].forEach(function (x) {
+        var id = String((x[0].team || {}).id || '');
+        adj[id] = { gf: x[1], ga: x[2], pts: x[1] > x[2] ? 3 : x[1] === x[2] ? 1 : 0, score: x[1] + '-' + x[2] };
+      });
+    });
+    var touched = false;
+    var html = groups.map(function (g) {
+      var rows = g.entries.map(function (e) {
+        var s = {};
+        (e.stats || []).forEach(function (st) { s[st.name] = Number(st.value != null ? st.value : st.displayValue) || 0; });
+        var id = String((e.team || {}).id || ''), a = adj[id];
+        if (a) touched = true;
+        return {
+          team: e.team || {}, was: s.rank || 99, live: a,
+          p: s.gamesPlayed + (a ? 1 : 0), w: s.wins + (a && a.pts === 3 ? 1 : 0), d: s.ties + (a && a.pts === 1 ? 1 : 0),
+          l: s.losses + (a && a.pts === 0 ? 1 : 0), gd: s.pointDifferential + (a ? a.gf - a.ga : 0),
+          gf: s.pointsFor + (a ? a.gf : 0), pts: s.points + (a ? a.pts : 0)
+        };
+      }).sort(function (x, y) { return y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.was - y.was; });
+      return (g.name && groups.length > 1 ? '<div class="group-name">' + esc(g.name) + '</div>' : '') +
+        '<div class="card" style="margin-top:14px"><div class="table-scroll"><table class="lt"><thead><tr><th class="rk" style="text-align:left">#</th>' +
+        '<th class="tm">球队</th><th>赛</th><th>胜</th><th>平</th><th>负</th><th>净胜</th><th>积分</th></tr></thead><tbody>' +
+        rows.map(function (r, i) {
+          var move = r.was - (i + 1), rk = i + 1, zone = '';
+          // the same zones as the table it stands in for
+          if (lg === 'uefa.champions') zone = rk <= 8 ? 'z-top' : rk <= 24 ? 'z-mid' : 'z-drop';
+          else {
+            var z = ZONES[lg] || { top: 4, drop: 3 };
+            zone = rk <= z.top ? 'z-top' : rk > rows.length - z.drop ? 'z-drop' : '';
+          }
+          return '<tr class="' + zone + (r.live ? ' lt-on' : '') + '" data-fbt="' + esc(r.team.id || '') + '"><td class="rk">' + (i + 1) +
+            (move ? '<span class="lt-mv ' + (move > 0 ? 'up' : 'dn') + '">' + (move > 0 ? '▲' : '▼') + Math.abs(move) + '</span>' : '') + '</td>' +
+            '<td class="tm">' + crest(r.team, 20) + '<span class="nm">' + esc(cn(r.team.displayName, r.team.shortDisplayName)) + '</span>' +
+            (r.live ? '<span class="lt-sc">' + esc(r.live.score) + '</span>' : '') + '</td>' +
+            '<td>' + r.p + '</td><td>' + r.w + '</td><td>' + r.d + '</td><td>' + r.l + '</td><td>' + (r.gd > 0 ? '+' : '') + r.gd + '</td>' +
+            '<td class="pts">' + r.pts + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }).join('');
+    if (!touched) return '';
+    var legend = ((standingsCache[lg] || '').match(/<div class="legend">[\s\S]*$/) || [''])[0];
+    return '<div class="lt-note"><span class="dot"></span>比赛进行中：按当前比分实时排名，箭头是和赛前比的升降。</div>' + html + legend;
+  }
+
+  /* ---- home, away and form: worked out from the season's results ---- */
+  var fbSeasonCache = {};
+  function fbSeason(lg) {
+    var hit = fbSeasonCache[lg];
+    if (hit && Date.now() - hit.t < 10 * 60000) return Promise.resolve(hit.evs);
+    var y = new Date().getFullYear();
+    return Promise.all([y - 1, y].map(function (yy) {
+      return getJSON(API + 'site/v2/sports/soccer/' + lg + '/scoreboard?dates=' + yy + '&limit=500');
+    })).then(function (r) {
+      if (!r[0] && !r[1]) return null;
+      var seen = {}, all = [];
+      r.forEach(function (d) { ((d && d.events) || []).forEach(function (ev) { if (!seen[ev.id]) { seen[ev.id] = 1; all.push(ev); } }); });
+      var done = all.filter(function (ev) { return ((teamsOf(ev).comp.status || {}).type || {}).state === 'post'; });
+      // the season now being played is the latest one anything has finished in
+      var yr = Math.max.apply(null, done.map(function (ev) { return (ev.season || {}).year || 0; }).concat([0]));
+      var evs = done.filter(function (ev) { return ((ev.season || {}).year || 0) === yr; })
+        .sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+      fbSeasonCache[lg] = { t: Date.now(), evs: evs };
+      return evs;
+    });
+  }
+  function fbSeasonTable(evs, kind) {
+    var T = {};
+    function row(team) {
+      var id = String(team.id || '');
+      return T[id] = T[id] || { team: team, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] };
+    }
+    evs.forEach(function (ev) {
+      var t = teamsOf(ev), hs = Number(t.home.score), as = Number(t.away.score);
+      if (isNaN(hs) || isNaN(as)) return;
+      [[t.home, hs, as, 'home'], [t.away, as, hs, 'away']].forEach(function (x) {
+        var r = row(x[0].team || {});
+        var res = x[1] > x[2] ? 'W' : x[1] < x[2] ? 'L' : 'D';
+        r.form.push({ res: res, gf: x[1], ga: x[2] });
+        if (kind !== 'form' && kind !== x[3]) return;
+        r.p++; r.gf += x[1]; r.ga += x[2];
+        if (res === 'W') { r.w++; r.pts += 3; } else if (res === 'D') { r.d++; r.pts++; } else r.l++;
+      });
+    });
+    var rows = Object.keys(T).map(function (k) { return T[k]; });
+    if (kind === 'form') {
+      rows.forEach(function (r) {
+        r.last = r.form.slice(-6);
+        r.p = r.last.length; r.w = 0; r.d = 0; r.l = 0; r.gf = 0; r.ga = 0; r.pts = 0;
+        r.last.forEach(function (f) { r.gf += f.gf; r.ga += f.ga; if (f.res === 'W') { r.w++; r.pts += 3; } else if (f.res === 'D') { r.d++; r.pts++; } else r.l++; });
+      });
+    }
+    return rows.filter(function (r) { return r.p; }).sort(function (x, y) { return y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf; });
+  }
+  function fbSeasonHTML(evs, kind) {
+    var rows = fbSeasonTable(evs, kind);
+    if (!rows.length) return '<div class="empty">这个赛事暂时算不出这张表。</div>';
+    var note = { home: '只算主场的比赛', away: '只算客场的比赛', form: '最近 6 场，左边最早' }[kind];
+    return '<div class="card" style="margin-top:14px"><div class="table-scroll"><table class="lt' + (kind === 'form' ? ' fm' : '') + '"><thead><tr><th class="rk" style="text-align:left">#</th>' +
+      '<th class="tm">球队</th>' + (kind === 'form' ? '<th>近 6 场</th>' : '<th>赛</th><th>胜</th><th>平</th><th>负</th>') +
+      '<th>净胜</th><th>积分</th></tr></thead><tbody>' + rows.map(function (r, i) {
+        var gd = r.gf - r.ga;
+        return '<tr data-fbt="' + esc(r.team.id || '') + '"><td class="rk">' + (i + 1) + '</td><td class="tm">' + crest(r.team, 20) +
+          '<span class="nm">' + esc(cn(r.team.displayName, r.team.shortDisplayName)) + '</span></td>' +
+          (kind === 'form' ? '<td><span class="form">' + r.last.map(function (f) { return '<span class="f ' + f.res + '">' + f.res + '</span>'; }).join('') + '</span></td>'
+            : '<td>' + r.p + '</td><td>' + r.w + '</td><td>' + r.d + '</td><td>' + r.l + '</td>') +
+          '<td>' + (gd > 0 ? '+' : '') + gd + '</td><td class="pts">' + r.pts + '</td></tr>';
+      }).join('') + '</tbody></table></div></div><div class="fl-note">' + note + '；由本赛季已完赛的比赛算出。</div>';
+  }
+
+  /* ---- fixture difficulty: the next five, by how good the opponent is ----
+     1 is the bottom of the table at home, 5 the top of it away. */
+  function fbDifficulty(rank, total, away) {
+    if (!rank || !total) return 0;
+    var strength = total > 1 ? 1 - (rank - 1) / (total - 1) : 0.5;
+    return Math.max(1, Math.min(5, Math.round(1 + strength * 4 + (away ? 0.4 : -0.2))));
+  }
+  function fbFixtureDifficultyHTML(next, teamId, ranks) {
+    if (!next.length || !ranks) return '';
+    return '<div class="fd">' + next.map(function (ev) {
+      var c = (ev.competitions || [])[0] || {};
+      var me = (c.competitors || []).filter(function (x) { return String((x.team || {}).id) === String(teamId); })[0] || {};
+      var op = (c.competitors || []).filter(function (x) { return x !== me; })[0] || {};
+      var rk = ranks[String((op.team || {}).id)] || {};
+      var lv = fbDifficulty(rk.rank, rk.total, me.homeAway === 'away');
+      var d = new Date(ev.date);
+      return '<div class="fd-c lv' + lv + '" data-fbt="' + esc((op.team || {}).id || '') + '">' +
+        crest(op.team || {}, 22) + '<b>' + esc((op.team || {}).abbreviation || cn((op.team || {}).displayName, (op.team || {}).shortDisplayName)) + '</b>' +
+        '<span>' + (LANG === 'en' ? (me.homeAway === 'home' ? 'H' : 'A') + (rk.rank ? ' · #' + rk.rank : '')
+          : (me.homeAway === 'home' ? '主' : '客') + (rk.rank ? ' · 第 ' + rk.rank : '')) + '</span>' +
+        '<span>' + (isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate()) + '</span></div>';
+    }).join('') + '</div><div class="fl-note">绿色好打，红色难打：按对手当前排名，客场再难一档。</div>';
+  }
+
+  /* ---- two players side by side ---- */
+  var FB_CMP_ROWS = [['STRT', '首发'], ['G', '进球'], ['A', '助攻'], ['SHOT', '射门'], ['SOG', '射正'], ['FA', '被犯规'], ['FC', '犯规'], ['YC', '黄牌'], ['RC', '红牌']];
+  // ESPN's season lines run club and country together; the league's own is picked out by name
+  var FB_CMP_LG = {
+    'eng.1': /Premier League/i, 'esp.1': /LALIGA|La ?Liga/i, 'ita.1': /Serie A/i, 'ger.1': /Bundesliga/i,
+    'fra.1': /Ligue 1/i, 'uefa.champions': /Champions League/i, 'chn.1': /Super League/i
+  };
+  // the dictionary has these words as they read elsewhere; here they are counts
+  var FB_CMP_EN = { '首发': 'Starts', '助攻': 'Assists', '黄牌': 'Yellow cards', '红牌': 'Red cards' };
+  function fbSeasonTotals(ov, re) {
+    var st = (ov && ov.statistics) || {}, labels = st.labels || [], tot = {};
+    (st.splits || []).forEach(function (s) {
+      if (re && !re.test(s.displayName || '')) return;
+      labels.forEach(function (l, i) { tot[l] = (tot[l] || 0) + (Number(s.stats[i]) || 0); });
+    });
+    return tot;
+  }
+  function fbCmpPickerHTML(pg, a) {
+    return '<h4>球员对比</h4><div class="fbc-pick" data-fbc-a="' + esc(pg.id) + '" data-lg="' + esc(pg.lg) + '" data-team="' + esc((a.team || {}).id || '') + '">' +
+      '<button type="button" class="pg-fav fbc-open">选一名球员对比</button></div>';
+  }
+  function fbCmpListFill(box) {
+    var lg = box.dataset.lg, tid = box.dataset.team, me = box.dataset.fbcA;
+    box.innerHTML = '<div class="skeleton" style="padding:8px 0">正在读取名单…</div>';
+    Promise.all([
+      tid ? getJSON(sbURL(lg) + 'teams/' + tid + '/roster') : Promise.resolve(null),
+      leadersCache[lg] ? Promise.resolve(leadersCache[lg].d) : getJSON(API + 'site/v2/sports/soccer/' + lg + '/statistics')
+    ]).then(function (r) {
+      if (!box.isConnected) return;
+      var seen = {}, mates = [], league = [];
+      seen[me] = 1;
+      ((r[0] && r[0].athletes) || []).forEach(function (x) { if (!seen[x.id]) { seen[x.id] = 1; mates.push({ id: x.id, name: x.displayName, sub: posCN(x.position) }); } });
+      (((r[1] && r[1].stats) || [])).forEach(function (cat) {
+        (cat.leaders || []).forEach(function (l) {
+          var x = l.athlete || {};
+          if (x.id && !seen[x.id]) { seen[x.id] = 1; league.push({ id: x.id, name: x.displayName, sub: cn(((x.team || {}).displayName), (x.team || {}).abbreviation) }); }
+        });
+      });
+      function list(title, xs) {
+        return xs.length ? '<div class="pg-grp">' + title + '</div>' + xs.map(function (x) {
+          return '<button type="button" class="pg-pl" data-fbc-b="' + esc(x.id) + '"><span class="pg-pn">' + esc(x.name) + '</span><span class="pg-pm">' + esc(x.sub || '') + '</span></button>';
+        }).join('') : '';
+      }
+      box.innerHTML = '<div class="card pg-card fbc-list">' + list('同队', mates) + list('联赛射手榜、助攻榜', league) + '</div>';
+    });
+  }
+  function fbCmpPageHTML(pg) {
+    var base = API + 'common/v3/sports/soccer/' + pg.lg + '/athletes/';
+    return Promise.all([getJSON(base + pg.a), getJSON(base + pg.a + '/overview'), getJSON(base + pg.b), getJSON(base + pg.b + '/overview')]).then(function (r) {
+      var A = (r[0] && r[0].athlete) || {}, B = (r[2] && r[2].athlete) || {};
+      if (!A.id || !B.id) return '<div class="err">球员资料没取到，返回再点一次试试。</div>';
+      function head(x) {
+        return '<div class="fbc-h" data-fbp="' + esc(x.id) + '" data-lg="' + esc(pg.lg) + '"><span class="fbc-ph" data-photo="' + esc(x.displayName || '') + '" data-team="' + esc((x.team || {}).displayName || '') + '" data-espn="' + esc(x.id) + '">' + PS_FACE + '</span>' +
+          '<b>' + esc(x.displayName || '') + '</b><span>' + esc([posCN(x.position), cn((x.team || {}).displayName, (x.team || {}).abbreviation)].filter(Boolean).join(' · ')) + '</span></div>';
+      }
+      var per = function (t, k) { return t.STRT ? ((t[k] || 0) / t.STRT).toFixed(2) : '0.00'; };
+      function block(ta, tb) {
+        var rows = FB_CMP_ROWS.map(function (k) { return [k[1], ta[k[0]] || 0, tb[k[0]] || 0]; });
+        rows.splice(3, 0, ['场均进球', per(ta, 'G'), per(tb, 'G')]);
+        rows.push(['射正率', ta.SHOT ? Math.round(ta.SOG / ta.SHOT * 100) + '%' : '—', tb.SHOT ? Math.round(tb.SOG / tb.SHOT * 100) + '%' : '—']);
+        return rows.map(function (x) {
+          var hv = parseFloat(x[1]) || 0, av = parseFloat(x[2]) || 0, sum = hv + av;
+          var hw = sum ? hv / sum * 100 : 50;
+          // fewer cards and fouls is the better side of those rows
+          var lowGood = /牌|犯规/.test(x[0]) && x[0] !== '被犯规';
+          var hb = lowGood ? hv < av : hv > av, ab = lowGood ? av < hv : av > hv;
+          return '<div class="stat"><span class="sv' + (hb ? ' fbc-b' : '') + '">' + esc(x[1]) + '</span><span class="sl">' + (LANG === 'en' && FB_CMP_EN[x[0]] || x[0]) + '</span>' +
+            '<span class="sv r' + (ab ? ' fbc-b' : '') + '">' + esc(x[2]) + '</span><span class="sbar"><span class="lw"><i style="width:' + hw.toFixed(1) +
+            '%;background:var(--ser-a)"></i></span><span class="rw"><i style="width:' + (100 - hw).toFixed(1) + '%;background:var(--ser-b)"></i></span></span></div>';
+        }).join('');
+      }
+      var re = FB_CMP_LG[pg.lg];
+      var la = re && fbSeasonTotals(r[1], re), lb = re && fbSeasonTotals(r[3], re);
+      var hasLg = la && lb && (la.STRT || la.G || la.SHOT) && (lb.STRT || lb.G || lb.SHOT);
+      return '<div class="fbc-heads">' + head(A) + '<span class="fbc-vs">VS</span>' + head(B) + '</div>' +
+        '<h4>本赛季</h4>' + (hasLg ? '<div class="rnd-tabs"><button type="button" class="rnd-tab on" data-fbcv="lg">' + esc(lgNameOf(pg.lg)) +
+          '</button><button type="button" class="rnd-tab" data-fbcv="all">所有赛事</button></div>' +
+          '<div data-fbcw="lg">' + block(la, lb) + '</div><div data-fbcw="all" hidden>' : '<div>') +
+        block(fbSeasonTotals(r[1]), fbSeasonTotals(r[3])) + '</div>' +
+        '<div class="fl-note">所有赛事含国家队比赛；场均进球按首发场次算。</div>';
+    });
+  }
+  function fbCmpPhotos(root) {
+    [].forEach.call(root.querySelectorAll('.fbc-h .fbc-ph[data-photo]'), function (ph) {
+      playerImages(ph.dataset.photo, ph.dataset.team).then(function (im) {
+        var url = im.cut || im.render || (ph.dataset.espn ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + ph.dataset.espn + '.png' : '');
+        if (!url || !ph.isConnected) return;
+        var img = new Image();
+        img.alt = '';
+        img.onload = function () { if (ph.isConnected) ph.appendChild(img); };
+        img.src = url;
+      });
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('.fbc-open, [data-fbc-b], [data-fbcv]');
+    if (!el) return;
+    e.stopPropagation();
+    if (el.dataset.fbcv) {
+      var pgb = el.closest('.pg-body');
+      [].forEach.call(pgb.querySelectorAll('[data-fbcv]'), function (b) { b.classList.toggle('on', b === el); });
+      [].forEach.call(pgb.querySelectorAll('[data-fbcw]'), function (w) { w.hidden = w.dataset.fbcw !== el.dataset.fbcv; });
+      return;
+    }
+    if (el.classList.contains('fbc-open')) { fbCmpListFill(el.closest('.fbc-pick')); return; }
+    var box = el.closest('.fbc-pick');
+    pgOpen({ type: 'fbCmp', a: box.dataset.fbcA, b: el.dataset.fbcB, lg: box.dataset.lg });
+  }, true);
+
   /* ---------- standings ---------- */
   /* The fixtures list wants league position to say anything interesting about
      a match, but the table is a separate request the user may never open. So
@@ -5551,6 +5979,7 @@
       if (!groups.length) { host.innerHTML = '<div class="empty">这个联赛暂时没有积分榜。</div>'; return; }
 
       rememberRanks(league, groups);
+      standingsRaw[league] = groups;
       var favIds = favorites.map(function (f) { return String(f.id); });
       var html = groups.map(function (g) {
         var rows = g.entries.slice().map(function (e) {
@@ -8885,7 +9314,7 @@ O
   }
 
   // after a page's HTML is in, what fills in behind it
-  var PG_AFTER = { f1Driver: f1DriverCareerFill, f1Team: f1TeamHistFill, f1Circuit: f1CircuitFill };
+  var PG_AFTER = { f1Driver: f1DriverCareerFill, f1Team: f1TeamHistFill, f1Circuit: f1CircuitFill, fbCmp: fbCmpPhotos };
 
   document.addEventListener('click', function (e) {
     var el = e.target.closest && e.target.closest('[data-f1d], [data-f1t], [data-f1c], [data-fl-tab], [data-fl-n]');

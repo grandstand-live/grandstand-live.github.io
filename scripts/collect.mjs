@@ -1898,6 +1898,32 @@ async function collectCsRank() {
 }
 
 
+/* The search box's League of Legends half: every active team of the major
+   leagues with its players, cut down from Riot's full list (a megabyte and a
+   half of every team there ever was) to what a phone needs to find a name.
+   Rosters move a few times a year, so once a day is plenty. */
+const LOL_INDEX_LEAGUES = ['lpl', 'lck', 'lec', 'lcs', 'lcp', 'pcs'];
+async function collectLolIndex() {
+  const store = await load('search-lol.json');
+  const age = store && store.updatedAt ? Date.now() - new Date(store.updatedAt) : Infinity;
+  if (!MANUAL && age < 86400e3) return { skipped: 'refreshed within the day', teams: store.teams.length };
+  const headers = { 'x-api-key': LOL_KEY };
+  const leagues = await getJSON(`${LOL_API}getLeagues?hl=zh-CN`, headers);
+  const names = new Set((leagues?.data?.leagues || []).filter(l => LOL_INDEX_LEAGUES.includes(l.slug)).map(l => l.name));
+  const all = await getJSON(`${LOL_API}getTeams?hl=zh-CN`, headers);
+  const teams = (all?.data?.teams || [])
+    .filter(t => t.status === 'active' && t.homeLeague && names.has(t.homeLeague.name))
+    .map(t => ({
+      id: t.slug || t.id, code: t.code || '', name: t.name || '', lg: t.homeLeague.name,
+      img: String(t.image || '').replace(/^http:\/\//, 'https://'),
+      players: (t.players || []).map(p => [p.summonerName || '', p.role || '']).filter(p => p[0])
+    }));
+  if (teams.length < 20) throw new Error(`only ${teams.length} teams came back`);
+  await save('search-lol.json', { updatedAt: new Date().toISOString(), teams });
+  return { teams: teams.length, players: teams.reduce((n, t) => n + t.players.length, 0) };
+}
+
+
 const tasks = [
   ['lol', collectLol],
   ['cba', collectCba],
@@ -1913,7 +1939,8 @@ const tasks = [
   ['boxChampions', collectBoxChampions],
   ['boxers', collectBoxers],
   ['lolStats', collectLolStats],
-  ['cs2Rank', collectCsRank]
+  ['cs2Rank', collectCsRank],
+  ['lolIndex', collectLolIndex]
 ];
 
 for (const [name, run] of tasks) {

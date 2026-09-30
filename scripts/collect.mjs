@@ -1702,6 +1702,202 @@ async function collectF1History() {
   return { races, days: Object.keys(days).length };
 }
 
+/* League of Legends tournament numbers, the way GOL.gg and Oracle's Elixir
+   keep them: every finished game of each league's current tournament, read
+   once from Riot's own feed — the first frame for who played what, the last
+   for the score, the player details at the end — and added up per player and
+   per champion. Leaguepedia has these tables but turns away anonymous asks,
+   so they are built here. A game once read never changes, so each run only
+   reads the games it has not seen, a couple of dozen at most. */
+const LOL_STATS_BUDGET = MANUAL ? 80 : 24;
+
+function lolTenIso(t) { return new Date(Math.floor(t / 10000) * 10000).toISOString().replace(/\.\d+Z$/, '.000Z'); }
+async function lolFeedGet(kind, gid, t) {
+  try { return await getJSON(`${LOL_FEED}${kind}/${gid}` + (t ? `?startingTime=${lolTenIso(t)}` : '')); }
+  catch { return null; }
+}
+// who took the game: more inhibitors, then towers, then gold — the nexus falls last
+function lolFrameWinner(f) {
+  const b = f.blueTeam || {}, r = f.redTeam || {};
+  const d = (b.inhibitors || 0) - (r.inhibitors || 0) || (b.towers || 0) - (r.towers || 0) || (b.totalGold || 0) - (r.totalGold || 0);
+  return d > 0 ? 'blue' : d < 0 ? 'red' : '';
+}
+async function lolReadGame(gid, codeOf) {
+  const w0 = await lolFeedGet('window', gid);
+  const f0 = (w0?.frames || [])[0];
+  if (!f0) return null;
+  const meta = w0.gameMetadata || {};
+  const T0 = Date.parse(f0.rfc460Timestamp);
+  // past the end the feed answers with the last frames
+  const wf = await lolFeedGet('window', gid, T0 + 100 * 60000);
+  const last = (wf?.frames || []).slice(-1)[0];
+  if (!last || last.gameState !== 'finished') return null;
+  const T1 = Date.parse(last.rfc460Timestamp);
+  const det = await lolFeedGet('details', gid, T1 - 5000);
+  const parts = ((det?.frames || []).slice(-1)[0] || {}).participants || [];
+  const byId = {};
+  parts.forEach(p => { byId[p.participantId] = p; });
+  const side = (m, s) => (m?.participantMetadata || []).map(p => {
+    const d = byId[p.participantId] || {};
+    const code = codeOf[m.esportsTeamId] || '';
+    // the feed names a player with the team's tag in front: "T1 Doran"
+    const name = String(p.summonerName || '').replace(new RegExp('^' + code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i'), '');
+    return {
+      id: p.esportsPlayerId || name, n: name, t: code, s, r: p.role || '', c: p.championId || '',
+      k: d.kills || 0, d: d.deaths || 0, a: d.assists || 0, cs: d.creepScore || 0,
+      g: d.totalGoldEarned || 0, dmg: d.championDamageShare || 0, kp: d.killParticipation || 0
+    };
+  });
+  return {
+    dur: Math.round((T1 - T0) / 1000), w: lolFrameWinner(last),
+    p: side(meta.blueTeamMetadata, 'blue').concat(side(meta.redTeamMetadata, 'red'))
+  };
+}
+function lolAggregate(games) {
+  const players = {}, champs = {};
+  let n = 0;
+  for (const g of Object.values(games)) {
+    if (!g || !g.p || !g.p.length) continue;
+    n++;
+    const min = Math.max(1, g.dur / 60);
+    for (const p of g.p) {
+      const won = p.s === g.w;
+      const x = players[p.id] = players[p.id] || { n: p.n, t: p.t, r: p.r, gp: 0, w: 0, k: 0, d: 0, a: 0, cs: 0, min: 0, dmg: 0, kp: 0, champs: {} };
+      x.n = p.n; x.t = p.t; if (p.r) x.r = p.r;
+      x.gp++; if (won) x.w++;
+      x.k += p.k; x.d += p.d; x.a += p.a; x.cs += p.cs; x.min += min; x.dmg += p.dmg; x.kp += p.kp;
+      x.champs[p.c] = (x.champs[p.c] || 0) + 1;
+      const c = champs[p.c] = champs[p.c] || { pk: 0, w: 0, k: 0, d: 0, a: 0, roles: {} };
+      c.pk++; if (won) c.w++;
+      c.k += p.k; c.d += p.d; c.a += p.a;
+      c.roles[p.r] = (c.roles[p.r] || 0) + 1;
+    }
+  }
+  const r1 = v => Math.round(v * 10) / 10, r3 = v => Math.round(v * 1000) / 1000;
+  return {
+    games: n,
+    players: Object.entries(players).map(([id, x]) => ({
+      id, n: x.n, t: x.t, r: x.r, gp: x.gp, w: x.w,
+      k: r1(x.k / x.gp), d: r1(x.d / x.gp), a: r1(x.a / x.gp),
+      kda: r1((x.k + x.a) / Math.max(1, x.d)), csm: r1(x.cs / x.min),
+      dmg: r3(x.dmg / x.gp), kp: r3(x.kp / x.gp),
+      top: Object.entries(x.champs).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, k]) => [c, k])
+    })),
+    champs: Object.entries(champs).map(([id, c]) => ({
+      id, pk: c.pk, w: c.w, kda: r1((c.k + c.a) / Math.max(1, c.d)),
+      role: Object.entries(c.roles).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
+    })).sort((a, b) => b.pk - a.pk)
+  };
+}
+async function collectLolStats() {
+  const headers = { 'x-api-key': LOL_KEY };
+  const leagues = await getJSON(`${LOL_API}getLeagues?hl=zh-CN`, headers);
+  const wanted = (leagues?.data?.leagues || []).filter(l => LOL_LEAGUES.includes(l.slug));
+  const now = Date.now();
+  const current = [];
+  for (const lg of wanted) {
+    try {
+      const d = await getJSON(`${LOL_API}getTournamentsForLeague?hl=zh-CN&leagueId=${lg.id}`, headers);
+      const ts = (d?.data?.leagues?.[0]?.tournaments || []).slice().sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+      const t = ts.find(x => new Date(x.startDate).getTime() <= now);
+      // a tournament that ended months ago has nothing left to add
+      if (t && now - new Date(t.endDate || t.startDate).getTime() < 60 * 86400e3) current.push({ lg, t });
+    } catch { /* one league down is not the rest */ }
+  }
+  current.sort((a, b) => new Date(b.t.startDate) - new Date(a.t.startDate));
+  let budget = LOL_STATS_BUDGET, read = 0, left = 0;
+  const summary = {};
+  for (const { lg, t } of current) {
+    const raw = (await load(`lolstats/raw-${t.id}.json`)) || { games: {}, matches: {} };
+    let standings;
+    try { standings = await getJSON(`${LOL_API}getStandings?hl=zh-CN&tournamentId=${t.id}`, headers); } catch { continue; }
+    const matches = [];
+    for (const st of standings?.data?.standings?.[0]?.stages || []) {
+      for (const sec of st.sections || []) for (const m of sec.matches || []) if (m.state === 'completed') matches.push(m);
+    }
+    let changed = false;
+    for (const m of matches) {
+      if (raw.matches[m.id]) continue;
+      if (budget <= 0) { left++; continue; }
+      let ev;
+      try { ev = await getJSON(`${LOL_API}getEventDetails?hl=zh-CN&id=${m.id}`, headers); } catch { left++; continue; }
+      const match = ev?.data?.event?.match || {};
+      const codeOf = {};
+      (match.teams || []).forEach(x => { codeOf[x.id] = x.code; });
+      let whole = true;
+      for (const g of match.games || []) {
+        if (g.state !== 'completed' || raw.games[g.id]) continue;
+        if (budget <= 0) { whole = false; break; }
+        budget--;
+        const got = await lolReadGame(g.id, codeOf);
+        if (got) { raw.games[g.id] = got; read++; changed = true; } else whole = false;
+      }
+      if (whole) { raw.matches[m.id] = 1; changed = true; } else left++;
+    }
+    if (changed || !(await load(`lolstats/${t.id}.json`))) {
+      await save(`lolstats/raw-${t.id}.json`, raw);
+      await save(`lolstats/${t.id}.json`, {
+        updatedAt: new Date().toISOString(), league: lg.slug, tournament: t.slug, ...lolAggregate(raw.games)
+      });
+    }
+    summary[t.slug] = Object.keys(raw.games).length;
+  }
+  return { read, left, tournaments: summary };
+}
+
+/* Valve's own Counter-Strike ranking — the one that decides Major invites —
+   published as markdown in a GitHub repository every month or so. The two
+   newest global tables give each team its place and how far it moved. */
+const VRS_REPO = 'https://api.github.com/repos/ValveSoftware/counter-strike_regional_standings/contents/live/';
+const VRS_RAW = 'https://raw.githubusercontent.com/ValveSoftware/counter-strike_regional_standings/main/live/';
+function vrsTable(md) {
+  const out = [];
+  for (const line of md.split('\n')) {
+    const c = line.split('|').map(s => s.trim());
+    // | 1 | 2031 | Spirit | donk, magixx, ... | [details](...) |
+    if (c.length < 5 || !/^\d+$/.test(c[1]) || !/^\d+$/.test(c[2])) continue;
+    out.push({ rank: Number(c[1]), pts: Number(c[2]), name: c[3], roster: c[4].split(',').map(s => s.trim()).filter(Boolean) });
+  }
+  return out;
+}
+async function collectCsRank() {
+  const store = await load('cs2-rank.json');
+  const age = store && store.checkedAt ? Date.now() - new Date(store.checkedAt) : Infinity;
+  if (!MANUAL && age < 6 * 3600e3) return { skipped: 'checked within six hours', asOf: store.asOf };
+  const year = new Date().getUTCFullYear();
+  const files = [];
+  for (const y of [year, year - 1]) {
+    try {
+      const list = await getJSON(VRS_REPO + y, { accept: 'application/vnd.github+json' });
+      for (const f of list || []) {
+        const m = /^standings_global_(\d{4})_(\d{2})_(\d{2})\.md$/.exec(f.name || '');
+        if (m) files.push({ y, name: f.name, date: `${m[1]}-${m[2]}-${m[3]}` });
+      }
+    } catch { /* last year's folder may be all there is in January */ }
+    if (files.length >= 2) break;
+  }
+  files.sort((a, b) => b.date.localeCompare(a.date));
+  if (!files.length) throw new Error('no global standings found');
+  if (store && store.asOf === files[0].date) {
+    store.checkedAt = new Date().toISOString();
+    await save('cs2-rank.json', store);
+    return { unchanged: store.asOf };
+  }
+  const [now, prev] = await Promise.all(files.slice(0, 2).map(f =>
+    getText(VRS_RAW + f.y + '/' + f.name).then(r => (r.status === 200 ? r.body : ''))));
+  const teams = vrsTable(now).slice(0, 60);
+  if (teams.length < 10) throw new Error('standings table did not parse');
+  const before = {};
+  vrsTable(prev || '').forEach(t => { before[t.name.toLowerCase()] = t.rank; });
+  teams.forEach(t => { t.prev = before[t.name.toLowerCase()] || null; });
+  await save('cs2-rank.json', {
+    updatedAt: new Date().toISOString(), checkedAt: new Date().toISOString(),
+    asOf: files[0].date, prevAsOf: files[1] ? files[1].date : null, source: 'Valve Regional Standings', teams
+  });
+  return { asOf: files[0].date, teams: teams.length };
+}
+
+
 const tasks = [
   ['lol', collectLol],
   ['cba', collectCba],
@@ -1715,7 +1911,9 @@ const tasks = [
   ['f1History', collectF1History],
   ['boxing', collectBoxing],
   ['boxChampions', collectBoxChampions],
-  ['boxers', collectBoxers]
+  ['boxers', collectBoxers],
+  ['lolStats', collectLolStats],
+  ['cs2Rank', collectCsRank]
 ];
 
 for (const [name, run] of tasks) {

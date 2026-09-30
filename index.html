@@ -1707,6 +1707,49 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- esports: the knockout rounds, players and champions, Valve's ranking, team pages ---- */
+  .ko { padding: 2px 12px; }
+  .ko-row { display: grid; grid-template-columns: 18px 1fr auto 1fr; align-items: center; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+  .ko-row:last-child { border-bottom: none; }
+  .ko-row.live .ko-sc { color: var(--live); }
+  .ko-n { font-family: var(--narrow); font-size: 11px; color: var(--muted); }
+  .ko-side { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .ko-side.r { justify-content: flex-end; }
+  .ko-side .crest { width: 20px; height: 20px; }
+  .ko-sc { font-family: var(--narrow); font-size: 15px; display: flex; gap: 4px; align-items: center; }
+  .ko-sc i { font-style: normal; color: var(--muted); }
+  .ko-sc .muted { font-size: 11.5px; }
+  .ko-champ { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 8px 0; border-radius: 4px; background: var(--accent-soft); font-size: 14px; }
+  .ko-champ .crest { width: 30px; height: 30px; }
+  [data-pdt], [data-lolt] { cursor: pointer; }
+  .lol-roles { margin-top: 0; }
+  .lsp { padding: 0 12px; }
+  .lsp-r { display: grid; grid-template-columns: 20px 1fr auto 52px; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+  .lsp-r:last-child { border-bottom: none; }
+  .lsp-k { font-family: var(--narrow); color: var(--muted); text-align: right; }
+  .lsp-m { min-width: 0; display: flex; flex-direction: column; }
+  .lsp-m b { font-family: var(--serif); font-size: 14px; color: var(--ink); }
+  .lsp-m span { font-size: 11.5px; color: var(--muted); }
+  .lsp-c { display: flex; gap: 2px; }
+  .lsp-c img { width: 22px; height: 22px; border-radius: 3px; }
+  .lsp-v { font-family: var(--narrow); font-weight: 700; font-size: 15px; text-align: right; color: var(--ink); }
+  table.lch { min-width: 0; }
+  .lch-i { width: 22px; height: 22px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+  table.lch td.up { color: var(--win); }
+  table.lch td.dn { color: var(--loss); }
+  .vrs { padding: 0 12px; }
+  .vrs-r { display: grid; grid-template-columns: 24px 30px 22px 1fr auto; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+  .vrs-r:last-child { border-bottom: none; }
+  .vrs-k { font-family: var(--narrow); font-weight: 700; text-align: right; color: var(--ink-2); }
+  .vrs-mv { font-family: var(--narrow); font-size: 10.5px; color: var(--muted); }
+  .vrs-mv.up { color: var(--win); }
+  .vrs-mv.dn { color: var(--loss); }
+  .vrs-r .crest { width: 22px; height: 22px; }
+  .vrs-m { min-width: 0; display: flex; flex-direction: column; }
+  .vrs-m b { font-family: var(--serif); font-size: 14px; color: var(--ink); }
+  .vrs-m span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vrs-p { font-family: var(--narrow); font-weight: 700; color: var(--ink); }
+  .pg-op small { display: block; font-size: 10.5px; color: var(--muted); font-family: var(--display); }
   /* ---- UFC: judges' cards, the ending, bonuses and the scales, the night, shared opponents ---- */
   .usc-key { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin: 2px 0 4px; }
   .usc-key .a, .usc td.a { color: var(--ser-a); }
@@ -5342,7 +5385,7 @@
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
       f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
-      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML, nbaCmp: nbaCmpPageHTML })[top.type](top).then(function (html) {
+      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML, nbaCmp: nbaCmpPageHTML, pandaTeam: pandaTeamPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -13139,7 +13182,7 @@ O
     var img = t.image
       ? '<img class="crest" src="' + esc(t.image) + '" alt="" loading="lazy">'
       : '<span class="crest" aria-hidden="true"></span>';
-    var name = '<span class="lol-code' + (dim ? ' dim' : '') + (win ? ' win' : '') + '">' +
+    var name = '<span class="lol-code' + (dim ? ' dim' : '') + (win ? ' win' : '') + '"' + (t.id ? ' data-pdt="' + esc(t.id) + '"' : '') + '>' +
       esc(t.acronym || t.name || 'TBD') + '</span>';
     return right ? img + name : name + img;
   }
@@ -13384,6 +13427,8 @@ O
 
   function renderPandaTable(file, label) {
     var host = panelFor('panel-table');
+    var tabs = file === 'cs2.json' ? pandaBoardTabsHTML() : '';
+    if (tabs && pandaBoard === 'rank') { renderCsRank(host); return; }
     host.innerHTML = '<div class="skeleton">正在统计…</div>';
     archiveGet(file).then(function (d) {
       if (!d) { host.innerHTML = archiveEmpty(label); return; }
@@ -13391,13 +13436,13 @@ O
       var current = pandaLeague[game];
       var rows = pandaTeams(d, current);
       if (!rows.length) {
-        host.innerHTML = '<div class="empty">这个赛事还没有打完的比赛，' +
+        host.innerHTML = tabs + '<div class="empty">这个赛事还没有打完的比赛，' +
           '所以还排不出战绩。<br>换上面的赛事看看。</div>';
         $('status').textContent = label + ' · ' + (current || '全部赛事');
         return;
       }
       var favIds = (favPanda[game] || []).map(function (f) { return String(f.id); });
-      host.innerHTML = '<div class="group-name">' + esc(current || '全部赛事') +
+      host.innerHTML = tabs + '<div class="group-name">' + esc(current || '全部赛事') +
         ' · 按胜场排序</div><div class="card"><div class="table-scroll"><table><thead><tr>' +
         '<th class="rk" style="text-align:left">#</th><th class="tm">战队</th>' +
         '<th>胜</th><th>负</th><th>小分</th><th>近况</th></tr></thead><tbody>' +
@@ -13407,7 +13452,7 @@ O
             return '<span class="res ' + r + '" style="font-size:11px;margin:0 1px">' +
               (r === 'W' ? '胜' : '负') + '</span>';
           }).join('');
-          return '<tr class="' + (i < 3 ? 'z-top' : '') + fav + '"><td class="rk">' + (i + 1) + '</td>' +
+          return '<tr class="' + (i < 3 ? 'z-top' : '') + fav + '" data-pdt="' + esc(t.id) + '" data-game="' + game + '"><td class="rk">' + (i + 1) + '</td>' +
             '<td class="tm">' + (t.image
               ? '<img class="crest" src="' + esc(t.image) + '" alt="" loading="lazy" style="width:20px;height:20px">'
               : '<span class="crest" style="width:20px;height:20px"></span>') +
@@ -14327,6 +14372,246 @@ O
     });
   }
 
+  /* ---------- esports, as Leaguepedia, GOL.gg and HLTV have it: the knockout
+     rounds, the tournament's players and champions, Valve's ranking, a team's page ---------- */
+
+  var lolBoard = 'table', lolStatCat = 'kda', lolRole = '';
+  function lolBoardTabsHTML() {
+    return '<div class="rnd-tabs sc-tabs">' + [['table', '积分榜'], ['players', '选手数据'], ['champs', '英雄']].map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === lolBoard ? ' on' : '') + '" data-lolb="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+
+  /* ---- the knockout rounds: the series in the order they were played ----
+     Riot's standings carry a knockout stage as a list of matches with no
+     bracket shape, so it reads as a run of series, the last one the final. */
+  function lolKnockoutHTML(title, matches, isLast) {
+    var list = (matches || []).filter(function (m) { return (m.teams || []).length === 2; });
+    if (!list.length) return '';
+    var favCodes = favLol.map(function (f) { return f.code; });
+    var rows = list.map(function (m, i) {
+      var a = m.teams[0] || {}, b = m.teams[1] || {};
+      var ra = a.result || {}, rb = b.result || {};
+      var done = m.state === 'completed';
+      var aw = ra.outcome === 'win', bw = rb.outcome === 'win';
+      function side(t, win, right) {
+        var img = t.image ? '<img class="crest" src="' + esc(lolHttps(t.image)) + '" alt="" loading="lazy">' : '<span class="crest"></span>';
+        var nm = '<span class="lol-code' + (done && !win ? ' dim' : '') + (win ? ' win' : '') + (favCodes.indexOf(t.code) !== -1 ? ' fav' : '') + '"' +
+          (t.id ? ' data-lolt="' + esc(t.id) + '"' : '') + '>' + esc(t.code || t.name || 'TBD') + '</span>';
+        return '<span class="ko-side' + (right ? ' r' : '') + '">' + (right ? img + nm : nm + img) + '</span>';
+      }
+      var score = done || m.state === 'inProgress'
+        ? '<b>' + esc(ra.gameWins != null ? ra.gameWins : '-') + '</b><i>-</i><b>' + esc(rb.gameWins != null ? rb.gameWins : '-') + '</b>'
+        : '<span class="muted">' + (LANG === 'en' ? 'TBD' : '未开始') + '</span>';
+      return '<div class="ko-row' + (m.state === 'inProgress' ? ' live' : '') + '"><span class="ko-n">' + (i + 1) + '</span>' +
+        side(a, aw, false) + '<span class="ko-sc">' + score + '</span>' + side(b, bw, true) + '</div>';
+    }).join('');
+    var last = list[list.length - 1];
+    var champ = isLast && last.state === 'completed' && last.teams.filter(function (t) { return (t.result || {}).outcome === 'win'; })[0];
+    return '<div class="group-name">' + esc(title) + '</div>' +
+      (champ ? '<div class="ko-champ">' + (champ.image ? '<img class="crest" src="' + esc(lolHttps(champ.image)) + '" alt="">' : '') +
+        '<span><b>' + esc(champ.name || champ.code) + '</b>' + (LANG === 'en' ? ' take the title' : ' 夺冠') + '</span></div>' : '') +
+      '<div class="card ko">' + rows + '</div>';
+  }
+
+  /* ---- the tournament's players and champions, added up by the collector ---- */
+  var LOL_STAT = [
+    ['kda', 'KDA'], ['k', '场均击杀'], ['a', '场均助攻'], ['d', '场均死亡', 1], ['csm', '分均补刀'],
+    ['dmg', '伤害占比'], ['kp', '参团率'], ['wr', '胜率']
+  ];
+  function lolStatsShow(host, t) {
+    var view = lolBoard;
+    host.innerHTML = lolBoardTabsHTML() + '<div class="skeleton">正在读取…</div>';
+    Promise.all([archiveGet('lolstats/' + t.id + '.json'), lolDD()]).then(function (r) {
+      if (view !== lolBoard || sport !== 'esports' || esportsGame !== 'lol') return;
+      var d = r[0];
+      if (!d || !d.games) {
+        host.innerHTML = lolBoardTabsHTML() + '<div class="empty">' + esc(lolTourName(t)) +
+          ' 的选手数据还在收集：每 5 分钟读一批已经打完的比赛，要一阵子才会全。</div>';
+        return;
+      }
+      var head = '<div class="note">' + esc(lolTourName(t)) + ' · ' + d.games + (LANG === 'en' ? ' games · ' : ' 局 · ') + esc(stamp(d.updatedAt)) + '</div>';
+      host.innerHTML = lolBoardTabsHTML() + head + (view === 'players' ? lolPlayersHTML(d, r[1]) : lolChampsHTML(d, r[1]));
+    });
+  }
+  // "lck_split_3_2026" reads as "LCK Split 3 2026"
+  function lolTourName(t) {
+    return t.name || String(t.slug || '').split('_').map(function (w, i) {
+      return !i && w.length <= 4 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  }
+  function lolPlayersHTML(d, dd) {
+    var cat = LOL_STAT.filter(function (c) { return c[0] === lolStatCat; })[0] || LOL_STAT[0];
+    var maxGp = Math.max.apply(null, d.players.map(function (p) { return p.gp; }).concat([1]));
+    var need = Math.max(2, Math.round(maxGp * 0.4));
+    function val(p) { return cat[0] === 'wr' ? p.w / p.gp : p[cat[0]]; }
+    var list = d.players.filter(function (p) { return p.gp >= need && (!lolRole || p.r === lolRole); })
+      .sort(function (a, b) { return cat[2] ? val(a) - val(b) : val(b) - val(a); });
+    var chips = '<div class="rnd-tabs">' + LOL_STAT.map(function (c) {
+      return '<button type="button" class="rnd-tab' + (c[0] === cat[0] ? ' on' : '') + '" data-lols="' + c[0] + '">' + c[1] + '</button>';
+    }).join('') + '</div><div class="rnd-tabs lol-roles">' + [['', '全部']].concat(Object.keys(ROLE_CN).map(function (k) { return [k, ROLE_CN[k]]; })).map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === lolRole ? ' on' : '') + '" data-lolr="' + o[0] + '">' + (LANG === 'en' && o[0] ? o[0] : o[1]) + '</button>';
+    }).join('') + '</div>';
+    if (!list.length) return chips + '<div class="empty">没有打满 ' + need + ' 局的选手。</div>';
+    function fmt(p) {
+      var v = val(p);
+      return /dmg|kp|wr/.test(cat[0]) ? Math.round(v * 100) + '%' : String(v);
+    }
+    return chips + '<div class="card lsp">' + list.slice(0, 40).map(function (p, i) {
+      var champs = (p.top || []).map(function (c) {
+        return '<img src="' + esc(lolChampImg(dd, c[0])) + '" alt="" title="' + esc((dd.names[c[0]] || c[0]) + ' ×' + c[1]) + '" loading="lazy" onerror="this.remove()">';
+      }).join('');
+      return '<div class="lsp-r"><span class="lsp-k">' + (i + 1) + '</span>' +
+        '<span class="lsp-m"><b>' + esc(p.n) + '</b><span>' + esc([p.t, LANG === 'en' ? p.r : ROLE_CN[p.r] || p.r, p.gp + (LANG === 'en' ? ' games' : ' 局')].filter(Boolean).join(' · ')) + '</span></span>' +
+        '<span class="lsp-c">' + champs + '</span><span class="lsp-v">' + esc(fmt(p)) + '</span></div>';
+    }).join('') + '</div><div class="fl-note">只列出打满 ' + need + ' 局的选手；数据来自官方比赛数据流，每局读一次、自己加总。</div>';
+  }
+  function lolChampsHTML(d, dd) {
+    var list = (d.champs || []).slice(0, 60);
+    if (!list.length) return '<div class="empty">还没有英雄数据。</div>';
+    return '<div class="card"><div class="table-scroll"><table class="ps lch"><thead><tr><th class="rk">#</th><th class="tm">英雄</th><th>登场</th><th>胜率</th><th>KDA</th><th>位置</th></tr></thead><tbody>' +
+      list.map(function (c, i) {
+        var wr = Math.round(c.w / c.pk * 100);
+        return '<tr><td class="rk">' + (i + 1) + '</td><td class="tm"><img class="lch-i" src="' + esc(lolChampImg(dd, c.id)) + '" alt="" loading="lazy" onerror="this.remove()">' +
+          esc(dd.names[c.id] || c.id) + '</td><td class="pts">' + c.pk + '</td><td class="' + (c.pk >= 3 ? (wr >= 60 ? 'up' : wr <= 40 ? 'dn' : '') : '') + '">' + wr + '%</td>' +
+          '<td>' + c.kda + '</td><td>' + esc(LANG === 'en' ? c.role : ROLE_CN[c.role] || c.role) + '</td></tr>';
+      }).join('') + '</tbody></table></div></div><div class="fl-note">登场是这项赛事里被选用的局数；官方数据流不含禁用，所以没有 BP 率。</div>';
+  }
+
+  /* ---- CS2: Valve's world ranking ---- */
+  var pandaBoard = 'table';
+  function pandaBoardTabsHTML() {
+    return '<div class="rnd-tabs sc-tabs">' + [['table', '战绩榜'], ['rank', '世界排名']].map(function (o) {
+      return '<button type="button" class="rnd-tab' + (o[0] === pandaBoard ? ' on' : '') + '" data-pdb="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  // Valve's names against PandaScore's teams: the name, else the tag
+  function csTeamIndex(d) {
+    var by = {};
+    ((d && (d.recent || []).concat(d.upcoming || [])) || []).forEach(function (m) {
+      (m.teams || []).forEach(function (t) {
+        if (!t || !t.id) return;
+        [t.name, t.acronym].forEach(function (n) { if (n) by[plain(n).replace(/[^a-z0-9]/g, '')] = t; });
+      });
+    });
+    return by;
+  }
+  function csFind(idx, name) {
+    var k = plain(name || '').replace(/[^a-z0-9]/g, '');
+    return idx[k] || idx['team' + k] || idx[k.replace(/esports?$|gaming$|team$/, '')] || null;
+  }
+  function renderCsRank(host) {
+    host.innerHTML = pandaBoardTabsHTML() + '<div class="skeleton">正在读取排名…</div>';
+    Promise.all([archiveGet('cs2-rank.json'), archiveGet('cs2.json')]).then(function (r) {
+      if (pandaBoard !== 'rank' || esportsGame !== 'cs2') return;
+      var d = r[0];
+      if (!d || !(d.teams || []).length) { host.innerHTML = pandaBoardTabsHTML() + archiveEmpty('CS2 世界排名'); return; }
+      var idx = csTeamIndex(r[1]);
+      var en = LANG === 'en';
+      host.innerHTML = pandaBoardTabsHTML() +
+        '<div class="note">' + (en ? 'Valve Regional Standings, as of ' : 'Valve 官方排名（决定 Major 邀请），截至 ') + esc(d.asOf) +
+        (d.prevAsOf ? (en ? ', moves since ' : '，升降对比 ') + esc(d.prevAsOf) : '') + '</div>' +
+        '<div class="card vrs">' + d.teams.map(function (t) {
+          var pt = csFind(idx, t.name);
+          var mv = t.prev ? t.prev - t.rank : null;
+          return '<div class="vrs-r"' + (pt ? ' data-pdt="' + esc(pt.id) + '" data-game="cs2"' : '') + '><span class="vrs-k">' + t.rank + '</span>' +
+            '<span class="vrs-mv ' + (mv > 0 ? 'up' : mv < 0 ? 'dn' : '') + '">' + (mv == null ? (en ? 'new' : '新') : mv > 0 ? '▲' + mv : mv < 0 ? '▼' + (-mv) : '–') + '</span>' +
+            (pt && pt.image ? '<img class="crest" src="' + esc(pt.image) + '" alt="" loading="lazy">' : '<span class="crest"></span>') +
+            '<span class="vrs-m"><b>' + esc(t.name) + '</b><span>' + esc((t.roster || []).join(' · ')) + '</span></span>' +
+            '<span class="vrs-p">' + t.pts + '</span></div>';
+        }).join('') + '</div>' + archiveFoot(d);
+    });
+  }
+
+  /* ---- a CS2 or Valorant team: its results in what we hold, what is next ---- */
+  function pandaTeamPageHTML(pg) {
+    var file = pg.game === 'cs2' ? 'cs2.json' : 'valorant.json';
+    return Promise.all([archiveGet(file), pg.game === 'cs2' ? archiveGet('cs2-rank.json') : null]).then(function (r) {
+      var d = r[0] || {}, id = String(pg.id);
+      var mine = (d.recent || []).concat(d.upcoming || []).filter(function (m) {
+        return (m.teams || []).some(function (t) { return t && String(t.id) === id; });
+      });
+      var me = null;
+      mine.forEach(function (m) { (m.teams || []).forEach(function (t) { if (t && String(t.id) === id) me = t; }); });
+      if (!me) return '<div class="err">这支队伍在现有数据里没有比赛。</div>';
+      var en = LANG === 'en';
+      var fav = (favPanda[pg.game] || []).some(function (f) { return String(f.id) === id; });
+      var vrs = null;
+      if (r[1]) {
+        var k = plain(me.name || '').replace(/[^a-z0-9]/g, ''), ka = plain(me.acronym || '').replace(/[^a-z0-9]/g, '');
+        vrs = (r[1].teams || []).filter(function (t) { var n = plain(t.name).replace(/[^a-z0-9]/g, ''); return n === k || n === ka; })[0] || null;
+      }
+      var done = mine.filter(function (m) { return m.status === 'finished'; }).sort(function (a, b) { return Date.parse(b.start || 0) - Date.parse(a.start || 0); });
+      var next = mine.filter(function (m) { return m.status !== 'finished'; }).sort(function (a, b) { return Date.parse(a.start || 0) - Date.parse(b.start || 0); });
+      var w = 0, l = 0, mw = 0, ml = 0;
+      done.forEach(function (m) {
+        var a = (m.teams || []).filter(function (t) { return String(t.id) === id; })[0] || {};
+        var o = (m.teams || []).filter(function (t) { return String(t.id) !== id; })[0] || {};
+        if (a.score == null || o.score == null) return;
+        mw += a.score; ml += o.score;
+        if (String(m.winner) === id || a.score > o.score) w++; else l++;
+      });
+      var html = '<div class="pg-head">' + (me.image ? '<img class="crest" src="' + esc(me.image) + '" alt="" style="width:56px;height:56px">' : '') +
+        '<div class="pg-hd"><div class="pg-name">' + esc(me.name || me.acronym) + '</div>' +
+        '<div class="pg-sub">' + esc([me.acronym, pg.game === 'cs2' ? 'CS2' : 'Valorant'].filter(Boolean).join(' · ')) + '</div>' +
+        (vrs ? '<div class="pg-sub"><b>' + (en ? 'Valve rank #' + vrs.rank : 'Valve 排名第 ' + vrs.rank) + '</b> · ' + vrs.pts + (en ? ' pts' : ' 分') + '</div>' : '') +
+        '</div><button type="button" class="pg-fav' + (fav ? ' on' : '') + '" data-fav-pd="' + esc(id) + '" data-game="' + esc(pg.game) + '" data-name="' + esc(me.name || '') +
+        '" data-acr="' + esc(me.acronym || '') + '" data-img="' + esc(me.image || '') + '">' + (fav ? '已关注' : '关注') + '</button></div>';
+      if (w + l) html += '<div class="f1-tiles">' + f1Tile(w + '-' + l, '系列赛胜负') + f1Tile(mw + '-' + ml, '小局胜负') +
+        f1Tile(Math.round(w / (w + l) * 100) + '%', '胜率') + '</div>';
+      if (vrs && (vrs.roster || []).length) html += '<div class="kv"><span class="k">' + (en ? 'Roster' : '阵容') + '</span><span>' + esc(vrs.roster.join(' · ')) + '</span></div>';
+      function row(m) {
+        var a = (m.teams || []).filter(function (t) { return String(t.id) === id; })[0] || {};
+        var o = (m.teams || []).filter(function (t) { return String(t.id) !== id; })[0] || {};
+        var dt = new Date(m.start || '');
+        var fin = m.status === 'finished' && a.score != null && o.score != null;
+        var res = fin ? (String(m.winner) === id || a.score > o.score ? 'W' : 'L') : '';
+        return '<div class="pg-ev"><span class="pg-d">' + (isNaN(dt) ? '' : esc(fmtDay(dt))) + '</span>' +
+          (o.image ? '<img class="crest" src="' + esc(o.image) + '" alt="" style="width:16px;height:16px" loading="lazy">' : '') +
+          '<span class="pg-op"' + (o.id ? ' data-pdt="' + esc(o.id) + '" data-game="' + esc(pg.game) + '"' : '') + '>' + esc(o.acronym || o.name || 'TBD') +
+          '<small>' + esc(m.league || '') + '</small></span>' +
+          (fin ? '<span class="pg-sc">' + a.score + '-' + o.score + '</span><span class="f ' + res + '">' + res + '</span>'
+            : '<span class="pg-sc muted">' + (isNaN(dt) ? '' : esc(fmtTime(dt))) + (m.status === 'running' ? ' · ' + (en ? 'live' : '进行中') : '') + '</span>') + '</div>';
+      }
+      if (next.length) html += '<h4>接下来</h4><div class="card pg-card">' + next.slice(0, 5).map(row).join('') + '</div>';
+      if (done.length) html += '<h4>近期赛果</h4><div class="card pg-card">' + done.slice(0, 15).map(row).join('') + '</div>';
+      return html + '<div class="fl-note">战绩只算这里收录的比赛（最近约两周）。</div>';
+    });
+  }
+  function toggleFavPd(btn) {
+    var game = btn.dataset.game, id = String(btn.dataset.favPd);
+    var list = favPanda[game] = favPanda[game] || [];
+    var on = list.some(function (f) { return String(f.id) === id; });
+    if (on) favPanda[game] = list.filter(function (f) { return String(f.id) !== id; });
+    else {
+      if (list.length >= MAX_PANDA) { alert('最多只能关注 ' + MAX_PANDA + ' 支战队。'); return; }
+      list.push({ id: id, name: btn.dataset.name, acronym: btn.dataset.acr, image: btn.dataset.img });
+    }
+    lsSet('favPanda', favPanda);
+    btn.classList.toggle('on', !on);
+    btn.textContent = on ? '关注' : '已关注';
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-lolb], [data-lols], [data-lolr], [data-pdb], [data-pdt], [data-fav-pd]');
+    if (!el) return;
+    e.stopPropagation();
+    if (el.dataset.favPd) { toggleFavPd(el); return; }
+    if (el.dataset.pdt) { pgOpen({ type: 'pandaTeam', game: el.dataset.game || esportsGame, id: el.dataset.pdt }); return; }
+    if (el.dataset.pdb) {
+      if (el.dataset.pdb === pandaBoard) return;
+      pandaBoard = el.dataset.pdb;
+      renderPandaTable('cs2.json', 'CS2');
+      return;
+    }
+    if (el.dataset.lolb) {
+      if (el.dataset.lolb === lolBoard) return;
+      lolBoard = el.dataset.lolb;
+    } else if (el.dataset.lols) lolStatCat = el.dataset.lols;
+    else lolRole = el.dataset.lolr;
+    renderLolTable();
+  }, true);
+
   function renderLolTable() {
     var host = panelFor('panel-table');
     host.innerHTML = '<div class="skeleton">正在获取排名…</div>';
@@ -14336,14 +14621,16 @@ O
       if (!lg) return;
       return lolTournament(lg.id).then(function (t) {
         if (!t) { host.innerHTML = '<div class="empty">这个赛区暂时没有积分榜。</div>'; return; }
+        if (lolBoard !== 'table') { lolStatsShow(host, t); return; }
         return lolGet('getStandings?hl=zh-CN&tournamentId=' + t.id).then(function (d) {
           var stages = ((((d && d.data) || {}).standings || [])[0] || {}).stages || [];
           var favCodes = favLol.map(function (f) { return f.code; });
-          var html = stages.map(function (st) {
-            return (st.sections || []).map(function (sec) {
+          var html = stages.map(function (st, si) {
+            return (st.sections || []).map(function (sec, xi) {
               var ranks = (sec.rankings || []).filter(function (r) { return (r.teams || []).length; });
-              if (!ranks.length) return '';
               var title = st.name === sec.name ? st.name : st.name + ' · ' + sec.name;
+              // a knockout stage has no table, only its series
+              if (!ranks.length) return lolKnockoutHTML(title, sec.matches, si === stages.length - 1 && xi === st.sections.length - 1);
               var body = ranks.map(function (r) {
                 return (r.teams || []).map(function (tm) {
                   var rec = tm.record || {};
@@ -14364,8 +14651,8 @@ O
                 '</tbody></table></div></div>';
             }).join('');
           }).join('');
-          host.innerHTML = html ||
-            '<div class="empty">这个赛段还没有排名数据（淘汰赛阶段通常不出积分榜）。</div>';
+          host.innerHTML = lolBoardTabsHTML() + (html ||
+            '<div class="empty">这个赛段还没有排名数据。</div>');
         });
       });
     });

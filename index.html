@@ -13123,6 +13123,9 @@ O
   }
 
   var esportsGame = lsGet('egame', 'lol');
+  // a push about a CS2 or Valorant team opens that game's board
+  var egParam = (location.search.match(/[?&]eg=(lol|cs2|valorant)\b/) || [])[1];
+  if (egParam) esportsGame = egParam;
   var bballLeague = lsGet('bball', 'nba');
   function renderBballChips() {
     $('chips').hidden = false;
@@ -18135,7 +18138,10 @@ O
       nba: favNba.map(function (f) { return { id: String(f.id), name: f.name }; }),
       f1: favDrivers.length > 0,
       ufc: favFighters.map(function (f) { return { id: String(f.id), name: f.name }; }),
-      box: favBoxers.map(function (f) { return { name: f.name }; })
+      box: favBoxers.map(function (f) { return { name: f.name }; }),
+      lol: favLol.map(function (f) { return { code: f.code, name: f.name }; }),
+      cs2: (favPanda.cs2 || []).map(function (f) { return { id: String(f.id), name: f.name }; }),
+      valorant: (favPanda.valorant || []).map(function (f) { return { id: String(f.id), name: f.name }; })
     };
   }
   /* serviceWorker.ready never settles while no worker is installed — the
@@ -18226,7 +18232,7 @@ O
         html += '<div class="set-me"><span>' + (pushState ? '已开启' : '未开启') + '</span>' +
           '<button type="button" class="set-link" data-act="' + (pushState ? 'push-off' : 'push-on') + '">' + (pushState ? '关闭' : '开启') + '</button>' +
           (pushState ? '<button type="button" class="set-link" data-act="push-test">发一条试试</button>' : '') + '</div>' +
-          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果，关注的 UFC 选手开打和结果，关注的拳手的比赛结果。</div>';
+          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果，关注的 UFC 选手开打和结果，关注的拳手的比赛结果，关注的电竞战队开赛和结果。</div>';
       }
     }
     return html + '<button type="button" class="set-done">完成</button></div>';

@@ -87,6 +87,9 @@ window.fetch = async (url, opts) => {
     const id = new URL(u).searchParams.get('id');
     return fakeLol[id] ? new Response(JSON.stringify(fakeLol[id]), { status: 200 }) : new Response('{}', { status: 404 });
   }
+  if (u.includes('esports-api.lolesports.com/persisted/gw/getSchedule') && fakeLolSched) {
+    return new Response(JSON.stringify({ data: { schedule: { events: [fakeLolSched] } } }), { status: 200 });
+  }
   if (u === 'https://grandstand-live.github.io/data/boxing.json' && fakeBox) return new Response(JSON.stringify(fakeBox), { status: 200 });
   if (u === 'https://grandstand-live.github.io/data/cs2.json' && fakeCs2) return new Response(JSON.stringify(fakeCs2), { status: 200 });
   if (u.startsWith('https://api.resend.com/')) {
@@ -96,7 +99,7 @@ window.fetch = async (url, opts) => {
   if (u.includes('espn.com') || u.includes('lolesports.com') || u.includes('github.io')) return new Response('{"events":[]}', { status: 200 });
   return realFetch(url, opts);
 };
-let fakeF1 = null, fakeCs2 = null, fakeUfc = null, fakeBox = null;
+let fakeF1 = null, fakeCs2 = null, fakeUfc = null, fakeBox = null, fakeLolSched = null;
 const fakeLol = {}, mails = [];
 
 const src = await (await realFetch('./worker.js?' + Date.now())).text();
@@ -301,6 +304,54 @@ check(got.length === 1 && got[0].title === 'Ryan Garcia 胜 Conor Benn' && got[0
 got = await tickAndRead();
 check(got.length === 0, 'boxing result only once');
 await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/box' });
+
+// ---- the minute tick: a followed LoL team's series starts, then ends
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/lol', keys: { p256dh: uaPub, auth } },
+  follows: { lol: [{ code: 'T1', name: 'T1' }] }, lang: 'zh'
+});
+function lolSeries(state, a, b) {
+  return { type: 'match', state, blockName: 'Swiss', league: { name: 'Worlds' }, match: { id: '117000000000000001', teams: [
+    { code: 'T1', result: { gameWins: a } }, { code: 'GEN', result: { gameWins: b } }] } };
+}
+fakeLolSched = lolSeries('unstarted', 0, 0);
+got = await tickAndRead();
+check(got.length === 0, 'LoL series not started, no push');
+fakeLolSched = lolSeries('inProgress', 0, 0);
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === '比赛开始：T1 vs GEN' && got[0].body === 'Worlds · Swiss' && got[0].url === '/?go=esports&eg=lol',
+  'LoL series under way', got[0] && (got[0].title + ' / ' + got[0].body + ' / ' + got[0].url));
+got = await tickAndRead();
+check(got.length === 0, 'LoL start only once');
+fakeLolSched = lolSeries('completed', 3, 1);
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === '比赛结束：T1 3-1 GEN', 'LoL series result', got[0] && got[0].title);
+got = await tickAndRead();
+check(got.length === 0, 'LoL result only once');
+fakeLolSched = null;
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/lol' });
+
+// ---- the minute tick: a followed CS2 team, from the site's own file
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/cs2', keys: { p256dh: uaPub, auth } },
+  follows: { cs2: [{ id: '3213', name: 'Team Spirit' }] }, lang: 'en'
+});
+function csMatch(status, a, b) {
+  return { recent: [], upcoming: [{ id: 1709001, status, league: 'ESL Pro League', event: 'Season 24',
+    teams: [{ id: 3213, acronym: 'TS', score: a }, { id: 1, acronym: 'MOUZ', score: b }] }] };
+}
+fakeCs2 = csMatch('running', 0, 1);
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === 'Match on: TS v MOUZ' && got[0].url === '/?go=esports&eg=cs2', 'CS2 series under way, in English',
+  got[0] && (got[0].title + ' / ' + got[0].url));
+fakeCs2 = csMatch('finished', 2, 1);
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === 'Final: TS 2-1 MOUZ' && got[0].body === 'ESL Pro League · Season 24', 'CS2 series result',
+  got[0] && (got[0].title + ' / ' + got[0].body));
+got = await tickAndRead();
+check(got.length === 0, 'CS2 result only once');
+fakeCs2 = null;
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/cs2' });
 
 // ---- server-side settling of a football call
 await call('POST', '/api/picks', { sport: 'football', id: '9001', side: 'home', when: Date.now() + 3600000, league: 'eng.1', home: '利物浦', away: '曼城' }, tok);

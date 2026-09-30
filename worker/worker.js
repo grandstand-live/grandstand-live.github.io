@@ -571,7 +571,9 @@ const T = {
   f1done: { zh: (gp, s) => `${gp} ${s} 结果`, en: (gp, s) => `${gp} ${s} result` },
   ufcOn: { zh: (a, b) => `开打：${a} vs ${b}`, en: (a, b) => `Fight on: ${a} v ${b}` },
   ufcWin: { zh: (w, l) => `${w} 胜 ${l}`, en: (w, l) => `${w} beats ${l}` },
-  ufcEnd: { zh: (a, b) => `${a} vs ${b} 结束`, en: (a, b) => `${a} v ${b} is over` }
+  ufcEnd: { zh: (a, b) => `${a} vs ${b} 结束`, en: (a, b) => `${a} v ${b} is over` },
+  esOn: { zh: (a, b) => `比赛开始：${a} vs ${b}`, en: (a, b) => `Match on: ${a} v ${b}` },
+  esEnd: { zh: (s) => `比赛结束：${s}`, en: (s) => `Final: ${s}` }
 };
 // how a bout ended, from ESPN's "Unofficial Winner …" detail
 function ufcMethod(comp, lang) {
@@ -836,6 +838,67 @@ async function watch(env) {
         });
       }
       await note(key, 'post', '', fresh ? 'final' : 'old');
+    }
+  }
+
+  /* ---- esports: a followed team's series, when it starts and when it ends.
+     League of Legends from Riot's own schedule, which lists every league's
+     matches either side of now in one answer; CS2 and Valorant from the
+     site's own files, which the collector refreshes every five minutes. */
+  async function series(key, st, a, b, sa, sb, where, who, url) {
+    const prev = await seen(key);
+    const flags = new Set(((prev && prev.notified) || '').split(',').filter(Boolean));
+    const fire = [];
+    if (st === 'in' && !flags.has('kick')) fire.push('kick');
+    // a series first seen already over is only noted: it was over before anyone could be told
+    if (st === 'post' && prev && !flags.has('final')) fire.push('final');
+    for (const e of fire) {
+      flags.add(e);
+      who.forEach((s) => {
+        out.push([s, e === 'kick'
+          ? { title: say('esOn', s.lang, a, b), body: where, tag: key, url }
+          : { title: say('esEnd', s.lang, `${a} ${sa}-${sb} ${b}`), body: where, tag: key, url }]);
+      });
+    }
+    if (!prev || fire.length || prev.state !== st) await note(key, st, `${sa}-${sb}`, [...flags].join(','));
+  }
+  const lolFollow = subs.filter((s) => (s.f.lol || []).length);
+  if (lolFollow.length) {
+    let evs = [];
+    try {
+      const r = await fetch(LOL + 'getSchedule?hl=en-US', { headers: { 'x-api-key': LOL_KEY } });
+      if (r.ok) evs = (((await r.json()).data || {}).schedule || {}).events || [];
+    } catch (e) {}
+    for (const ev of evs) {
+      const m = ev.match, ts = (m && m.teams) || [];
+      if (ev.type !== 'match' || ts.length !== 2) continue;
+      const codes = ts.map((t) => String(t.code || '').toUpperCase());
+      const who = lolFollow.filter((s) => s.f.lol.some((t) => codes.includes(String(t.code || '').toUpperCase())));
+      if (!who.length) continue;
+      const st = ev.state === 'inProgress' ? 'in' : ev.state === 'completed' ? 'post' : 'pre';
+      const w = (t) => ((t.result || {}).gameWins != null ? t.result.gameWins : 0);
+      await series('lol:' + m.id, st, ts[0].code, ts[1].code, w(ts[0]), w(ts[1]),
+        [ev.league && ev.league.name, ev.blockName].filter(Boolean).join(' · '), who, '/?go=esports&eg=lol');
+    }
+  }
+  for (const game of ['cs2', 'valorant']) {
+    const follow = subs.filter((s) => (s.f[game] || []).length);
+    if (!follow.length) continue;
+    let d = null;
+    try {
+      const r = await fetch(ORIGINS[0] + '/data/' + game + '.json', { cf: { cacheTtl: 60 } });
+      if (r.ok) d = await r.json();
+    } catch (e) {}
+    for (const m of ((d && d.upcoming) || []).concat((d && d.recent) || [])) {
+      const ts = m.teams || [];
+      if (ts.length !== 2) continue;
+      const ids = ts.map((t) => String((t && t.id) || ''));
+      const who = follow.filter((s) => s.f[game].some((t) => ids.includes(String(t.id))));
+      if (!who.length) continue;
+      const st = m.status === 'running' ? 'in' : m.status === 'finished' ? 'post' : 'pre';
+      const nm = (t) => (t && (t.acronym || t.name)) || '';
+      await series(game + ':' + m.id, st, nm(ts[0]), nm(ts[1]), ts[0].score || 0, ts[1].score || 0,
+        [m.league, m.event].filter(Boolean).join(' · '), who, '/?go=esports&eg=' + game);
     }
   }
 

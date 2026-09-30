@@ -90,6 +90,9 @@ window.fetch = async (url, opts) => {
   if (u.includes('esports-api.lolesports.com/persisted/gw/getSchedule') && fakeLolSched) {
     return new Response(JSON.stringify({ data: { schedule: { events: [fakeLolSched] } } }), { status: 200 });
   }
+  if (u.includes('/tennis/atp/scoreboard') && fakeTennis) return new Response(JSON.stringify(fakeTennis), { status: 200 });
+  if (u === 'https://grandstand-live.github.io/data/snooker.json' && fakeSnooker) return new Response(JSON.stringify(fakeSnooker), { status: 200 });
+  if (u === 'https://grandstand-live.github.io/data/status.json' && fakeStatus) return new Response(JSON.stringify(fakeStatus), { status: 200 });
   if (u === 'https://grandstand-live.github.io/data/boxing.json' && fakeBox) return new Response(JSON.stringify(fakeBox), { status: 200 });
   if (u === 'https://grandstand-live.github.io/data/cs2.json' && fakeCs2) return new Response(JSON.stringify(fakeCs2), { status: 200 });
   if (u.startsWith('https://api.resend.com/')) {
@@ -99,7 +102,7 @@ window.fetch = async (url, opts) => {
   if (u.includes('espn.com') || u.includes('lolesports.com') || u.includes('github.io')) return new Response('{"events":[]}', { status: 200 });
   return realFetch(url, opts);
 };
-let fakeF1 = null, fakeCs2 = null, fakeUfc = null, fakeBox = null, fakeLolSched = null;
+let fakeF1 = null, fakeCs2 = null, fakeUfc = null, fakeBox = null, fakeLolSched = null, fakeTennis = null, fakeSnooker = null, fakeStatus = null;
 const fakeLol = {}, mails = [];
 
 const src = await (await realFetch('./worker.js?' + Date.now())).text();
@@ -352,6 +355,93 @@ got = await tickAndRead();
 check(got.length === 0, 'CS2 result only once');
 fakeCs2 = null;
 await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/cs2' });
+
+// ---- the minute tick: a followed tennis player's match starts, then is decided
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/tn', keys: { p256dh: uaPub, auth } },
+  follows: { tennis: [{ id: '3623', name: 'Jannik Sinner', tour: 'atp' }] }, lang: 'zh'
+});
+function tnMatch(state, won) {
+  return { events: [{ name: 'China Open', groupings: [{ grouping: { displayName: "Men's Singles" }, competitions: [{
+    id: '190001', round: { displayName: 'Quarterfinal' }, status: { type: { state } },
+    competitors: [
+      Object.assign({ id: '3623', athlete: { displayName: 'Jannik Sinner' }, linescores: won ? [{ value: 6 }, { value: 7 }] : [] }, won ? { winner: true } : {}),
+      { id: '3782', athlete: { displayName: 'Carlos Alcaraz' }, linescores: won ? [{ value: 4 }, { value: 5 }] : [] }
+    ] }] }] }] };
+}
+fakeTennis = tnMatch('pre');
+got = await tickAndRead();
+check(got.length === 0, 'tennis match not started, no push');
+fakeTennis = tnMatch('in');
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === '比赛开始：Jannik Sinner vs Carlos Alcaraz' && got[0].url === '/?go=tennis', 'tennis match under way', got[0] && got[0].title);
+fakeTennis = tnMatch('post', true);
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === 'Jannik Sinner 胜 Carlos Alcaraz' && got[0].body === '6-4 7-5 · China Open · Quarterfinal', 'tennis result with the sets',
+  got[0] && (got[0].title + ' / ' + got[0].body));
+got = await tickAndRead();
+check(got.length === 0, 'tennis result only once');
+fakeTennis = null;
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/tn' });
+
+// ---- the minute tick: a followed snooker player's result, and the champion, from the site's file
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/sn', keys: { p256dh: uaPub, auth } },
+  follows: { snooker: [{ name: 'Zhao Xintong' }] }, lang: 'zh'
+});
+const snDay = (d) => new Date(Date.now() + d * 86400000).toISOString().slice(0, 10);
+fakeSnooker = { calendar: [
+  { start: snDay(-40), end: snDay(-35), name: 'Old Open', page: 'Old Open', winner: 'Zhao Xintong', score: '10–2', runner: 'Someone' },
+  { start: snDay(-3), end: snDay(1), name: 'Shenzhen Open', page: '2026 Shenzhen Open', winner: '', score: '', runner: '' }
+], draws: {
+  'Old Open': [{ name: 'Final', matches: [{ a: 'Zhao Xintong', s1: 10, b: 'Someone', s2: 2, w: 'a' }] }],
+  '2026 Shenzhen Open': [{ name: 'Last 16', matches: [
+    { a: 'Zhao Xintong', s1: 5, b: 'Mark Selby', s2: 3, w: 'a' }, { a: 'Judd Trump', s1: 0, b: 'Si Jiahui', s2: 0, w: '' }] }]
+} };
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === 'Zhao Xintong 胜 Mark Selby' && got[0].body === '5-3 · Shenzhen Open · Last 16', 'snooker result pushed, an old one not',
+  got.map((g) => g.title + ' / ' + g.body).join(' ; '));
+fakeSnooker.calendar[1].winner = 'Zhao Xintong'; fakeSnooker.calendar[1].score = '10–8'; fakeSnooker.calendar[1].runner = 'Wu Yize';
+got = await tickAndRead();
+check(got.length === 1 && got[0].title === 'Zhao Xintong 夺得Shenzhen Open冠军' && got[0].body === '10–8 vs Wu Yize', 'snooker champion pushed', got[0] && (got[0].title + ' / ' + got[0].body));
+got = await tickAndRead();
+check(got.length === 0, 'snooker pushes only once');
+fakeSnooker = null;
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/sn' });
+
+// ---- data sources: a source failing three runs in a row is told once, to whoever asked
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/alerts', keys: { p256dh: uaPub, auth } },
+  follows: { alerts: true }, lang: 'zh'
+});
+await call('POST', '/api/push/subscribe', {
+  sub: { endpoint: 'https://push.example/quiet', keys: { p256dh: uaPub, auth } },
+  follows: { football: [] }, lang: 'zh'
+});
+async function statusRun(i, failing) {
+  fakeStatus = { ranAt: new Date(Date.now() - 60000 + i).toISOString(), sources: { lol: { ok: true }, snooker: failing ? { ok: false, error: 'calendar parsed to 0 rows' } : { ok: true } } };
+  const before = pushes.length;
+  await W._test.checkSources(env);
+  return pushes.slice(before).map((p) => p.endpoint);
+}
+let told = [];
+told = told.concat(await statusRun(1, true), await statusRun(2, true));
+check(told.length === 0, 'two failed runs: no alert yet');
+told = await statusRun(3, true);
+check(told.length === 1 && told[0] === 'https://push.example/alerts', 'third failed run: one alert, only to who asked', told.join(','));
+told = await statusRun(3, true);
+check(told.length === 0, 'the same run read again is not counted again');
+told = await statusRun(4, true);
+check(told.length === 0, 'a source already told is not told again the same day');
+await statusRun(5, false);
+told = (await statusRun(6, true)).concat(await statusRun(7, true), await statusRun(8, true));
+check(told.length === 1, 'after it recovers, a new run of failures is told again', told.join(','));
+fakeStatus = { ranAt: new Date(Date.now() - 50 * 60000).toISOString(), sources: {} };
+told = (await (async () => { const b = pushes.length; await W._test.checkSources(env); return pushes.slice(b).map((p) => p.endpoint); })());
+check(told.length === 1, 'a collector quiet for 50 minutes is told at once', told.join(','));
+fakeStatus = null;
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/alerts' });
+await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/quiet' });
 
 // ---- server-side settling of a football call
 await call('POST', '/api/picks', { sport: 'football', id: '9001', side: 'home', when: Date.now() + 3600000, league: 'eng.1', home: '利物浦', away: '曼城' }, tok);

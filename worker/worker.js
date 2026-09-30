@@ -573,7 +573,9 @@ const T = {
   ufcWin: { zh: (w, l) => `${w} 胜 ${l}`, en: (w, l) => `${w} beats ${l}` },
   ufcEnd: { zh: (a, b) => `${a} vs ${b} 结束`, en: (a, b) => `${a} v ${b} is over` },
   esOn: { zh: (a, b) => `比赛开始：${a} vs ${b}`, en: (a, b) => `Match on: ${a} v ${b}` },
-  esEnd: { zh: (s) => `比赛结束：${s}`, en: (s) => `Final: ${s}` }
+  esEnd: { zh: (s) => `比赛结束：${s}`, en: (s) => `Final: ${s}` },
+  snChamp: { zh: (w, e) => `${w} 夺得${e}冠军`, en: (w, e) => `${w} wins the ${e}` },
+  srcFail: { zh: (n) => `数据源出错：${n}`, en: (n) => `Data source failing: ${n}` }
 };
 // how a bout ended, from ESPN's "Unofficial Winner …" detail
 function ufcMethod(comp, lang) {
@@ -615,6 +617,7 @@ async function tick(env) {
     note.pushes = await watch(env);
     note.settled = await verifyPicks(env);
     if (new Date(t0).getUTCMinutes() === 0) await sweep(env);
+    if (new Date(t0).getUTCMinutes() % 10 === 0) note.alerts = await checkSources(env);
   } catch (e) {
     note.error = String((e && e.message) || e).slice(0, 300);
   }
@@ -622,6 +625,68 @@ async function tick(env) {
   try {
     await env.DB.prepare("INSERT OR REPLACE INTO config (k, v) VALUES ('tick', ?1)").bind(JSON.stringify(note)).run();
   } catch (e) {}
+}
+
+/* Every ten minutes: the collector's own report of its last run. A source
+   that failed three runs running — Wikipedia changed a table, a page moved —
+   is told once a day to whoever asked for these alerts; a collector that has
+   not run for three quarters of an hour is told at once. One read of the
+   same run counts once, however many times it is read. */
+async function readStatus() {
+  try {
+    const r = await fetch(ORIGINS[0] + '/data/status.json', { cf: { cacheTtl: 60 } });
+    return r.ok ? await r.json() : null;
+  } catch (e) { return null; }
+}
+async function checkSources(env) {
+  const st = await readStatus();
+  const now = Date.now();
+  const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'srcwatch'").first();
+  let w = {};
+  try { w = JSON.parse((row && row.v) || '{}'); } catch (e) {}
+  w.fails = w.fails || {};
+  w.told = w.told || {};
+  const failing = {};
+  if (st) {
+    Object.keys(st.sources || {}).forEach((k) => {
+      const x = st.sources[k];
+      if (x && x.ok === false) failing[k] = String(x.error || 'failed').slice(0, 140);
+    });
+  }
+  const alerts = [];
+  const run = st ? st.ranAt : 'unreachable';
+  if (run !== w.lastRun) {
+    w.lastRun = run;
+    if (!st) failing.status = 'status.json unreachable';
+    Object.keys(w.fails).forEach((k) => { if (!failing[k]) { delete w.fails[k]; delete w.told[k]; } });
+    Object.keys(failing).forEach((k) => {
+      w.fails[k] = (w.fails[k] || 0) + 1;
+      if (w.fails[k] >= 3 && (!w.told[k] || now - w.told[k] > DAY)) { w.told[k] = now; alerts.push([k, failing[k]]); }
+    });
+  }
+  const age = st ? now - Date.parse(st.ranAt) : 0;
+  if (st && age > 45 * MIN) {
+    if (!w.told.collector || now - w.told.collector > DAY) {
+      w.told.collector = now;
+      alerts.push(['collector', 'last run ' + Math.round(age / MIN) + ' min ago']);
+    }
+  } else if (st) delete w.told.collector;
+  await env.DB.prepare("INSERT OR REPLACE INTO config (k, v) VALUES ('srcwatch', ?1)").bind(JSON.stringify(w)).run();
+  if (!alerts.length) return 0;
+  const subs = ((await env.DB.prepare('SELECT * FROM subs WHERE fails < 20').all()).results || []).filter((s) => {
+    try { return !!JSON.parse(s.follows || '{}').alerts; } catch (e) { return false; }
+  });
+  if (!subs.length) return 0;
+  const keys = await vapidKeys(env);
+  let sent = 0;
+  for (const s of subs) {
+    const msg = {
+      title: say('srcFail', s.lang, alerts.map((a) => a[0]).join(', ')),
+      body: alerts.map((a) => a[0] + ': ' + a[1]).join('\n').slice(0, 240), tag: 'srcfail', url: '/'
+    };
+    sent += await sendPush(env, keys, s, msg).then(() => 1, () => 0);
+  }
+  return sent;
 }
 
 // once an hour: logins gone unused, spent reset links, old attempt counts
@@ -838,6 +903,90 @@ async function watch(env) {
         });
       }
       await note(key, 'post', '', fresh ? 'final' : 'old');
+    }
+  }
+
+  /* ---- tennis: a followed player's match, when it starts and when it is decided.
+     Both tours' boards come from ESPN; a player is known by ESPN's id. */
+  const tnFollow = subs.filter((s) => (s.f.tennis || []).length);
+  for (const tour of ['atp', 'wta']) {
+    const who = tnFollow.filter((s) => s.f.tennis.some((t) => t.tour === tour));
+    if (!who.length) continue;
+    let evs = [];
+    try { evs = (await espn('tennis/' + tour + '/scoreboard')).events || []; } catch (e) {}
+    for (const ev of evs) {
+      for (const g of ev.groupings || []) {
+        if (!/singles/i.test(((g.grouping || {}).displayName) || '')) continue;
+        for (const c of g.competitions || []) {
+          const cs = c.competitors || [];
+          const ids = cs.map((x) => String(x.id));
+          const fans = who.filter((s) => s.f.tennis.some((t) => ids.includes(String(t.id))));
+          if (!fans.length) continue;
+          const key = 'tn:' + c.id;
+          const st = ((c.status || {}).type || {}).state || 'pre';
+          const prev = await seen(key);
+          const flags = new Set(((prev && prev.notified) || '').split(',').filter(Boolean));
+          const fire = [];
+          if (st === 'in' && !flags.has('kick')) fire.push('kick');
+          if (st === 'post' && prev && !flags.has('final')) fire.push('final');
+          const nm = (x) => ((x && x.athlete) || {}).displayName || 'TBD';
+          const a = cs[0], b = cs[1];
+          const w = cs.find((x) => x.winner), l = w && cs.find((x) => x !== w);
+          const where = [ev.name, (c.round || {}).displayName].filter(Boolean).join(' · ');
+          const sets = w ? (w.linescores || []).map((ls, i) => ls.value + '-' + (((l.linescores || [])[i] || {}).value ?? 0)).join(' ') : '';
+          for (const e of fire) {
+            flags.add(e);
+            fans.forEach((s) => {
+              out.push([s, e === 'kick'
+                ? { title: say('esOn', s.lang, nm(a), nm(b)), body: where, tag: key, url: '/?go=tennis' }
+                : w ? { title: say('ufcWin', s.lang, nm(w), nm(l)), body: [sets, where].filter(Boolean).join(' · '), tag: key, url: '/?go=tennis' }
+                  : { title: say('ufcEnd', s.lang, nm(a), nm(b)), body: where, tag: key, url: '/?go=tennis' }]);
+            });
+          }
+          if (!prev || fire.length || prev.state !== st) await note(key, st, '', [...flags].join(','));
+        }
+      }
+    }
+  }
+
+  /* ---- snooker: a followed player's results, and each tournament's champion,
+     from the site's own file (Wikipedia, read every half hour). Only a result
+     from the last few days is told; an older one first seen now is noted. */
+  const snFollow = subs.filter((s) => (s.f.snooker || []).length);
+  if (snFollow.length) {
+    let d = null;
+    try {
+      const r = await fetch(ORIGINS[0] + '/data/snooker.json', { cf: { cacheTtl: 300 } });
+      if (r.ok) d = await r.json();
+    } catch (e) {}
+    const norm = (n) => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    const since = new Date(now - 3 * DAY).toISOString().slice(0, 10);
+    for (const t of (d && d.calendar) || []) {
+      const fresh = (t.end || t.start || '') >= since;
+      for (const r of ((d.draws || {})[t.page]) || []) {
+        for (const m of r.matches || []) {
+          if (m.w !== 'a' && m.w !== 'b') continue;
+          const names = [norm(m.a), norm(m.b)];
+          const fans = snFollow.filter((s) => s.f.snooker.some((f) => names.includes(norm(f.name))));
+          if (!fans.length) continue;
+          const key = 'sn:' + t.page + ':' + r.name + ':' + names.join('|');
+          if (await seen(key)) continue;
+          if (fresh) {
+            const W = m.w === 'a' ? m.a : m.b, L = m.w === 'a' ? m.b : m.a;
+            const ws = m.w === 'a' ? m.s1 : m.s2, ls = m.w === 'a' ? m.s2 : m.s1;
+            const score = typeof ws === 'number' && typeof ls === 'number' ? ws + '-' + ls : 'w/o';
+            fans.forEach((s) => out.push([s, { title: say('ufcWin', s.lang, W, L), body: `${score} · ${t.name} · ${r.name}`, tag: key, url: '/?go=snooker' }]));
+          }
+          await note(key, 'post', '', fresh ? 'final' : 'old');
+        }
+      }
+      if (t.winner) {
+        const key = 'snc:' + t.page;
+        if (!(await seen(key))) {
+          if (fresh) snFollow.forEach((s) => out.push([s, { title: say('snChamp', s.lang, t.winner, t.name), body: [t.score, t.runner].filter(Boolean).join(' vs '), tag: key, url: '/?go=snooker' }]));
+          await note(key, 'post', '', fresh ? 'final' : 'old');
+        }
+      }
     }
   }
 
@@ -1058,8 +1207,15 @@ async function health(req, env) {
     agoSec: Math.round((Date.now() - t.at) / 1000), ms: t.ms, pushes: t.pushes, settled: t.settled, error: t.error
   } : { ok: false, last: null };
   const mail = { via: mailer(env) || 'off' };
+  // the collector: when it last ran and what it reported failing
+  const st = await readStatus();
+  const collector = st ? {
+    ok: Date.now() - Date.parse(st.ranAt) < 45 * MIN && !Object.values(st.sources || {}).some((x) => x && x.ok === false),
+    agoMin: Math.round((Date.now() - Date.parse(st.ranAt)) / MIN),
+    failing: Object.keys(st.sources || {}).filter((k) => st.sources[k] && st.sources[k].ok === false)
+  } : { ok: false, error: 'status.json unreachable' };
   if (conf.mailError) mail.lastError = { at: new Date(conf.mailError.at).toISOString(), error: conf.mailError.error };
-  return { ok: true, cron, espn, sources, mail, users: n.users, subs: n.subs };
+  return { ok: true, cron, espn, sources, collector, mail, users: n.users, subs: n.subs };
 }
 
 const ROUTES = {
@@ -1108,5 +1264,5 @@ export default {
     ctx.waitUntil(tick(env));
   },
   // exercised by the test page; nothing routes here
-  _test: { encryptPayload, hashPassword, b64u, unb64u, tick, verifyPicks, sweep, surname, SESSION_IDLE }
+  _test: { encryptPayload, hashPassword, b64u, unb64u, tick, verifyPicks, sweep, surname, SESSION_IDLE, checkSources }
 };

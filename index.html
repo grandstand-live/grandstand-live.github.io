@@ -1707,6 +1707,18 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- the bar's editor, Today's order, the first visit ---- */
+  .ed { border: 1px solid var(--hairline); border-radius: 3px; }
+  .ed-row { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--hairline); font-size: 14px; }
+  .ed-row:last-child { border-bottom: none; }
+  .ed-row label, .ed-row > span { flex: 1; display: flex; align-items: center; gap: 8px; }
+  .ed-mv { width: 32px; height: 28px; border: 1px solid var(--hairline); border-radius: 3px; background: var(--surface); color: var(--ink-2); font-size: 14px; cursor: pointer; }
+  .ed-mv:disabled { opacity: .3; cursor: default; }
+  .set-chk { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 10px; }
+  .onb .onb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 14px; }
+  .onb .onb-list { max-height: 55vh; overflow-y: auto; }
+  .onb-go { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .onb-go .set-go { width: auto; padding: 0 22px; margin: 0; }
   /* ---- tennis and snooker ---- */
   .tn-filter { margin-top: 8px; }
   .tn-ev { padding: 10px 12px 8px; margin-top: 10px; }
@@ -3531,7 +3543,7 @@
   });
 
   function renderSportNav() {
-    $('sportnav').innerHTML = SPORTS.map(function (s) {
+    $('sportnav').innerHTML = navSports().map(function (s) {
       return '<button type="button" data-sport="' + s.id + '" aria-pressed="' + (s.id === sport) + '">' +
         s.name + '</button>';
     }).join('');
@@ -3643,7 +3655,7 @@
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
     $('subtitle').innerHTML = '<span class="sport-mark">' + (SPORT_MARK[id] || '◎') +
       '</span>' + esc(s.sub);
-    $('gearBtn').textContent = id === 'f1' ? '车手' : id === 'tennis' ? '球员' : (id === 'esports' ? '战队'
+    $('gearBtn').textContent = id === 'f1' ? '车手' : id === 'tennis' ? '球员' : id === 'snooker' ? '球员' : (id === 'esports' ? '战队'
       : (id === 'fight' ? (fightLeague === 'boxing' ? '拳手' : '选手') : '主队'));
 
     var ready = !!s.ready;
@@ -3659,7 +3671,7 @@
     $('settings').hidden = true;
     $('panel-soon').hidden = ready;
     $('panel-today').hidden = !isToday;
-    $('gearBtn').hidden = !ready || isToday || id === 'snooker' ||
+    $('gearBtn').hidden = !ready || isToday ||
       (id === 'basketball' && bballLeague !== 'nba');
     $('refreshBtn').hidden = !ready;
 
@@ -3707,7 +3719,7 @@
     esports_other: [['fixtures', '赛程'], ['table', '战绩榜'], ['mine', '我的战队']],
     single: [['fixtures', '赛程']],
     tennis: [['fixtures', '赛事'], ['table', '排名'], ['mine', '我的球员']],
-    snooker: [['fixtures', '赛事'], ['table', '排名']]
+    snooker: [['fixtures', '赛事'], ['table', '排名'], ['mine', '我的球员']]
   };
   function renderSegTabs() {
     var defs = (sport === 'esports' && esportsGame !== 'lol') ? TABS.esports_other
@@ -3799,9 +3811,9 @@
       return;
     }
     if (sport === 'snooker') {
-      // two boards only: a follow tab carried over from another sport opens the events
-      if (next === 'mine') { tab = next = 'fixtures'; $('panel-fixtures').hidden = false; $('panel-mine').hidden = true; renderSegTabs(); }
-      if (next === 'table') renderSnookerRank(); else renderSnooker();
+      if (next === 'table') renderSnookerRank();
+      else if (next === 'mine') renderMySnooker();
+      else renderSnooker();
       return;
     }
     if (sport === 'f1') {
@@ -5575,7 +5587,7 @@
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
       f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
-      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML, nbaCmp: nbaCmpPageHTML, pandaTeam: pandaTeamPageHTML, search: srchPageHTML, tennisPlayer: tnPlayerPageHTML })[top.type](top).then(function (html) {
+      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML, nbaCmp: nbaCmpPageHTML, pandaTeam: pandaTeamPageHTML, search: srchPageHTML, tennisPlayer: tnPlayerPageHTML, snookerPlayer: snPlayerPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -10624,10 +10636,10 @@ O
   // in both themes rather than the live accent — but the same family as it.
   var SPORT_TINT = {
     football: '#2E8B74', basketball: '#E07A3C', f1: '#D6453F',
-    esports: '#7C6BDD', fight: '#C25A38'
+    esports: '#7C6BDD', fight: '#C25A38', tennis: '#9AA63A', snooker: '#2E8B57'
   };
   var SPORT_LABEL = {
-    football: '足球', basketball: '篮球', f1: 'F1', esports: '电竞', fight: '格斗'
+    football: '足球', basketball: '篮球', f1: 'F1', esports: '电竞', fight: '格斗', tennis: '网球', snooker: '斯诺克'
   };
   var todayTimer = null;
 
@@ -11005,13 +11017,22 @@ O
         return { kind: 'boxing', data: d || {} };
       }));
     }
+    if (favTennis.length) {
+      jobs.push(Promise.all([tnBoard('atp'), tnBoard('wta')]).then(function (r) {
+        return { kind: 'tennis', boards: { atp: r[0], wta: r[1] } };
+      }));
+    }
+    if (favSnooker.length) {
+      jobs.push(archiveGet('snooker.json').then(function (d) { return { kind: 'snooker', data: d || {} }; }));
+    }
 
     if (!jobs.length) {
       // following nothing is not the same as having nothing: a call made on
       // any fixture still belongs on this page
       host.innerHTML = '<div class="empty">还没有关注任何队伍。<br><br>' +
         '到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，' +
-        '到「格斗」点「选手」或「拳手」，选完之后这一页会把他们的下一场比赛汇总在一起。</div>' +
+        '到「格斗」点「选手」或「拳手」，到「网球」点「球员」，到「斯诺克」点「球员」，选完之后这一页会把他们的下一场比赛汇总在一起。' +
+        '<br><br><button type="button" class="btn" data-onbopen="1">帮我挑几个</button></div>' +
         recordCardHTML();
       return;
     }
@@ -11225,6 +11246,45 @@ O
         }
       });
 
+      // tennis and snooker, read the same way: what is on or next, and what has been played
+      results.forEach(function (res) {
+        if (res.kind === 'tennis') {
+          favTennis.forEach(function (f) {
+            var booked = [];
+            ((res.boards[f.tour] && res.boards[f.tour].events) || []).forEach(function (ev) {
+              var g = tnSingles(ev, f.tour);
+              ((g && g.competitions) || []).forEach(function (c) {
+                var cs = c.competitors || [];
+                var me = cs.filter(function (x) { return String(x.id) === String(f.id); })[0];
+                if (!me) return;
+                var opp = cs.filter(function (x) { return x !== me; })[0] || {};
+                var st = ((c.status || {}).type) || {};
+                var title = esc(tnName(f.name)) + ' <span class="vs-mid">vs</span> ' + esc(tnName((opp.athlete || {}).displayName) || 'TBD');
+                if (st.state === 'post' && within(c.date, BACK_H, 3)) {
+                  var sets = (me.linescores || []).map(function (l, i) { return l.value + '-' + (((opp.linescores || [])[i] || {}).value || 0); }).join(' ');
+                  recent.push({ when: new Date(c.date), sport: 'tennis', mark: me.winner ? 'W' : 'L', title: title, score: sets, word: me.winner ? '胜' : '负' });
+                } else if (st.state !== 'post' && within(c.date, 3, AHEAD_H)) {
+                  booked.push({ id: c.id, when: new Date(c.date), sport: 'tennis', tag: tnEvName(ev.name), live: st.state === 'in',
+                    title: title, sub: tnRound((c.round || {}).displayName) });
+                }
+              });
+            });
+            soonest(booked, 1).forEach(function (u) { upcoming.push(u); });
+            if (!booked.length) idle.push({ sport: 'tennis', name: tnName(f.name) });
+          });
+        }
+        if (res.kind === 'snooker') {
+          favSnooker.forEach(function (f) {
+            snMatchesOf(res.data, f.name).filter(function (x) { return x.m.w; }).slice(0, 2).forEach(function (x) {
+              var mine = x.side === 'a', won = x.m.w === x.side;
+              recent.push({ when: null, sport: 'snooker', mark: won ? 'W' : 'L',
+                title: esc(snName(f.name)) + ' <span class="vs-mid">vs</span> ' + esc(snName(mine ? x.m.b : x.m.a)),
+                score: snScoreText(mine ? x.m.s1 : x.m.s2, mine ? x.m.s2 : x.m.s1, won), word: snRound(x.r.name) });
+            });
+          });
+        }
+      });
+
       upcoming.sort(function (a, b) { return a.when - b.when; });
       recent.sort(function (a, b) { return (b.when || 0) - (a.when || 0); });
 
@@ -11244,7 +11304,7 @@ O
         score += Math.max(0, 120 - hours);       // sooner is better
         if (score > heroScore) { heroScore = score; hero = u; }
       });
-      var html = '';
+      var html = '', parts = { live: '', cards: '', next: '', idle: '', recent: '', record: '', ics: '' };
 
       if (hero) {
         var reason = '';
@@ -11276,20 +11336,20 @@ O
       var liveRest = live.filter(notHero), futureRest = future.filter(notHero);
 
       if (liveRest.length) {
-        html += '<div class="group-name"><span class="dot"></span>正在进行</div><div class="card">' +
+        parts.live += '<div class="group-name"><span class="dot"></span>正在进行</div><div class="card">' +
           liveRest.map(rowUpcoming).join('') + '</div>';
       }
-      html += favCardsHTML(results);
+      parts.cards += favCardsHTML(results);
       if (futureRest.length) {
-        html += '<div class="group-name">接下来</div><div class="card">' +
+        parts.next += '<div class="group-name">接下来</div><div class="card">' +
           futureRest.slice(0, 12).map(rowUpcoming).join('') + '</div>';
       } else if (!live.length && !hero) {
-        html += '<div class="group-name">接下来</div><div class="card">' +
+        parts.next += '<div class="group-name">接下来</div><div class="card">' +
           '<div class="fix"><span>关注的队伍和选手都还没有排赛</span></div></div>';
       }
       if (idle.length) {
         var shown = idle.slice(0, 6);
-        html += '<div class="card" style="margin-top:10px">' + shown.map(function (x) {
+        parts.idle += '<div class="card" style="margin-top:10px">' + shown.map(function (x) {
           return '<div class="fix"><span class="rail" style="background:' +
             (SPORT_TINT[x.sport] || 'var(--muted)') + '"></span>' +
             '<span class="vs">' + esc(x.name) + '</span>' +
@@ -11324,7 +11384,7 @@ O
           if (weight > topWeight) { topWeight = weight; topResult = { row: r, note: note }; }
         });
 
-        html += '<div class="group-name">最近</div><div class="card">' +
+        parts.recent += '<div class="group-name">最近</div><div class="card">' +
           shownRecent.map(function (r) {
             var line = (topResult && topResult.row === r) ? topResult.note : '';
             return '<div class="fix"><span class="rail" style="background:' + SPORT_TINT[r.sport] + '"></span>' +
@@ -11334,10 +11394,11 @@ O
               (line ? '<div class="after-line">' + esc(line) + '</div>' : '');
           }).join('') + '</div>';
       }
-      html += recordCardHTML();
-      html += '<div class="ics-row"><button class="btn" type="button" id="icsBtn">导出到日历 (.ics)</button>' +
+      parts.record += recordCardHTML();
+      parts.ics += '<div class="ics-row"><button class="btn" type="button" id="icsBtn">导出到日历 (.ics)</button>' +
         '<span class="count">加进手机日历，开赛前 30 分钟提醒</span></div>';
 
+      html += todayOrder().map(function (k) { return parts[k] || ''; }).join('');
       host.innerHTML = html;
       remindFrom(upcoming);
       var b = $('icsBtn');
@@ -16372,7 +16433,7 @@ O
   var SRCH_ESPN = 'https://site.web.api.espn.com/apis/search/v2?region=us&lang=en&limit=15&query=';
   var srchLast = '', srchSeq = 0, srchTimer = null;
   var srchRecent = lsGet('srchRecent', []);
-  var SRCH_GROUPS = [['football', '足球'], ['nba', '篮球'], ['f1', 'F1'], ['fight', '格斗'], ['esports', '电竞'], ['tennis', '网球']];
+  var SRCH_GROUPS = [['football', '足球'], ['nba', '篮球'], ['f1', 'F1'], ['fight', '格斗'], ['esports', '电竞'], ['tennis', '网球'], ['snooker', '斯诺克']];
 
   function srchHas(hay, q) { return plain(String(hay || '')).indexOf(q) !== -1; }
   function srchScore(keys, qs) {
@@ -16499,7 +16560,7 @@ O
     if (!q || (!srchCJK(q) && q.length < 2)) { box.innerHTML = srchIdleHTML(); return; }
     box.innerHTML = '<div class="skeleton" style="padding:10px 0">正在搜索…</div>';
     var terms = srchCJK(q) ? srchEnglish(q) : [q];
-    var jobs = terms.map(srchESPN).concat([srchF1(q), srchLol(q), srchPanda(q), srchBoxers(q)]);
+    var jobs = terms.map(srchESPN).concat([srchF1(q), srchLol(q), srchPanda(q), srchBoxers(q), srchSnooker(q)]);
     Promise.all(jobs.map(function (p) { return p.catch(function () { return []; }); })).then(function (r) {
       if (seq !== srchSeq || !box.isConnected) return;
       var all = [].concat.apply([], r), seen = {};
@@ -16940,7 +17001,7 @@ O
     var played = typeof m.s1 === 'number' && typeof m.s2 === 'number' && (m.s1 || m.s2);
     function row(n, c, seed, s, win) {
       return '<div class="tn-p' + (m.w && win ? ' win' : m.w ? ' lose' : '') + (c === 'CHN' ? ' cn' : '') + '"><span class="sn-nat">' + esc(LANG === 'en' ? c : SN_NAT_CN[c] || c) + '</span>' +
-        '<span class="tn-n">' + esc(snName(n) || (LANG === 'en' ? 'TBD' : '待定')) + (seed && seed !== 'a' ? '<small>' + esc(seed) + '</small>' : '') + '</span>' +
+        '<span class="tn-n"' + (n ? ' data-snp="' + esc(n) + '"' : '') + '>' + esc(snName(n) || (LANG === 'en' ? 'TBD' : '待定')) + (seed && seed !== 'a' ? '<small>' + esc(seed) + '</small>' : '') + '</span>' +
         '<span class="tn-sets"><span class="tn-g' + (m.w && win ? ' w' : '') + '">' + (played || /w\/o/i.test(String(s)) ? esc(String(s)) : '') + '</span></span></div>';
     }
     return '<div class="tn-m">' + row(m.a, m.ac, m.as_, m.s1, m.w === 'a') + row(m.b, m.bc, m.bs_, m.s2, m.w === 'b') +
@@ -16991,7 +17052,7 @@ O
       if (!list.length) { host.innerHTML = archiveEmpty('斯诺克排名'); return; }
       var en = LANG === 'en';
       host.innerHTML = '<div class="note">' + (en ? 'World ranking, top 16' : '世界排名前 16') + '</div><div class="card tn-rk">' + list.map(function (x) {
-        return '<div class="tn-rr' + (x.c === 'CHN' ? ' cn' : '') + '"><span class="tn-rn">' + x.rank + '</span>' +
+        return '<div class="tn-rr' + (x.c === 'CHN' ? ' cn' : '') + '" data-snp="' + esc(x.n) + '"><span class="tn-rn">' + x.rank + '</span>' +
           '<span class="vrs-mv ' + (x.mv > 0 ? 'up' : x.mv < 0 ? 'dn' : '') + '">' + (x.mv > 0 ? '▲' + x.mv : x.mv < 0 ? '▼' + (-x.mv) : '–') + '</span>' +
           '<span class="sn-nat">' + esc(en ? x.c : SN_NAT_CN[x.c] || x.c) + '</span><span class="tn-rname">' + esc(snName(x.n)) + '</span>' +
           '<span class="tn-pts">' + (x.pts ? x.pts.toLocaleString('en-US') : '') + '</span></div>';
@@ -17018,6 +17079,353 @@ O
     var y = window.pageYOffset;
     renderTennis();
     setTimeout(function () { window.scrollTo(0, y); }, 0);
+  }, true);
+
+  /* ---------- the sport bar as you want it, and a first visit that asks ----------
+     Eight sports no longer fit a phone's width. Each can be hidden and the
+     rest put in any order; Today always leads. A first visit that follows
+     nothing is asked which sports it cares about and offered a few popular
+     teams and players to start with, so Today is not an empty page. */
+  var navPrefs = lsGet('navPrefs', null) || { order: [], hide: [] };
+  function navOrdered() {
+    var order = navPrefs.order || [];
+    return SPORTS.slice().sort(function (a, b) {
+      if (a.id === 'today') return -1;
+      if (b.id === 'today') return 1;
+      var ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+      return (ia < 0 ? 50 + SPORTS.indexOf(a) : ia) - (ib < 0 ? 50 + SPORTS.indexOf(b) : ib);
+    });
+  }
+  function navSports() {
+    var hide = navPrefs.hide || [];
+    // a hidden sport still shows while it is the one open, so the bar never loses its place
+    return navOrdered().filter(function (s) { return s.id === 'today' || s.id === sport || hide.indexOf(s.id) === -1; });
+  }
+  function navSave() {
+    lsSet('navPrefs', navPrefs);
+    renderSportNav();
+  }
+  var TODAY_PARTS = [['live', '正在进行'], ['cards', '关注的队伍卡片'], ['next', '接下来'], ['idle', '还没排赛的'], ['recent', '最近结果'], ['record', '我的预测战绩'], ['ics', '导出到日历']];
+  function todayOrder() {
+    var saved = lsGet('todayOrder', null) || [];
+    var keys = TODAY_PARTS.map(function (p) { return p[0]; });
+    return saved.filter(function (k) { return keys.indexOf(k) !== -1; })
+      .concat(keys.filter(function (k) { return saved.indexOf(k) === -1; }));
+  }
+  function navEditorHTML() {
+    var hide = navPrefs.hide || [];
+    var list = navOrdered().filter(function (s) { return s.id !== 'today'; });
+    return list.map(function (s, i) {
+      var on = hide.indexOf(s.id) === -1;
+      return '<div class="ed-row"><label><input type="checkbox" data-navshow="' + s.id + '"' + (on ? ' checked' : '') + '> ' + esc(s.name) + '</label>' +
+        '<button type="button" class="ed-mv" data-navmv="' + s.id + '" data-d="-1"' + (i ? '' : ' disabled') + ' aria-label="上移">↑</button>' +
+        '<button type="button" class="ed-mv" data-navmv="' + s.id + '" data-d="1"' + (i < list.length - 1 ? '' : ' disabled') + ' aria-label="下移">↓</button></div>';
+    }).join('');
+  }
+  function todayEditorHTML() {
+    var order = todayOrder();
+    return order.map(function (k, i) {
+      var label = (TODAY_PARTS.filter(function (p) { return p[0] === k; })[0] || [k, k])[1];
+      return '<div class="ed-row"><span>' + esc(label) + '</span>' +
+        '<button type="button" class="ed-mv" data-tmv="' + k + '" data-d="-1"' + (i ? '' : ' disabled') + ' aria-label="上移">↑</button>' +
+        '<button type="button" class="ed-mv" data-tmv="' + k + '" data-d="1"' + (i < order.length - 1 ? '' : ' disabled') + ' aria-label="下移">↓</button></div>';
+    }).join('');
+  }
+  function editorsHTML() {
+    return '<div class="set-k" style="margin-top:18px">顶部运动栏</div><div class="ed" id="navEd">' + navEditorHTML() + '</div>' +
+      '<div class="set-note">取消勾选的运动不在顶栏显示，箭头调整先后；「今天」始终在最前。</div>' +
+      '<div class="set-k" style="margin-top:18px">「今天」页的顺序</div><div class="ed" id="todayEd">' + todayEditorHTML() + '</div>';
+  }
+  function move(list, k, d) {
+    var i = list.indexOf(k), j = i + d;
+    if (i < 0 || j < 0 || j >= list.length) return list;
+    list.splice(i, 1);
+    list.splice(j, 0, k);
+    return list;
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-navmv], [data-tmv]');
+    if (!el) return;
+    e.stopPropagation();
+    var d = Number(el.dataset.d);
+    if (el.dataset.navmv) {
+      navPrefs.order = move(navOrdered().map(function (s) { return s.id; }).filter(function (id) { return id !== 'today'; }), el.dataset.navmv, d);
+      navSave();
+      var ne = $('navEd');
+      if (ne) ne.innerHTML = navEditorHTML();
+    } else {
+      lsSet('todayOrder', move(todayOrder(), el.dataset.tmv, d));
+      var te = $('todayEd');
+      if (te) te.innerHTML = todayEditorHTML();
+      if (sport === 'today') renderToday();
+    }
+  }, true);
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (el && el.dataset && el.dataset.navshow) {
+      var hide = (navPrefs.hide || []).filter(function (id) { return id !== el.dataset.navshow; });
+      if (!el.checked) hide.push(el.dataset.navshow);
+      navPrefs.hide = hide;
+      navSave();
+    } else if (el && el.dataset && el.dataset.act === 'alerts') {
+      lsSet('pushAlerts', !!el.checked);
+      pushSync();
+    }
+  });
+
+  // the first visit: which sports, then a few to follow
+  var ONB_FOOTBALL = [['esp.1', '86', 'Real Madrid'], ['esp.1', '83', 'Barcelona'], ['eng.1', '382', 'Manchester City'], ['eng.1', '364', 'Liverpool'],
+    ['eng.1', '359', 'Arsenal'], ['eng.1', '360', 'Manchester United'], ['eng.1', '363', 'Chelsea'], ['ger.1', '132', 'Bayern Munich'],
+    ['ita.1', '110', 'Internazionale'], ['ita.1', '103', 'AC Milan'], ['ita.1', '111', 'Juventus'], ['fra.1', '160', 'Paris Saint-Germain']];
+  var ONB_NBA = [['13', 'Los Angeles Lakers'], ['9', 'Golden State Warriors'], ['2', 'Boston Celtics'], ['10', 'Houston Rockets'], ['4', 'Chicago Bulls'],
+    ['18', 'New York Knicks'], ['14', 'Miami Heat'], ['24', 'San Antonio Spurs'], ['7', 'Denver Nuggets'], ['25', 'Oklahoma City Thunder']];
+  var ONB_LOL = ['T1', 'GEN', 'HLE', 'BLG', 'AL', 'TES', 'JDG', 'G2'];
+  function anyFollows() {
+    return favorites.length || favNba.length || favDrivers.length || favLol.length || favFighters.length ||
+      favBoxers.length || favTennis.length || favSnooker.length || (favPanda.cs2 || []).length || (favPanda.valorant || []).length;
+  }
+  var onbPicked = null;
+  function onbSheet() {
+    var s = $('onbSheet');
+    if (!s) {
+      s = document.createElement('div');
+      s.id = 'onbSheet';
+      s.className = 'sh-sheet';
+      document.body.appendChild(s);
+    }
+    return s;
+  }
+  function onbShow() {
+    onbPicked = { sports: SPORTS.filter(function (x) { return x.id !== 'today'; }).map(function (x) { return x.id; }), follow: {} };
+    onbStep1();
+  }
+  function onbStep1() {
+    var s = onbSheet();
+    s.innerHTML = '<div class="set-box onb"><div class="set-h">欢迎来到 Grandstand</div>' +
+      '<div class="set-note">先选你关心的运动，没选的会从顶栏收起来，之后在设置里随时能改。</div>' +
+      '<div class="onb-chips">' + SPORTS.filter(function (x) { return x.id !== 'today'; }).map(function (x) {
+        return '<button type="button" class="chip" data-onbs="' + x.id + '" aria-pressed="' + (onbPicked.sports.indexOf(x.id) !== -1) + '">' + esc(x.name) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="onb-go"><button type="button" class="set-link" data-onb="skip">跳过</button><button type="button" class="set-go" data-onb="next">下一步</button></div></div>';
+    s.hidden = false;
+  }
+  function onbStep2() {
+    var s = onbSheet(), want = onbPicked.sports;
+    s.innerHTML = '<div class="set-box onb"><div class="set-h">关注几个？</div><div class="set-note">点一下就关注，「今天」页会把他们的比赛汇总在一起。</div>' +
+      '<div class="onb-list"><div class="skeleton">正在载入…</div></div>' +
+      '<div class="onb-go"><button type="button" class="set-link" data-onb="back">上一步</button><button type="button" class="set-go" data-onb="done">完成</button></div></div>';
+    var jobs = [];
+    if (want.indexOf('tennis') !== -1) jobs.push(Promise.all([tnRanks('atp'), tnRanks('wta')]));
+    else jobs.push(Promise.resolve(null));
+    if (want.indexOf('esports') !== -1) jobs.push(archiveGet('search-lol.json')); else jobs.push(Promise.resolve(null));
+    if (want.indexOf('f1') !== -1) jobs.push(f1DriverMap().catch(function () { return null; })); else jobs.push(Promise.resolve(null));
+    Promise.all(jobs).then(function (r) {
+      var box = s.querySelector('.onb-list');
+      if (!box) return;
+      var html = '';
+      function group(title, items) {
+        if (!items.length) return '';
+        return '<div class="set-k">' + title + '</div><div class="onb-chips">' + items.map(function (it) {
+          var key = it.k;
+          return '<button type="button" class="chip" data-onbf="' + esc(key) + '" aria-pressed="' + !!onbPicked.follow[key] + '">' + esc(it.label) + '</button>';
+        }).join('') + '</div>';
+      }
+      onbPicked.items = {};
+      function reg(list) { list.forEach(function (it) { onbPicked.items[it.k] = it; }); return list; }
+      if (want.indexOf('football') !== -1) html += group('足球', reg(ONB_FOOTBALL.map(function (t) {
+        return { k: 'fb:' + t[1], label: cn(t[2], t[2]), save: function () { favorites.push({ id: t[1], name: cn(t[2], t[2]), raw: t[2], league: t[0] }); } };
+      })));
+      if (want.indexOf('basketball') !== -1) html += group('NBA', reg(ONB_NBA.map(function (t) {
+        return { k: 'nba:' + t[0], label: nbaCN(t[1]), save: function () { favNba.push({ id: t[0], name: nbaCN(t[1]) }); } };
+      })));
+      if (r[2]) {
+        var ds = Object.keys(r[2]).map(function (n) { return r[2][n]; }).filter(function (d) { return d.full_name; }).slice(0, 22);
+        html += group('F1 车手', reg(ds.map(function (d) {
+          return { k: 'f1:' + d.driver_number, label: driverCN(f1RadioName(d.full_name)) || d.full_name, save: function () {
+            favDrivers.push({ num: String(d.driver_number), name: d.full_name || '', team: d.team_name || '', colour: d.team_colour || '', photo: d.headshot_url || '', acr: d.name_acronym || '' });
+          } };
+        })));
+      }
+      if (r[0]) {
+        var tn = [];
+        ['atp', 'wta'].forEach(function (tour, i) {
+          var list = ((((r[0][i] || {}).rankings) || [])[0] || {}).ranks || [];
+          list.forEach(function (x, j) {
+            var a = x.athlete || {};
+            if (j < 5 || tnIsCN(a)) tn.push({ k: 'tn:' + a.id, label: tnName(a.displayName), save: function () { favTennis.push({ id: String(a.id), name: a.displayName, tour: tour }); } });
+          });
+        });
+        html += group('网球', reg(tn.slice(0, 20)));
+      }
+      if (r[1]) {
+        var lol = ONB_LOL.map(function (code) { return ((r[1].teams) || []).filter(function (t) { return t.code === code; })[0]; }).filter(Boolean);
+        html += group('英雄联盟', reg(lol.map(function (t) {
+          return { k: 'lol:' + t.code, label: t.code, save: function () { favLol.push({ code: t.code, name: t.name, image: t.img }); } };
+        })));
+      }
+      box.innerHTML = html || '<div class="set-note">选的运动暂时没有推荐，完成后可以在各自页面右上角挑。</div>';
+    });
+  }
+  function onbFinish(skip) {
+    lsSet('onboarded', true);
+    var s = $('onbSheet');
+    if (s) s.hidden = true;
+    if (skip) return;
+    navPrefs.hide = SPORTS.map(function (x) { return x.id; }).filter(function (id) { return id !== 'today' && onbPicked.sports.indexOf(id) === -1; });
+    navSave();
+    Object.keys(onbPicked.follow).forEach(function (k) { var it = onbPicked.items && onbPicked.items[k]; if (it) it.save(); });
+    lsSet('favTeams', favorites.slice(0, MAX_TEAMS));
+    lsSet('favNba', favNba.slice(0, MAX_NBA));
+    lsSet('favDrivers', favDrivers.slice(0, MAX_DRIVERS));
+    lsSet('favTennis', favTennis.slice(0, MAX_TENNIS));
+    lsSet('favLol', favLol.slice(0, MAX_LOL));
+    if (typeof setFavCount === 'function') setFavCount();
+    if (sport === 'today') renderToday(); else setSport('today');
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-onbs], [data-onbf], [data-onb]');
+    if (!el) return;
+    e.stopPropagation();
+    if (el.dataset.onbs) {
+      var i = onbPicked.sports.indexOf(el.dataset.onbs);
+      if (i === -1) onbPicked.sports.push(el.dataset.onbs); else onbPicked.sports.splice(i, 1);
+      el.setAttribute('aria-pressed', String(i === -1));
+      return;
+    }
+    if (el.dataset.onbf) {
+      var on = !onbPicked.follow[el.dataset.onbf];
+      if (on) onbPicked.follow[el.dataset.onbf] = 1; else delete onbPicked.follow[el.dataset.onbf];
+      el.setAttribute('aria-pressed', String(on));
+      return;
+    }
+    var act = el.dataset.onb;
+    if (act === 'next') onbStep2();
+    else if (act === 'back') onbStep1();
+    else if (act === 'skip') onbFinish(true);
+    else if (act === 'done') onbFinish(false);
+  }, true);
+
+  /* ---------- snooker: following a player, and a player's season ---------- */
+  var favSnooker = lsGet('favSnooker', []), MAX_SNOOKER = 8;
+  function snKey(n) { return plain(String(n || '')).trim(); }
+  // every match a player has on the season's draws, the latest first
+  function snMatchesOf(d, name) {
+    var k = snKey(name), out = [];
+    ((d && d.calendar) || []).forEach(function (t, ti) {
+      (((d.draws || {})[t.page]) || []).forEach(function (r, ri) {
+        r.matches.forEach(function (m) {
+          var side = snKey(m.a) === k ? 'a' : snKey(m.b) === k ? 'b' : '';
+          if (side) out.push({ t: t, ti: ti, r: r, ri: ri, m: m, side: side });
+        });
+      });
+    });
+    return out.sort(function (x, y) { return y.ti - x.ti || y.ri - x.ri; });
+  }
+  function snNames(d) {
+    var seen = {}, out = [];
+    function add(n, c) { var k = snKey(n); if (n && !seen[k]) { seen[k] = 1; out.push({ n: n, c: c || '' }); } }
+    ((d && d.rankings) || []).forEach(function (x) { add(x.n, x.c); });
+    Object.keys((d && d.draws) || {}).forEach(function (p) {
+      d.draws[p].forEach(function (r) { r.matches.forEach(function (m) { add(m.a, m.ac); add(m.b, m.bc); }); });
+    });
+    return out;
+  }
+  // a walkover has no frames to show, only who went through
+  function snScoreText(s1, s2, won) {
+    if (typeof s1 === 'number' && typeof s2 === 'number') return s1 + '-' + s2;
+    return LANG === 'en' ? (won ? 'walkover' : 'withdrew') : (won ? '对手退赛' : '退赛');
+  }
+  function snResultRow(x) {
+    var m = x.m, me = x.side === 'a', won = m.w === x.side;
+    var opp = me ? m.b : m.a, s1 = me ? m.s1 : m.s2, s2 = me ? m.s2 : m.s1;
+    var played = m.w || (typeof s1 === 'number' && (s1 || s2));
+    return '<div class="pg-ev"><span class="pg-d">' + esc(snRound(x.r.name)) + '</span><span class="pg-op" data-snp="' + esc(opp || '') + '">' + esc(snName(opp) || (LANG === 'en' ? 'TBD' : '待定')) +
+      '<small>' + esc(snEvName(x.t.name)) + '</small></span>' +
+      (played ? '<span class="pg-sc">' + esc(snScoreText(s1, s2, won)) + '</span><span class="f ' + (won ? 'W' : 'L') + '">' + (won ? 'W' : 'L') + '</span>'
+        : '<span class="pg-sc muted">' + (LANG === 'en' ? 'to play' : '待赛') + '</span>') + '</div>';
+  }
+  function snPlayerPageHTML(pg) {
+    return archiveGet('snooker.json').then(function (d) {
+      var name = pg.name, k = snKey(name), en = LANG === 'en';
+      var rk = ((d && d.rankings) || []).filter(function (x) { return snKey(x.n) === k; })[0];
+      var ms = snMatchesOf(d, name);
+      var nat = rk ? rk.c : ms.length ? (ms[0].side === 'a' ? ms[0].m.ac : ms[0].m.bc) : '';
+      var titles = ((d && d.calendar) || []).filter(function (t) { return snKey(t.winner) === k; });
+      var finals = ((d && d.calendar) || []).filter(function (t) { return snKey(t.runner) === k; });
+      var fav = favSnooker.some(function (f) { return snKey(f.name) === k; });
+      var html = '<div class="pg-head"><div class="pg-hd"><div class="pg-name">' + esc(snName(name)) + '</div>' +
+        (snName(name) !== name ? '<div class="pg-sub muted">' + esc(name) + '</div>' : '') +
+        '<div class="pg-sub">' + esc(en ? nat : SN_NAT_CN[nat] || nat) + (en ? ' · Snooker' : ' · 斯诺克') + '</div></div>' +
+        '<button type="button" class="pg-fav' + (fav ? ' on' : '') + '" data-fav-sn="' + esc(name) + '">' + (fav ? '已关注' : '关注') + '</button></div>';
+      html += '<div class="f1-tiles">' + f1Tile(rk ? '#' + rk.rank : (en ? 'outside 16' : '16 名外'), en ? 'Ranking' : '世界排名') +
+        f1Tile(rk && rk.pts ? rk.pts.toLocaleString('en-US') : null, en ? 'Points' : '积分') +
+        f1Tile(String(titles.length), en ? 'Titles this season' : '本赛季冠军') + f1Tile(String(finals.length), en ? 'Lost finals' : '亚军') + '</div>';
+      if (titles.length) html += '<div class="kv"><span class="k">' + (en ? 'Won' : '夺冠') + '</span><span>' + esc(titles.map(function (t) { return snEvName(t.name); }).join('、')) + '</span></div>';
+      html += ms.length ? '<h4>' + (en ? 'This season' : '本赛季比赛') + '</h4><div class="card pg-card">' + ms.slice(0, 15).map(snResultRow).join('') + '</div>'
+        : '<div class="empty" style="margin-top:14px">' + (en ? 'No results on the draws held here.' : '现有的签表里没有这位选手的比赛。') + '</div>';
+      return html + '<div class="fl-note">' + (en ? 'Only the draws of the last few tournaments are kept.' : '只收录了最近几站赛事的签表。') + '</div>';
+    });
+  }
+  function renderMySnooker() {
+    var host = panelFor('panel-mine');
+    if (!favSnooker.length) {
+      host.innerHTML = '<div class="empty">还没有关注选手。<br>点右上角的「球员」挑最多 ' + MAX_SNOOKER + ' 位，这里会显示他们最近的比赛。</div>';
+      return;
+    }
+    host.innerHTML = '<div class="skeleton">正在获取…</div>';
+    archiveGet('snooker.json').then(function (d) {
+      host.innerHTML = favSnooker.map(function (f) {
+        var ms = snMatchesOf(d, f.name).slice(0, 3);
+        return '<div class="card team-card"><div class="tc-head"><span class="nm" data-snp="' + esc(f.name) + '">' + esc(snName(f.name)) + '</span><span class="lg">' +
+          (LANG === 'en' ? 'Snooker' : '斯诺克') + '</span></div>' + (ms.length ? ms.map(snResultRow).join('') : '<div class="fix">' + (LANG === 'en' ? 'No recent matches' : '最近没有比赛') + '</div>') + '</div>';
+      }).join('');
+    });
+  }
+  function renderSnookerPicker() {
+    var host = $('picker');
+    $('pickHint').textContent = '勾选你关注的选手，最多 ' + MAX_SNOOKER + ' 位。';
+    host.innerHTML = '<div class="skeleton">正在载入选手…</div>';
+    archiveGet('snooker.json').then(function (d) {
+      var picked = favSnooker.map(function (f) { return snKey(f.name); });
+      var list = snNames(d);
+      host.innerHTML = list.length ? list.map(function (x) {
+        return '<label><input type="checkbox" value="' + esc(x.n) + '"' + (picked.indexOf(snKey(x.n)) !== -1 ? ' checked' : '') + '>' +
+          esc(snName(x.n)) + (x.c ? ' <small class="muted">' + esc(LANG === 'en' ? x.c : SN_NAT_CN[x.c] || x.c) + '</small>' : '') + '</label>';
+      }).join('') : '<div class="skeleton">选手名单还没抓到。</div>';
+      $('pickCount').textContent = '已选 ' + favSnooker.length + ' / ' + MAX_SNOOKER;
+    });
+  }
+  function saveFavSnooker() {
+    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, MAX_SNOOKER);
+    favSnooker = checked.map(function (c) { return { name: c.value }; });
+    lsSet('favSnooker', favSnooker);
+    $('settings').hidden = true;
+    setTab('mine');
+  }
+  function toggleFavSn(btn) {
+    var name = btn.dataset.favSn, k = snKey(name), on = favSnooker.some(function (f) { return snKey(f.name) === k; });
+    if (on) favSnooker = favSnooker.filter(function (f) { return snKey(f.name) !== k; });
+    else {
+      if (favSnooker.length >= MAX_SNOOKER) { alert('最多只能关注 ' + MAX_SNOOKER + ' 位选手。'); return; }
+      favSnooker.push({ name: name });
+    }
+    lsSet('favSnooker', favSnooker);
+    btn.classList.toggle('on', !on);
+    btn.textContent = on ? '关注' : '已关注';
+  }
+  function srchSnooker(q) {
+    return archiveGet('snooker.json').then(function (d) {
+      return snNames(d).filter(function (x) { return srchHas(x.n, q) || String(SN_CN[snKey(x.n)] || '').indexOf(q) !== -1; }).map(function (x) {
+        return { g: 'snooker', k: [x.n, SN_CN[snKey(x.n)] || ''], name: snName(x.n), sub: (LANG === 'en' ? x.c : SN_NAT_CN[x.c] || x.c) || '', img: '', open: { type: 'snookerPlayer', name: x.n } };
+      });
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-snp], [data-fav-sn]');
+    if (!el) return;
+    e.stopPropagation();
+    if (el.dataset.favSn) { toggleFavSn(el); return; }
+    if (el.dataset.snp) pgOpen({ type: 'snookerPlayer', name: el.dataset.snp });
   }, true);
 
   /* ---------- UFC rankings (collected: ESPN only serves them as $refs) ---------- */
@@ -18618,6 +19026,7 @@ O
       }
       else if (sport === 'basketball') renderNbaPicker();
       else if (sport === 'tennis') renderTennisPicker();
+      else if (sport === 'snooker') renderSnookerPicker();
       else if (sport === 'fight') {
         if (fightLeague === 'boxing') renderBoxerPicker(); else renderFighterPicker();
       }
@@ -18634,6 +19043,14 @@ O
   });
 
   $('picker').addEventListener('change', function (e) {
+    if (sport === 'snooker') {
+      if (document.querySelectorAll('#picker input:checked').length > MAX_SNOOKER) {
+        e.target.checked = false;
+        alert('最多只能选 ' + MAX_SNOOKER + ' 位选手。');
+      }
+      $('pickCount').textContent = '已选 ' + document.querySelectorAll('#picker input:checked').length + ' / ' + MAX_SNOOKER;
+      return;
+    }
     if (sport === 'tennis') {
       if (tnPickCount() > MAX_TENNIS) {
         e.target.checked = false;
@@ -18692,6 +19109,7 @@ O
     if (sport === 'f1') { saveFavDrivers(); return; }
     if (sport === 'basketball') { saveFavNba(); return; }
     if (sport === 'tennis') { saveFavTennis(); return; }
+    if (sport === 'snooker') { saveFavSnooker(); return; }
     if (sport === 'esports') {
       if (esportsGame === 'lol') saveFavLol(); else saveFavPanda();
       return;
@@ -19019,6 +19437,9 @@ O
       f1: favDrivers.length > 0,
       ufc: favFighters.map(function (f) { return { id: String(f.id), name: f.name }; }),
       box: favBoxers.map(function (f) { return { name: f.name }; }),
+      tennis: favTennis.map(function (f) { return { id: String(f.id), name: f.name, tour: f.tour }; }),
+      snooker: favSnooker.map(function (f) { return { name: f.name }; }),
+      alerts: !!lsGet('pushAlerts', false),
       lol: favLol.map(function (f) { return { code: f.code, name: f.name }; }),
       cs2: (favPanda.cs2 || []).map(function (f) { return { id: String(f.id), name: f.name }; }),
       valorant: (favPanda.valorant || []).map(function (f) { return { id: String(f.id), name: f.name }; })
@@ -19073,7 +19494,7 @@ O
       '<div class="set-seg" translate="no">' + [['zh', '中文'], ['en', 'English'], ['mix', 'Mixed']].map(function (o) {
         return '<button type="button" data-lang="' + o[0] + '"' + (o[0] === LANG ? ' class="on"' : '') + '>' + o[1] + '</button>';
       }).join('') + '</div>' +
-      '<div class="set-note">Mixed：界面用中文，队名、人名和赛事名用原文。</div>';
+      '<div class="set-note">Mixed：界面用中文，队名、人名和赛事名用原文。</div>' + editorsHTML();
     if (API_BASE) {
       html += '<div class="set-k" style="margin-top:18px">账号</div>';
       if (setMode === 'reset') {
@@ -19112,7 +19533,9 @@ O
         html += '<div class="set-me"><span>' + (pushState ? '已开启' : '未开启') + '</span>' +
           '<button type="button" class="set-link" data-act="' + (pushState ? 'push-off' : 'push-on') + '">' + (pushState ? '关闭' : '开启') + '</button>' +
           (pushState ? '<button type="button" class="set-link" data-act="push-test">发一条试试</button>' : '') + '</div>' +
-          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果，关注的 UFC 选手开打和结果，关注的拳手的比赛结果，关注的电竞战队开赛和结果。</div>';
+          '<div class="set-note">关注的球队开赛前 15 分钟、开赛、进球、完场，F1 排位和正赛的开始与结果，关注的 UFC 选手开打和结果，关注的拳手的比赛结果，关注的电竞战队开赛和结果，关注的网球球员开赛和结果，关注的斯诺克选手的结果和每站冠军。</div>' +
+          '<label class="set-chk"><input type="checkbox" data-act="alerts"' + (lsGet('pushAlerts', false) ? ' checked' : '') + '> 数据源出错时提醒我</label>' +
+          '<div class="set-note">斯诺克、拳击、UFC 排名这些靠读网页的数据，对方改版会读不到；连续出错时推一条提醒。</div>';
       }
     }
     return html + '<button type="button" class="set-done">完成</button></div>';
@@ -19379,6 +19802,14 @@ O
 
   if (sport === 'football') loadFixtures().then(checkKickoffs);
   else if (sport === 'today') loadFixtures(true);
+  // a first visit that follows nothing is asked; one that already follows is left alone
+  if (!lsGet('onboarded', false)) {
+    if (anyFollows()) lsSet('onboarded', true);
+    else setTimeout(onbShow, 700);
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('[data-onbopen]')) onbShow();
+  });
 })();
 </script>
 

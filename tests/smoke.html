@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smoke test</title>
+<style>
+  :root { --ink: #1d1b16; --muted: #756f63; --ok: #1f7a45; --bad: #b3261e; --line: #e2ddd2; --bg: #f7f4ec; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #ece7dc; --muted: #9a9385; --ok: #6cc08d; --bad: #ef8a80; --line: #34302a; --bg: #171512; } }
+  body { margin: 0; padding: 16px; font: 14px/1.5 system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 12px; }
+  button { font: inherit; padding: 6px 14px; margin-right: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 3px; cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 13px; }
+  td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  #sum { font-weight: 600; margin-top: 10px; }
+  iframe { width: 390px; height: 700px; border: 1px solid var(--line); margin-top: 12px; }
+</style>
+</head>
+<body>
+<h1>Grandstand smoke test</h1>
+<p>Opens the app in a frame and walks every sport, every chip and every tab, in Chinese and in English: each board must fill in (no skeleton left after 20 seconds, some text) and nothing may throw. Needs the real network, since it reads the same live feeds the app does. What was in this browser's storage for the site is put back afterwards.</p>
+<button id="run" type="button">Run</button><button id="runZh" type="button">Chinese only</button>
+<div id="sum"></div>
+<table><thead><tr><th>Lang</th><th>Sport</th><th>Chip</th><th>Tab</th><th>Result</th><th>ms</th><th>Detail</th></tr></thead><tbody id="rows"></tbody></table>
+<iframe id="app" title="app"></iframe>
+<script>
+(function () {
+  var SPORTS = ['today', 'football', 'basketball', 'f1', 'fight', 'esports', 'tennis', 'snooker'];
+  var frame = document.getElementById('app'), rows = document.getElementById('rows'), sum = document.getElementById('sum');
+  var pass = 0, fail = 0, errors = [];
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function row(cells, ok) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = cells.map(function (c, i) { return '<td' + (i === 4 ? ' class="' + (ok ? 'ok' : 'bad') + '"' : '') + '>' + String(c).replace(/</g, '&lt;') + '</td>'; }).join('');
+    rows.appendChild(tr);
+    if (ok) pass++; else fail++;
+    sum.textContent = pass + ' / ' + (pass + fail) + ' passed';
+  }
+  // the app, with a hook ahead of its own script that catches whatever it throws
+  function load(sport, lang) {
+    localStorage.setItem('sport', JSON.stringify(sport));
+    localStorage.setItem('lang', JSON.stringify(lang));
+    localStorage.setItem('lastSeen', JSON.stringify(Date.now()));
+    localStorage.setItem('onboarded', 'true');
+    return fetch('../index.html?smoke=' + Date.now()).then(function (r) { return r.text(); }).then(function (html) {
+      var hook = '<base href="' + new URL('../', location.href).href + '"><script>window.__smokeErr=[];' +
+        'addEventListener("error",function(e){__smokeErr.push(String(e.message||e))});' +
+        'addEventListener("unhandledrejection",function(e){__smokeErr.push("rejection: "+String((e.reason&&e.reason.message)||e.reason))});<\/script>';
+      return new Promise(function (res) {
+        frame.onload = function () { res(); };
+        frame.srcdoc = html.replace('<head>', '<head>' + hook);
+      });
+    });
+  }
+  function visiblePanel(doc) {
+    return ['panel-today', 'panel-fixtures', 'panel-table', 'panel-mine'].map(function (id) { return doc.getElementById(id); })
+      .filter(function (p) { return p && !p.hidden; })[0];
+  }
+  // a board is ready once its skeleton is gone and something is written in it
+  function settle(doc) {
+    var t0 = Date.now();
+    return new Promise(function (res) {
+      (function poll() {
+        var p = visiblePanel(doc);
+        var busy = !p || p.querySelector('.skeleton') || p.innerText.trim().length < 10;
+        // an error box counts as a failure: the board said it could not load
+        var err = p && p.querySelector('.err');
+        if (!busy || Date.now() - t0 > 20000) return res({ ok: !busy && !err, ms: Date.now() - t0, text: err ? 'error shown: ' + err.innerText.trim().slice(0, 80) : p ? p.innerText.trim().slice(0, 60) : 'no panel' });
+        setTimeout(poll, 150);
+      })();
+    });
+  }
+  function check(lang, sport, chip, tab) {
+    var win = frame.contentWindow, doc = frame.contentDocument;
+    var before = (win.__smokeErr || []).length;
+    return settle(doc).then(function (r) {
+      var errs = (win.__smokeErr || []).slice(before);
+      var ok = r.ok && !errs.length;
+      row([lang, sport, chip || '—', tab || '—', ok ? 'PASS' : 'FAIL', r.ms, errs.length ? errs.join(' | ') : r.ms >= 20000 ? 'still loading after 20 s' : r.text.replace(/\s+/g, ' ')], ok);
+    });
+  }
+  function tabsOf(doc) { return [].map.call(doc.querySelectorAll('.seg button[data-tab]'), function (b) { return b.dataset.tab; }); }
+  function chipsOf(doc) { return [].slice.call(doc.querySelectorAll('#chips:not([hidden]) .chip')); }
+  function runSport(lang, sport) {
+    return load(sport, lang).then(function () { return wait(400); }).then(function () {
+      var doc = frame.contentDocument;
+      if (sport === 'today') return check(lang, sport, '', '');
+      var chips = chipsOf(doc).map(function (c) { return c.textContent; });
+      var chain = Promise.resolve();
+      (chips.length ? chips : ['']).forEach(function (chipName) {
+        chain = chain.then(function () {
+          var d = frame.contentDocument;
+          var chip = chipsOf(d).filter(function (c) { return c.textContent === chipName; })[0];
+          if (chip) { chip.click(); return wait(300); }
+        }).then(function () {
+          var inner = Promise.resolve();
+          tabsOf(frame.contentDocument).forEach(function (t) {
+            inner = inner.then(function () {
+              var b = frame.contentDocument.querySelector('.seg button[data-tab="' + t + '"]');
+              if (b) b.click();
+              return wait(150).then(function () { return check(lang, sport, chipName, t); });
+            });
+          });
+          return inner;
+        });
+      });
+      return chain;
+    });
+  }
+  // search: one query per group, each must list something
+  function runSearch(lang) {
+    return load('today', lang).then(function () { return wait(600); }).then(function () {
+      var doc = frame.contentDocument, win = frame.contentWindow;
+      doc.getElementById('searchBtn').click();
+      var chain = Promise.resolve();
+      ['arsenal', 'lakers', 'verstappen', 'faker', 'sinner', 'trump'].forEach(function (q) {
+        chain = chain.then(function () {
+          var before = (win.__smokeErr || []).length;
+          var input = doc.querySelector('.sr-in');
+          input.value = q;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          return wait(3500).then(function () {
+            var n = doc.querySelectorAll('.sr-r').length, errs = (win.__smokeErr || []).slice(before);
+            row([lang, 'search', q, '—', n && !errs.length ? 'PASS' : 'FAIL', 3500, errs.join(' | ') || n + ' results'], n && !errs.length);
+          });
+        });
+      });
+      return chain;
+    });
+  }
+  function run(langs) {
+    pass = 0; fail = 0; rows.innerHTML = ''; sum.textContent = 'running…';
+    var saved = {};
+    for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); saved[k] = localStorage.getItem(k); }
+    var chain = Promise.resolve();
+    langs.forEach(function (lang) {
+      SPORTS.forEach(function (s) { chain = chain.then(function () { return runSport(lang, s); }); });
+      chain = chain.then(function () { return runSearch(lang); });
+    });
+    chain.catch(function (e) { row(['—', 'runner', '—', '—', 'FAIL', 0, String(e && e.stack || e)], false); }).then(function () {
+      localStorage.clear();
+      Object.keys(saved).forEach(function (k) { localStorage.setItem(k, saved[k]); });
+      sum.textContent = pass + ' / ' + (pass + fail) + ' passed' + (fail ? ' — ' + fail + ' failed' : '');
+      document.title = fail ? 'FAIL' : 'PASS';
+    });
+  }
+  document.getElementById('run').addEventListener('click', function () { run(['zh', 'en']); });
+  document.getElementById('runZh').addEventListener('click', function () { run(['zh']); });
+  if (/[?&]auto\b/.test(location.search)) run(['zh', 'en']);
+})();
+</script>
+</body>
+</html>

@@ -1731,7 +1731,9 @@ async function lolReadGame(gid, codeOf) {
   // past the end the feed answers with the last frames
   const wf = await lolFeedGet('window', gid, T0 + 100 * 60000);
   const last = (wf?.frames || []).slice(-1)[0];
-  if (!last || last.gameState !== 'finished') return null;
+  // about one game in ten has its feed stop a few seconds short, still "in_game":
+  // the schedule already says it is over, so the last frame stands for the end
+  if (!last) return null;
   const T1 = Date.parse(last.rfc460Timestamp);
   const det = await lolFeedGet('details', gid, T1 - 5000);
   const parts = ((det?.frames || []).slice(-1)[0] || {}).participants || [];
@@ -1809,6 +1811,7 @@ async function collectLolStats() {
   const summary = {};
   for (const { lg, t } of current) {
     const raw = (await load(`lolstats/raw-${t.id}.json`)) || { games: {}, matches: {} };
+    raw.bad = raw.bad || {};
     let standings;
     try { standings = await getJSON(`${LOL_API}getStandings?hl=zh-CN&tournamentId=${t.id}`, headers); } catch { continue; }
     const matches = [];
@@ -1827,10 +1830,13 @@ async function collectLolStats() {
       let whole = true;
       for (const g of match.games || []) {
         if (g.state !== 'completed' || raw.games[g.id]) continue;
+        // a game the feed never had is tried three times, then left out rather than retried for ever
+        if ((raw.bad[g.id] || 0) >= 3) continue;
         if (budget <= 0) { whole = false; break; }
         budget--;
         const got = await lolReadGame(g.id, codeOf);
-        if (got) { raw.games[g.id] = got; read++; changed = true; } else whole = false;
+        if (got) { raw.games[g.id] = got; read++; changed = true; }
+        else { raw.bad[g.id] = (raw.bad[g.id] || 0) + 1; changed = true; whole = false; }
       }
       if (whole) { raw.matches[m.id] = 1; changed = true; } else left++;
     }

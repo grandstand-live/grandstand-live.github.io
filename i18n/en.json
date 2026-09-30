@@ -7,6 +7,7 @@
   "25 名后出局" : "25th and below out",
   "50 米" : "50 m",
   "9-24 名附加赛" : "9th–24th play-off",
+  "CBA 暂时只能看赛程和排名，还不能关注球队。" : "CBA has fixtures and standings only for now; its teams can't be followed yet.",
   "ESPN 收录的 {0} 场" : "{0} fights on ESPN",
   "F1 车手" : "F1 drivers",
   "Grandstand — 足球、篮球、F1、电竞的实时赛程、比分与排名" : "Grandstand — live fixtures, scores and standings for football, basketball, F1 and esports",
@@ -136,6 +137,7 @@
   "位置" : "Position",
   "位，这里会显示他们的积分排名、最近一站的名次得分进站，以及下一站的时间。" : ". This shows their championship position, last race's finish, points and stops, and when the next race is.",
   "体重" : "Weight",
+  "你是管理员：数据源连续出错、或采集任务停了，会推送到你登录并开了推送的设备。" : "You are the admin: when a data source keeps failing or the collector stops, your signed-in phones with pushes on are told.",
   "你的球队" : "Your team",
   "你的预判：" : "Your call:",
   "你的预测会同步到排行榜。" : "Your calls go on the leaderboard.",
@@ -153,6 +155,7 @@
   "全年赛历" : "Season calendar",
   "全景" : "Full track",
   "全部" : "All",
+  "全部级别" : "All tiers",
   "全部赛事" : "All events",
   "全雨胎" : "Wet",
   "公开定位数据精度约 1 米，两条线相差不到 1 米的地方会重合，那不代表两人走线完全一样。" : "Public position data is good to about 1 m, so where the lines are closer than that they overlap — which doesn't mean the two drove exactly the same line.",
@@ -174,6 +177,7 @@
   "冠军战" : "Title fights",
   "冲刺排位" : "Sprint Qualifying",
   "冲刺赛" : "Sprint",
+  "冷门一点的球员中文名还不认识，可以试试英文名。" : "Less-known players may only be found by their English name.",
   "冻雨" : "Freezing rain",
   "净胜" : "GD",
   "出场" : "Apps",
@@ -199,10 +203,12 @@
   "到「格斗」点「选手」或「拳手」，选完之后这一页会把他们的下一场比赛汇总在一起。" : "and on Combat tap \"Fighters\" or \"Boxers\". Once picked, this page gathers all their next matches in one place.",
   "到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，" : "On Football and Basketball tap \"My teams\" at top right, on F1 tap \"Drivers\", on Esports tap \"Teams\",",
   "到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，到「格斗」点「选手」或「拳手」，到「网球」点「球员」，到「斯诺克」点「球员」，选完之后这一页会把他们的下一场比赛汇总在一起。" : "In Football and Basketball tap \"My teams\" at the top right; in F1 \"Drivers\", in Esports \"Teams\", in Combat \"Fighters\" or \"Boxers\", in Tennis and Snooker \"Players\". This page then gathers their next games in one place.",
+  "到各个运动的页面点右上角的「关注」，挑好队伍和选手，这一页会把他们的下一场比赛汇总在一起。" : "On each sport's page tap \"Follow\" at the top right and pick teams and players; this page then gathers their next games in one place.",
   "刷新" : "Refresh",
   "刹车" : "Brake",
   "前 8 直接晋级 16 强" : "Top 8 into the last 16",
   "前十完赛" : "Top-10 finishes",
+  "前后一周都没有比赛，多半是国家队比赛周。下面是上一轮的结果和下一轮的赛程。" : "No games this week either side, most likely an international break. Below are the last round's results and the next round's fixtures.",
   "前板" : "OREB",
   "前锋" : "Forward",
   "副赛" : "Prelims",
@@ -242,6 +248,7 @@
   "只看得分" : "Scoring plays",
   "只算主场的比赛；由本赛季已完赛的比赛算出。" : "Home matches only, worked out from this season's results.",
   "只算客场的比赛；由本赛季已完赛的比赛算出。" : "Away matches only, worked out from this season's results.",
+  "可能是休赛期。" : "It may be the off-season.",
   "右" : "Right",
   "右边赢" : "Right wins",
   "各自三个最快扇区相加" : "each driver's three best sectors",
@@ -650,7 +657,10 @@
   "点一个点，看是谁、怎么投的。" : "Tap a dot to see who took the shot, and how.",
   "点右上角的「主队」挑最多" : "Tap \"My teams\" at top right to pick up to",
   "点右上角的「主队」挑最多 5 支球队，这里会显示过去一周的战绩（含红黄牌）、接下来两周的赛程，还有俱乐部新闻和转会消息。" : "Tap \"My teams\" at top right to pick up to 5. This shows the past week's results (cards included), the next two weeks' fixtures, club news and transfers.",
+  "点右上角的「关注」挑最多" : "Tap \"Follow\" at the top right to pick up to",
+  "点右上角的「关注」挑最多 5 支球队，这里会显示过去一周的战绩（含红黄牌）、接下来两周的赛程，还有俱乐部新闻和转会消息。" : "Tap \"Follow\" at the top right to pick up to 5 teams. This shows the past week's results (cards included), the next two weeks' fixtures, and club news and transfers.",
   "点右上角的「车手」挑最多" : "Tap \"Drivers\" at top right to pick up to",
+  "点底部的分享按钮 ⬆，选「添加到主屏幕」。从主屏幕打开才能收比赛推送，也是全屏的。" : "Tap the Share button ⬆ at the bottom and choose \"Add to Home Screen\". Opened from there it gets match pushes and runs full screen.",
   "点播放开始" : "Press play to start",
   "点越大 xG 越高（估算）" : "Bigger dot, higher xG (estimated)",
   "点车手缩写单独看他的线；虚线是同队第二位车手。差距图只画到落后 60 秒。" : "Tap a driver's code to pick out their line; dashed is a team's second driver. The gap chart stops at 60 seconds.",
@@ -680,6 +690,7 @@
   "生涯数据没取到。" : "Couldn't load career stats.",
   "生涯数据没取到，稍后再试。" : "Couldn't load career stats — try again later.",
   "生涯逐季" : "Career",
+  "用 Safari 打开这个网址，再选「分享 → 添加到主屏幕」，就能收比赛推送。" : "Open this address in Safari, then choose \"Share → Add to Home Screen\" to get match pushes.",
   "用时 / 差距" : "Time / gap",
   "电竞" : "Esports",
   "男子" : "Men's",
@@ -878,6 +889,7 @@
   "足球和 NBA 由服务器按 ESPN 赛果核对，其他项目按 app 结算。" : "Football and NBA are checked by the server against ESPN's results; other sports are settled by the app.",
   "跑了圈数" : "Laps run",
   "跟车镜头" : "Follow cam",
+  "跟随系统" : "System",
   "跟随系统（" : "Follow system (",
   "路况" : "Conditions",
   "跳到下一场 ↓" : "Jump to next ↓",
@@ -931,7 +943,8 @@
   "还没有关注任何队伍。" : "You're not following anyone yet.",
   "还没有关注战队。" : "You're not following any teams yet.",
   "还没有关注拳手。" : "You're not following any boxers yet.",
-  "还没有关注选手。" : "You're not following any fighters yet.",
+  "还没有关注球员。" : "Not following any players yet.",
+  "还没有关注选手。" : "Not following any players yet.",
   "还没有可比的圈速。" : "No lap times to compare yet.",
   "还没有同场" : "Not yet raced together",
   "还没有比赛" : "No games yet",
@@ -963,6 +976,7 @@
   "这个链接已经失效了（超过 30 分钟，或者已经用过），重新申请一个。" : "This link has expired (after 30 minutes, or once used) — ask for a new one.",
   "这些都能用同样的方式做出来，跟 Claude 说一声就行。" : "These can all be built the same way — just ask Claude.",
   "这十天没有查到比赛。" : "No matches found in these ten days.",
+  "这十天没有查到比赛，前后两个月也没有排赛。" : "No games in these ten days, and none scheduled two months either side.",
   "这名球员暂时没有数据。" : "No stats for this player yet.",
   "这名球员暂时没有本赛季的数据。" : "No stats for this player this season yet.",
   "这场" : "this one",
@@ -1049,6 +1063,7 @@
   "雷雨" : "Thunderstorms",
   "雾" : "Fog",
   "非冠军战" : "Non-title",
+  "顶级赛事" : "Top events",
   "顶部运动栏" : "Sport bar",
   "预判领奖台" : "Call the podium",
   "预测战绩" : "Call record",
@@ -1080,6 +1095,7 @@
   "25 名后出局" : "25th and below out",
   "50 米" : "50 m",
   "9-24 名附加赛" : "9th–24th play-off",
+  "CBA 暂时只能看赛程和排名，还不能关注球队。" : "CBA has fixtures and standings only for now; its teams can't be followed yet.",
   "F1 车手" : "F1 drivers",
   "Grandstand — 足球、篮球、F1、电竞的实时赛程、比分与排名" : "Grandstand — live fixtures, scores and standings for football, basketball, F1 and esports",
   "KO 取胜" : "Wins by KO",
@@ -1180,6 +1196,7 @@
   "位置" : "Position",
   "位，这里会显示他们的积分排名、最近一站的名次得分进站，以及下一站的时间。" : ". This shows their championship position, last race's finish, points and stops, and when the next race is.",
   "体重" : "Weight",
+  "你是管理员：数据源连续出错、或采集任务停了，会推送到你登录并开了推送的设备。" : "You are the admin: when a data source keeps failing or the collector stops, your signed-in phones with pushes on are told.",
   "你的球队" : "Your team",
   "你的预判：" : "Your call:",
   "你的预测会同步到排行榜。" : "Your calls go on the leaderboard.",
@@ -1197,6 +1214,7 @@
   "全年赛历" : "Season calendar",
   "全景" : "Full track",
   "全部" : "All",
+  "全部级别" : "All tiers",
   "全部赛事" : "All events",
   "全雨胎" : "Wet",
   "公开定位数据精度约 1 米，两条线相差不到 1 米的地方会重合，那不代表两人走线完全一样。" : "Public position data is good to about 1 m, so where the lines are closer than that they overlap — which doesn't mean the two drove exactly the same line.",
@@ -1218,6 +1236,7 @@
   "冠军战" : "Title fights",
   "冲刺排位" : "Sprint Qualifying",
   "冲刺赛" : "Sprint",
+  "冷门一点的球员中文名还不认识，可以试试英文名。" : "Less-known players may only be found by their English name.",
   "冻雨" : "Freezing rain",
   "净胜" : "GD",
   "出场" : "Apps",
@@ -1243,10 +1262,12 @@
   "到「格斗」点「选手」或「拳手」，选完之后这一页会把他们的下一场比赛汇总在一起。" : "and on Combat tap \"Fighters\" or \"Boxers\". Once picked, this page gathers all their next matches in one place.",
   "到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，" : "On Football and Basketball tap \"My teams\" at top right, on F1 tap \"Drivers\", on Esports tap \"Teams\",",
   "到「足球」「篮球」点右上角的「主队」，到「F1」点「车手」，到「电竞」点「战队」，到「格斗」点「选手」或「拳手」，到「网球」点「球员」，到「斯诺克」点「球员」，选完之后这一页会把他们的下一场比赛汇总在一起。" : "In Football and Basketball tap \"My teams\" at the top right; in F1 \"Drivers\", in Esports \"Teams\", in Combat \"Fighters\" or \"Boxers\", in Tennis and Snooker \"Players\". This page then gathers their next games in one place.",
+  "到各个运动的页面点右上角的「关注」，挑好队伍和选手，这一页会把他们的下一场比赛汇总在一起。" : "On each sport's page tap \"Follow\" at the top right and pick teams and players; this page then gathers their next games in one place.",
   "刷新" : "Refresh",
   "刹车" : "Brake",
   "前 8 直接晋级 16 强" : "Top 8 into the last 16",
   "前十完赛" : "Top-10 finishes",
+  "前后一周都没有比赛，多半是国家队比赛周。下面是上一轮的结果和下一轮的赛程。" : "No games this week either side, most likely an international break. Below are the last round's results and the next round's fixtures.",
   "前板" : "OREB",
   "前锋" : "Forward",
   "副赛" : "Prelims",
@@ -1284,6 +1305,7 @@
   "只看得分" : "Scoring plays",
   "只算主场的比赛；由本赛季已完赛的比赛算出。" : "Home matches only, worked out from this season's results.",
   "只算客场的比赛；由本赛季已完赛的比赛算出。" : "Away matches only, worked out from this season's results.",
+  "可能是休赛期。" : "It may be the off-season.",
   "右边赢" : "Right wins",
   "各自三个最快扇区相加" : "each driver's three best sectors",
   "各节得分" : "By quarter",
@@ -1674,7 +1696,10 @@
   "点一个点，看是谁、怎么投的。" : "Tap a dot to see who took the shot, and how.",
   "点右上角的「主队」挑最多" : "Tap \"My teams\" at top right to pick up to",
   "点右上角的「主队」挑最多 5 支球队，这里会显示过去一周的战绩（含红黄牌）、接下来两周的赛程，还有俱乐部新闻和转会消息。" : "Tap \"My teams\" at top right to pick up to 5. This shows the past week's results (cards included), the next two weeks' fixtures, club news and transfers.",
+  "点右上角的「关注」挑最多" : "Tap \"Follow\" at the top right to pick up to",
+  "点右上角的「关注」挑最多 5 支球队，这里会显示过去一周的战绩（含红黄牌）、接下来两周的赛程，还有俱乐部新闻和转会消息。" : "Tap \"Follow\" at the top right to pick up to 5 teams. This shows the past week's results (cards included), the next two weeks' fixtures, and club news and transfers.",
   "点右上角的「车手」挑最多" : "Tap \"Drivers\" at top right to pick up to",
+  "点底部的分享按钮 ⬆，选「添加到主屏幕」。从主屏幕打开才能收比赛推送，也是全屏的。" : "Tap the Share button ⬆ at the bottom and choose \"Add to Home Screen\". Opened from there it gets match pushes and runs full screen.",
   "点播放开始" : "Press play to start",
   "点越大 xG 越高（估算）" : "Bigger dot, higher xG (estimated)",
   "点车手缩写单独看他的线；虚线是同队第二位车手。差距图只画到落后 60 秒。" : "Tap a driver's code to pick out their line; dashed is a team's second driver. The gap chart stops at 60 seconds.",
@@ -1703,6 +1728,7 @@
   "生涯数据没取到。" : "Couldn't load career stats.",
   "生涯数据没取到，稍后再试。" : "Couldn't load career stats — try again later.",
   "生涯逐季" : "Career",
+  "用 Safari 打开这个网址，再选「分享 → 添加到主屏幕」，就能收比赛推送。" : "Open this address in Safari, then choose \"Share → Add to Home Screen\" to get match pushes.",
   "用时 / 差距" : "Time / gap",
   "电竞" : "Esports",
   "男子" : "Men's",
@@ -1877,6 +1903,7 @@
   "足球和 NBA 由服务器按 ESPN 赛果核对，其他项目按 app 结算。" : "Football and NBA are checked by the server against ESPN's results; other sports are settled by the app.",
   "跑了圈数" : "Laps run",
   "跟车镜头" : "Follow cam",
+  "跟随系统" : "System",
   "跟随系统（" : "Follow system (",
   "路况" : "Conditions",
   "跳到下一场 ↓" : "Jump to next ↓",
@@ -1924,7 +1951,8 @@
   "还没有关注任何队伍。" : "You're not following anyone yet.",
   "还没有关注战队。" : "You're not following any teams yet.",
   "还没有关注拳手。" : "You're not following any boxers yet.",
-  "还没有关注选手。" : "You're not following any fighters yet.",
+  "还没有关注球员。" : "Not following any players yet.",
+  "还没有关注选手。" : "Not following any players yet.",
   "还没有可比的圈速。" : "No lap times to compare yet.",
   "还没有同场" : "Not yet raced together",
   "还没有比赛" : "No games yet",
@@ -1955,6 +1983,7 @@
   "这个链接已经失效了（超过 30 分钟，或者已经用过），重新申请一个。" : "This link has expired (after 30 minutes, or once used) — ask for a new one.",
   "这些都能用同样的方式做出来，跟 Claude 说一声就行。" : "These can all be built the same way — just ask Claude.",
   "这十天没有查到比赛。" : "No matches found in these ten days.",
+  "这十天没有查到比赛，前后两个月也没有排赛。" : "No games in these ten days, and none scheduled two months either side.",
   "这名球员暂时没有数据。" : "No stats for this player yet.",
   "这名球员暂时没有本赛季的数据。" : "No stats for this player this season yet.",
   "这场" : "this one",
@@ -2032,6 +2061,7 @@
   "雏量级" : "Bantamweight",
   "雷雨" : "Thunderstorms",
   "非冠军战" : "Non-title",
+  "顶级赛事" : "Top events",
   "顶部运动栏" : "Sport bar",
   "预判领奖台" : "Call the podium",
   "预测战绩" : "Call record",
@@ -2099,6 +2129,10 @@
    "Tap \"Drivers\" at top right to pick up to $1. This shows their championship position, last race's finish, points and stops, and when the next race is."
   ],
   [
+   "^点右上角的「关注」挑最多 (\\d+) 位，这里会显示他们的积分排名、最近一站的名次得分进站，以及下一站的时间。$",
+   "Tap \"Follow\" at the top right to pick up to $1. This shows their championship position, last race's finish, points and pit stops, and when the next race is."
+  ],
+  [
    "^点右上角的「主队」挑最多 (\\d+) 支球队，这里会显示他们最近的结果和接下来的比赛。$",
    "Tap \"My teams\" at top right to pick up to $1. This shows their recent results and upcoming games."
   ],
@@ -2107,12 +2141,24 @@
    "Tap \"Fighters\" at top right to pick up to $1. This shows their last result and next fight."
   ],
   [
+   "^点右上角的「关注」挑最多 (\\d+) 支球队，这里会显示他们最近的结果和接下来的比赛。$",
+   "Tap \"Follow\" at the top right to pick up to $1 teams. This shows their recent results and upcoming games."
+  ],
+  [
+   "^点右上角的「关注」挑最多 (\\d+) 位，这里会显示他们最近一战的结果和下一场的安排。$",
+   "Tap \"Follow\" at the top right to pick up to $1. This shows their last result and next fight."
+  ],
+  [
    "^(.+)最快圈的遥测缺了一段，这里用的是第 (\\d) 快的一圈（第 (\\d+) 圈）$",
    "$1's best lap has a hole in its telemetry, so this uses their no. $2 lap (lap $3)"
   ],
   [
    "^点右上角的「战队」挑最多 (\\d+) 支，这里会显示他们最近的战绩和接下来的比赛。$",
    "Tap \"Teams\" at top right to pick up to $1. This shows their recent results and upcoming matches."
+  ],
+  [
+   "^点右上角的「关注」挑最多 (\\d+) 支，这里会显示他们最近的战绩和接下来的比赛。$",
+   "Tap \"Follow\" at the top right to pick up to $1. This shows their recent results and upcoming matches."
   ],
   [
    "^只列出打满 (\\d+) 局的选手；数据来自官方比赛数据流，每局读一次、自己加总。$",
@@ -2127,8 +2173,16 @@
    "Tap \"Teams\" at top right to pick up to $1. This shows their record and upcoming matches."
   ],
   [
+   "^点右上角的「关注」挑最多 (\\d+) 支，这里会显示他们的战绩和接下来的比赛。$",
+   "Tap \"Follow\" at the top right to pick up to $1. This shows their record and upcoming matches."
+  ],
+  [
    "^点右上角的「拳手」挑最多 (\\d+) 位，这里会显示他们的下一场和最近一战。$",
    "Tap \"Boxers\" at top right to pick up to $1. This shows their next and last fights."
+  ],
+  [
+   "^点右上角的「关注」挑最多 (\\d+) 位，这里会显示他们的下一场和最近一战。$",
+   "Tap \"Follow\" at the top right to pick up to $1. This shows their next and last fights."
   ],
   [
    "^排位差距中位数：(.+) 快 ([\\d.]+) 秒 · (\\d+) 站$",
@@ -2141,6 +2195,14 @@
   [
    "^按量级挑人，最多 (\\d+) 位。切换量级不会丢掉已选的，选完点保存。$",
    "Pick by division, up to $1. Switching division keeps your picks; tap Save when done."
+  ],
+  [
+   "^点右上角的「关注」挑最多 (\\d+) 位，这里会显示他们这周的比赛。$",
+   "Tap \"Follow\" at the top right to pick up to $1. This shows their matches this week."
+  ],
+  [
+   "^点右上角的「关注」挑最多 (\\d+) 位，这里会显示他们最近的比赛。$",
+   "Tap \"Follow\" at the top right to pick up to $1. This shows their latest matches."
   ],
   [
    "^勾选你关注的战队，最多 (\\d+) 支。名单来自已经抓到的比赛。$",
@@ -2297,6 +2359,14 @@
   [
    "^· 最多 (\\d+) 人打分$",
    "· up to $1 ratings"
+  ],
+  [
+   "^全部级别 \\((\\d+)\\)$",
+   "All tiers ($1)"
+  ],
+  [
+   "^更早的结果（(\\d+) 场）$",
+   "Earlier results ($1)"
   ],
   [
    "^两人都还没在(.+)跑过。$",

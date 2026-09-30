@@ -409,15 +409,23 @@ check(got.length === 0, 'snooker pushes only once');
 fakeSnooker = null;
 await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/sn' });
 
-// ---- data sources: a source failing three runs in a row is told once, to whoever asked
+// ---- data sources: a source failing three runs in a row is told once, to the owner only
+// the first account made is the owner's; a phone signed in to it gets the alerts, one asking for them without it does not
 await call('POST', '/api/push/subscribe', {
   sub: { endpoint: 'https://push.example/alerts', keys: { p256dh: uaPub, auth } },
-  follows: { alerts: true }, lang: 'zh'
-});
+  follows: {}, lang: 'zh'
+}, tok);
 await call('POST', '/api/push/subscribe', {
   sub: { endpoint: 'https://push.example/quiet', keys: { p256dh: uaPub, auth } },
-  follows: { football: [] }, lang: 'zh'
+  follows: { alerts: true }, lang: 'zh'
 });
+{
+  const me1 = await call('GET', '/api/me', null, tok);
+  check(me1.data.admin === true, 'the first account is the owner', JSON.stringify(me1.data));
+  const other = await call('POST', '/api/register', { email: 'bystander@example.com', password: 'bystander-pass-1', nick: 'bystander' }, null, '198.51.100.77');
+  const me2 = await call('GET', '/api/me', null, other.data.token);
+  check(me2.data.admin === false, 'another account is not', JSON.stringify(me2.data));
+}
 async function statusRun(i, failing) {
   fakeStatus = { ranAt: new Date(Date.now() - 60000 + i).toISOString(), sources: { lol: { ok: true }, snooker: failing ? { ok: false, error: 'calendar parsed to 0 rows' } : { ok: true } } };
   const before = pushes.length;
@@ -428,17 +436,18 @@ let told = [];
 told = told.concat(await statusRun(1, true), await statusRun(2, true));
 check(told.length === 0, 'two failed runs: no alert yet');
 told = await statusRun(3, true);
-check(told.length === 1 && told[0] === 'https://push.example/alerts', 'third failed run: one alert, only to who asked', told.join(','));
+const ownerOnly = (t) => t.indexOf('https://push.example/alerts') !== -1 && t.indexOf('https://push.example/quiet') === -1;
+check(ownerOnly(told), 'third failed run: the owner\'s phones are told, a phone that only asked is not', told.join(','));
 told = await statusRun(3, true);
 check(told.length === 0, 'the same run read again is not counted again');
 told = await statusRun(4, true);
 check(told.length === 0, 'a source already told is not told again the same day');
 await statusRun(5, false);
 told = (await statusRun(6, true)).concat(await statusRun(7, true), await statusRun(8, true));
-check(told.length === 1, 'after it recovers, a new run of failures is told again', told.join(','));
+check(ownerOnly(told), 'after it recovers, a new run of failures is told again', told.join(','));
 fakeStatus = { ranAt: new Date(Date.now() - 50 * 60000).toISOString(), sources: {} };
 told = (await (async () => { const b = pushes.length; await W._test.checkSources(env); return pushes.slice(b).map((p) => p.endpoint); })());
-check(told.length === 1, 'a collector quiet for 50 minutes is told at once', told.join(','));
+check(ownerOnly(told), 'a collector quiet for 50 minutes is told at once', told.join(','));
 fakeStatus = null;
 await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/alerts' });
 await call('POST', '/api/push/unsubscribe', { endpoint: 'https://push.example/quiet' });

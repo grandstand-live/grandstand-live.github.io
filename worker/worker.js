@@ -638,6 +638,14 @@ async function readStatus() {
     return r.ok ? await r.json() : null;
   } catch (e) { return null; }
 }
+/* Whose alerts they are: the account named by ADMIN_EMAIL, or else the
+   first one ever made, which is the site's owner's. */
+async function adminId(env) {
+  const row = env.ADMIN_EMAIL
+    ? await env.DB.prepare('SELECT id FROM users WHERE email = ?1').bind(String(env.ADMIN_EMAIL).trim().toLowerCase()).first()
+    : await env.DB.prepare('SELECT MIN(id) AS id FROM users').first();
+  return row && row.id != null ? row.id : null;
+}
 async function checkSources(env) {
   const st = await readStatus();
   const now = Date.now();
@@ -673,9 +681,10 @@ async function checkSources(env) {
   } else if (st) delete w.told.collector;
   await env.DB.prepare("INSERT OR REPLACE INTO config (k, v) VALUES ('srcwatch', ?1)").bind(JSON.stringify(w)).run();
   if (!alerts.length) return 0;
-  const subs = ((await env.DB.prepare('SELECT * FROM subs WHERE fails < 20').all()).results || []).filter((s) => {
-    try { return !!JSON.parse(s.follows || '{}').alerts; } catch (e) { return false; }
-  });
+  // only the owner's phones: every one they are signed in on with pushes on
+  const admin = await adminId(env);
+  if (admin == null) return 0;
+  const subs = (await env.DB.prepare('SELECT * FROM subs WHERE fails < 20 AND user_id = ?1').bind(admin).all()).results || [];
   if (!subs.length) return 0;
   const keys = await vapidKeys(env);
   let sent = 0;
@@ -1231,7 +1240,7 @@ const ROUTES = {
     if (m) await env.DB.prepare('DELETE FROM sessions WHERE token = ?1').bind(m[1]).run();
     return { ok: true };
   },
-  'GET /api/me': async (req, env) => { const u = await mustBe(req, env); return { nick: u.nick, email: u.email }; },
+  'GET /api/me': async (req, env) => { const u = await mustBe(req, env); return { nick: u.nick, email: u.email, admin: u.id === await adminId(env) }; },
   'GET /api/vapid': async (req, env) => ({ key: (await vapidKeys(env)).pub }),
   'POST /api/push/subscribe': subscribe,
   'POST /api/push/unsubscribe': async (req, env) => {

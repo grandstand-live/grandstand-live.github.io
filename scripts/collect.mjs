@@ -1924,6 +1924,212 @@ async function collectLolIndex() {
 }
 
 
+
+/* Snooker, from Wikipedia: nobody publishes the tour as open data (snooker.org
+   wants an account, the tour's own site keeps its feed private), but the
+   season's page carries the calendar with every winner, the rankings page the
+   top sixteen, and each tournament's page its results round by round, kept
+   up within hours of the last ball. Every half hour is enough for that. */
+const SN_MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+function snSeasonTitle(now) {
+  // a season runs summer to spring: June 2026 onward is 2026–27
+  const y = now.getUTCMonth() >= 5 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  return `${y}–${String(y + 1).slice(2)} snooker season`;
+}
+function snDay(txt, firstYear) {
+  const m = /(\d{1,2})\s+([A-Za-z]{3})/.exec(String(txt || ''));
+  if (!m) return null;
+  const mon = SN_MONTHS[m[2].toLowerCase()];
+  if (mon == null) return null;
+  const y = mon >= 5 ? firstYear : firstYear + 1;
+  return `${y}-${String(mon + 1).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+}
+function snStrip(html) {
+  return String(html || '')
+    .replace(/<sup[\s\S]*?<\/sup>/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&#8211;|&ndash;/g, '–')
+    .replace(/\s+/g, ' ').replace(/\s+,/g, ',').trim();
+}
+async function wikiHTML(page, section) {
+  const d = await getJSON(`${WIKI_API}?action=parse&format=json&formatversion=2&redirects=1&prop=text` +
+    (section != null ? `&section=${section}` : '') + `&page=${encodeURIComponent(page)}`, { 'user-agent': UA });
+  return d?.parse?.text || '';
+}
+async function wikiSections(page) {
+  const d = await getJSON(`${WIKI_API}?action=parse&format=json&formatversion=2&redirects=1&prop=sections&page=${encodeURIComponent(page)}`, { 'user-agent': UA });
+  return d?.parse?.sections || [];
+}
+async function wikiWikitext(page) {
+  const d = await getJSON(`${WIKI_API}?action=parse&format=json&formatversion=2&redirects=1&prop=wikitext&page=${encodeURIComponent(page)}`, { 'user-agent': UA });
+  return d?.parse?.wikitext || '';
+}
+// "Judd Trump (ENG)" -> name and nation
+function snPlayer(txt) {
+  const m = /^(.*?)\s*\(\s*([A-Z]{3})\s*\)\s*$/.exec(String(txt || '').trim());
+  return m ? { n: m[1].trim(), c: m[2] } : { n: String(txt || '').trim(), c: '' };
+}
+function snCalendar(html, firstYear) {
+  const table = (html.match(/<table[\s\S]*?<\/table>/) || [''])[0];
+  const rows = table.match(/<tr[\s\S]*?<\/tr>/g) || [];
+  const out = [];
+  for (const tr of rows) {
+    const cells = tr.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/g) || [];
+    if (cells.length < 7 || /<th/.test(cells[0])) continue;
+    const link = /href="\/wiki\/([^"#]+)"/.exec(cells[2]);
+    const w = snPlayer(snStrip(cells[4])), r = snPlayer(snStrip(cells[6]));
+    out.push({
+      start: snDay(snStrip(cells[0]), firstYear), end: snDay(snStrip(cells[1]), firstYear),
+      name: snStrip(cells[2]).replace(/[†‡*]+$/, '').trim(), page: link ? decodeURIComponent(link[1]).replace(/_/g, ' ') : '',
+      venue: snStrip(cells[3]), winner: w.n, wc: w.c, score: snStrip(cells[5]), runner: r.n, rc: r.c
+    });
+  }
+  return out.filter(t => t.start && t.name);
+}
+function snRankings(html) {
+  const table = (html.match(/<table[\s\S]*?<\/table>/) || [''])[0];
+  const out = [];
+  for (const tr of table.match(/<tr[\s\S]*?<\/tr>/g) || []) {
+    const cells = (tr.match(/<td[^>]*>[\s\S]*?<\/td>/g) || []).map(snStrip);
+    if (cells.length < 3 || !/^\d+$/.test(cells[0])) continue;
+    const p = snPlayer(cells[1]);
+    // the movement column carries an arrow image and a number; the arrow's alt says which way
+    const up = /alt="[^"]*(increase|up)/i.test(tr), down = /alt="[^"]*(decrease|down)/i.test(tr);
+    const mv = parseInt(cells[3], 10);
+    out.push({ rank: Number(cells[0]), n: p.n, c: p.c, pts: Number(cells[2].replace(/[^\d]/g, '')) || 0, mv: isNaN(mv) ? 0 : down ? -mv : up ? mv : 0 });
+  }
+  return out;
+}
+// "* {{flagathlete|'''[[Iulian Boiko]]'''|UKR}} {{tooltip|(71)|…}} '''4'''–2 {{flagathlete|[[Xu Yichen]]|CHN}} …"
+// a player as a page writes one: {{flagathlete|[[Name]]|ENG}}, or {{flagicon|ENG}} [[Name]], with a seed after
+function snSide(txt) {
+  txt = String(txt || '');
+  const fa = /\{\{flagathlete\|([\s\S]*?)\|([A-Z]{3})\}\}/.exec(txt);
+  const fi = fa ? null : /\{\{flagicon\|([A-Z]{3})\}\}\s*([\s\S]*)$/.exec(txt);
+  let raw = fa ? fa[1] : fi ? fi[2] : txt;
+  const bold = /'''/.test(raw);
+  raw = raw.replace(/\{\{[^{}]*\}\}/g, '').replace(/'''/g, '').replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, '$1').trim();
+  const seed = /\{\{tooltip\|\((\d+|a)\)/.exec(txt);
+  return { n: raw, c: fa ? fa[2] : fi ? fi[1] : '', win: bold, seed: seed ? seed[1] : '' };
+}
+function snScore(txt) {
+  const t = String(txt || '').replace(/'''/g, '').trim();
+  return /^\d+$/.test(t) ? Number(t) : t;
+}
+function snMatch(sa, a1, sb, b1) {
+  const a = snSide(sa), b = snSide(sb);
+  if (!a.n && !b.n) return null;
+  const s1 = snScore(a1), s2 = snScore(b1);
+  // a walkover is marked "w/o" beside the one who goes through
+  let w = typeof s1 === 'number' && typeof s2 === 'number' && s1 !== s2 ? (s1 > s2 ? 'a' : 'b')
+    : /w\/o/i.test(String(s1)) ? 'a' : /w\/o/i.test(String(s2)) ? 'b' : a.win ? 'a' : b.win ? 'b' : '';
+  return { a: a.n, ac: a.c, as_: a.seed, s1, b: b.n, bc: b.c, bs_: b.seed, s2, w };
+}
+/* A tournament page gives its results one of three ways: a list per round
+   under "Main draw", a bracket template (whole, or in a top and a bottom
+   half), and the final in a table of its own. All three are read. */
+function snDraw(wikitext) {
+  // placeholders for matches not yet played sit in comments
+  wikitext = String(wikitext || '').replace(/<!--[\s\S]*?-->/g, '');
+  const rounds = [], byName = {};
+  function add(name, m) {
+    if (!m) return;
+    if (!byName[name]) { byName[name] = { name, matches: [] }; rounds.push(byName[name]); }
+    byName[name].matches.push(m);
+  }
+  const i = wikitext.search(/==\s*Main draw\s*==/i);
+  if (i >= 0) {
+    const rest = wikitext.slice(i + 10);
+    const end = rest.search(/\n==[^=]/);
+    const body = end < 0 ? rest : rest.slice(0, end);
+    for (const part of body.split(/\n===\s*/).slice(1)) {
+      const name = part.slice(0, part.indexOf('===')).trim();
+      if (/frame/i.test(name)) continue;
+      for (const line of part.split('\n')) {
+        if (!/^\*\s*\{\{flagathlete/.test(line.trim())) continue;
+        // the score sits between the two players: '''4'''–2
+        const m = /^(\*\s*[\s\S]*?\}\}(?:\s*\{\{tooltip[^}]*\}\})?)\s*('''\d+'''|\d+)\s*[–-]\s*('''\d+'''|\d+)\s*([\s\S]*)$/.exec(line.trim());
+        if (m) add(name, snMatch(m[1], m[2], m[4], m[3]));
+      }
+    }
+  }
+  // brackets: the rounds are named in RD1…, then every match in order, the first round first
+  const tre = /\{\{(\d+)TeamBracket[^\n]*\n([\s\S]*?)\n\}\}/g;
+  let t;
+  while ((t = tre.exec(wikitext))) {
+    const size = Number(t[1]), body = t[2], names = {};
+    body.replace(/\|\s*RD(\d)\s*=\s*([^\n]*)/g, (x, n, v) => {
+      names[n] = v.replace(/<br\s*\/?>[\s\S]*$/, '').replace(/'''/g, '').trim();
+      return x;
+    });
+    // [ \t], not \s: an empty score is a line of its own, and \s would run on into the next
+    const ms = [...body.matchAll(/\|\|[ \t]*([^\n]*)\n\|[ \t]*([^\n]*)\n\|[ \t]*([^\n]*)\n\|[ \t]*([^\n]*)/g)];
+    let k = 0;
+    for (let r = 1, count = size / 2; count >= 1; r++, count /= 2) {
+      for (let j = 0; j < count && k < ms.length; j++, k++) {
+        const x = ms[k];
+        add(names[r] || `Round ${r}`, snMatch(x[1], x[2], x[3], x[4]));
+      }
+    }
+  }
+  // the final, from its frame-by-frame table, if no list or bracket had it
+  if (!rounds.some(r => /^final$/i.test(r.name))) {
+    const f = wikitext.search(/===\s*Final: frame scores\s*===/i);
+    if (f >= 0) {
+      const lines = wikitext.slice(f, f + 3000).split('\n');
+      const j = lines.findIndex(l => /\d'*\s*\{\{ndash\}\}\s*'*\d/.test(l));
+      if (j > 0) {
+        const cell = l => String(l || '').replace(/^\|[^|]*\|/, '').trim();
+        const nat = l => { const m = /\{\{([A-Z]{3})\}\}/.exec(l); return m ? m[1] : ''; };
+        const sc = /('*\d+'*)\s*\{\{ndash\}\}\s*('*\d+'*)/.exec(lines[j]);
+        const left = cell(lines[j - 1]), right = cell(lines[j + 1]);
+        const nm = l => { const m = /\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/.exec(l); return m ? m[1] : ''; };
+        if (sc && nm(left) && nm(right)) {
+          const s1 = snScore(sc[1]), s2 = snScore(sc[2]);
+          add('Final', { a: nm(left), ac: nat(left), s1, b: nm(right), bc: nat(right), s2, w: s1 > s2 ? 'a' : s2 > s1 ? 'b' : '' });
+        }
+      }
+    }
+  }
+  return rounds;
+}
+async function collectSnooker() {
+  const store = await load('snooker.json');
+  const age = store && store.checkedAt ? Date.now() - new Date(store.checkedAt) : Infinity;
+  if (!MANUAL && age < 30 * 60e3) return { skipped: 'checked within half an hour' };
+  const now = new Date();
+  const title = snSeasonTitle(now);
+  const firstYear = Number(title.slice(0, 4));
+  const secs = await wikiSections(title);
+  const tourSec = secs.find(s => /^World Snooker Tour$/i.test(s.line)) || secs.find(s => /calendar/i.test(s.line));
+  if (!tourSec) throw new Error('no calendar section on ' + title);
+  const calendar = snCalendar(await wikiHTML(title, tourSec.index), firstYear);
+  if (calendar.length < 5) throw new Error(`calendar parsed to ${calendar.length} rows`);
+  let rankings = [];
+  try {
+    const rs = await wikiSections('Snooker world rankings');
+    const sec = rs.find(s => /^World Snooker Tour$/i.test(s.line));
+    if (sec) rankings = snRankings(await wikiHTML('Snooker world rankings', sec.index));
+  } catch { /* the table is kept from last time */ }
+  if (!rankings.length && store) rankings = store.rankings || [];
+  // the draws: what is on now and the last two finished, from each one's own page
+  const today = now.toISOString().slice(0, 10);
+  const want = calendar.filter(t => t.page && t.start <= today).slice(-3);
+  const draws = {};
+  for (const t of want) {
+    try {
+      const rounds = snDraw(await wikiWikitext(t.page));
+      if (rounds.length) draws[t.page] = rounds;
+    } catch { if (store && store.draws && store.draws[t.page]) draws[t.page] = store.draws[t.page]; }
+  }
+  await save('snooker.json', {
+    updatedAt: new Date().toISOString(), checkedAt: new Date().toISOString(), source: 'Wikipedia',
+    season: title.replace(' snooker season', ''), calendar, rankings, draws
+  });
+  return { tournaments: calendar.length, rankings: rankings.length, draws: Object.keys(draws).length };
+}
+
+
 const tasks = [
   ['lol', collectLol],
   ['cba', collectCba],
@@ -1940,7 +2146,8 @@ const tasks = [
   ['boxers', collectBoxers],
   ['lolStats', collectLolStats],
   ['cs2Rank', collectCsRank],
-  ['lolIndex', collectLolIndex]
+  ['lolIndex', collectLolIndex],
+  ['snooker', collectSnooker]
 ];
 
 for (const [name, run] of tasks) {

@@ -1707,6 +1707,59 @@
   .xi-team { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
   .xi-team i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   .xi-team b { font-family: var(--narrow); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+  /* ---- tennis and snooker ---- */
+  .tn-filter { margin-top: 8px; }
+  .tn-ev { padding: 10px 12px 8px; margin-top: 10px; }
+  .tn-h { margin-bottom: 4px; }
+  .tn-t { font-family: var(--serif); font-size: 16px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tn-s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .tn-champ { font-size: 13px; margin-top: 4px; color: var(--ink-2); }
+  .tn-champ b { color: var(--accent); cursor: pointer; }
+  .tn-live { color: var(--live); font-weight: 700; }
+  .tn-r { display: flex; justify-content: space-between; font-family: var(--narrow); font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+    color: var(--muted); padding: 10px 0 4px; border-bottom: 1px solid var(--hairline); }
+  .tn-r span { font-weight: 400; }
+  .tn-m { padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+  .tn-m.live { box-shadow: inset 3px 0 var(--live); padding-left: 7px; }
+  .tn-p { display: flex; align-items: center; gap: 7px; font-size: 13.5px; line-height: 1.7; }
+  .tn-p.lose .tn-n { color: var(--muted); }
+  .tn-p.win .tn-n { font-weight: 700; color: var(--ink); }
+  .tn-p.cn .tn-n { color: var(--accent); }
+  .tn-f { width: 18px; height: 12px; object-fit: cover; border-radius: 1px; flex: 0 0 auto; background: var(--surface-2); }
+  .tn-n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .tn-n small { font-family: var(--narrow); font-size: 10.5px; color: var(--muted); margin-left: 5px; font-weight: 400; }
+  .tn-sets { display: flex; gap: 2px; }
+  .tn-g { width: 22px; text-align: center; font-family: var(--narrow); font-size: 14px; color: var(--muted); }
+  .tn-g.w { color: var(--ink); font-weight: 700; }
+  .tn-g sup { font-size: 8.5px; margin-left: 1px; }
+  .tn-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .tn-mev { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .tn-next { padding: 2px 12px; }
+  .tn-nx { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hairline); align-items: baseline; }
+  .tn-nx:last-child { border-bottom: none; }
+  .tn-nd { flex: 0 0 auto; width: 104px; font-family: var(--narrow); font-size: 12px; color: var(--muted); }
+  .tn-nn { flex: 1; min-width: 0; font-size: 14px; color: var(--ink); }
+  .tn-nn small { display: block; font-size: 11.5px; color: var(--muted); }
+  .tn-rk { padding: 0 12px; }
+  .tn-rr { display: grid; grid-template-columns: 26px 34px 20px 1fr auto; align-items: center; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; cursor: pointer; }
+  .tn-rr:last-child { border-bottom: none; }
+  .tn-rr.cn .tn-rname { color: var(--accent); font-weight: 600; }
+  .tn-rn { font-family: var(--narrow); font-weight: 700; text-align: right; color: var(--ink-2); }
+  .tn-rname { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tn-pts { font-family: var(--narrow); color: var(--ink-2); }
+  .tn-pk { display: inline-block; width: 30px; font-family: var(--narrow); color: var(--muted); }
+  .sn-nat { flex: 0 0 auto; width: 52px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+  .tn-rr .sn-nat { width: auto; }
+  .sn-done { padding: 0 12px; }
+  .sn-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hairline); }
+  .sn-row[data-snx] { cursor: pointer; }
+  .sn-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sn-mid b { font-family: var(--serif); font-size: 14px; color: var(--ink); }
+  .sn-mid span { font-size: 12px; color: var(--muted); }
+  .sn-mid em { font-style: normal; color: var(--ink); font-weight: 600; }
+  .sn-mid em.cn { color: var(--accent); }
+  .sn-arr { color: var(--muted); font-size: 12px; }
+  .sn-draw { padding: 0 0 8px; border-bottom: 1px solid var(--hairline); }
   /* ---- search ---- */
   #searchBtn { padding: 0 11px; display: inline-flex; align-items: center; }
   /* five buttons beside the masthead: on a phone they sit closer */
@@ -3462,7 +3515,9 @@
     { id: 'basketball', name: '篮球', ready: true, sub: 'NBA' },
     { id: 'f1', name: 'F1', ready: true, sub: 'F1' },
     { id: 'fight', name: '格斗', ready: true, sub: 'UFC' },
-    { id: 'esports', name: '电竞', ready: true, sub: '英雄联盟' }
+    { id: 'esports', name: '电竞', ready: true, sub: '英雄联盟' },
+    { id: 'tennis', name: '网球', ready: true, sub: '网球' },
+    { id: 'snooker', name: '斯诺克', ready: true, sub: '斯诺克' }
   ];
   var sport = lsGet('sport', 'today');
   if (!SPORTS.some(function (s) { return s.id === sport; })) sport = 'football';
@@ -3495,11 +3550,13 @@
     basketball: { l: ['#9C4715', '#F3E5D5', '#5E2A0B'], d: ['#DD8A52', '#2E2015', '#F0BE94'] },
     f1:         { l: ['#A32722', '#F4E3DF', '#661512'], d: ['#DC655F', '#2F1B17', '#EFAFAB'] },
     fight:      { l: ['#7A3520', '#F1E4DA', '#4A1F11'], d: ['#D6785A', '#2C1C13', '#EDB89F'] },
-    esports:    { l: ['#4A3E9C', '#E5E2EE', '#2B2363'], d: ['#9C8FD6', '#221E33', '#C7BEEB'] }
+    esports:    { l: ['#4A3E9C', '#E5E2EE', '#2B2363'], d: ['#9C8FD6', '#221E33', '#C7BEEB'] },
+    tennis:     { l: ['#5B6A12', '#ECEDDA', '#363F08'], d: ['#B5C45A', '#232614', '#DCE49E'] },
+    snooker:    { l: ['#1F5C3A', '#E0EBE3', '#10351F'], d: ['#5DB384', '#16281D', '#A6D8BC'] }
   };
   var darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   var SPORT_MARK = {
-    today: '◎', football: '⬡', basketball: '◍', f1: '⚑', fight: '✦', esports: '◆'
+    today: '◎', football: '⬡', basketball: '◍', f1: '⚑', fight: '✦', esports: '◆', tennis: '◒', snooker: '●'
   };
   /* auto → 浅 → 深 → auto. The system preference is still the default, but a
      phone that flips at sunset is not always what you want at 2am, so once a
@@ -3577,10 +3634,16 @@
     applySkin(id);
     viewSeq++;   // the Today branch below never reaches setTab
     renderSportNav();
+    // eight sports no longer fit a phone's width: the chosen one is scrolled into sight
+    var navOn = document.querySelector('#sportnav button[aria-pressed="true"]');
+    if (navOn) {
+      var nav = $('sportnav'), l = navOn.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft, r = l + navOn.offsetWidth;
+      if (l < nav.scrollLeft || r > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = Math.max(0, l - 16);
+    }
     var s = SPORTS.filter(function (x) { return x.id === id; })[0] || SPORTS[0];
     $('subtitle').innerHTML = '<span class="sport-mark">' + (SPORT_MARK[id] || '◎') +
       '</span>' + esc(s.sub);
-    $('gearBtn').textContent = id === 'f1' ? '车手' : (id === 'esports' ? '战队'
+    $('gearBtn').textContent = id === 'f1' ? '车手' : id === 'tennis' ? '球员' : (id === 'esports' ? '战队'
       : (id === 'fight' ? (fightLeague === 'boxing' ? '拳手' : '选手') : '主队'));
 
     var ready = !!s.ready;
@@ -3589,14 +3652,14 @@
     /* Football has no chip row any more — its leagues are in the dropdown
        beside the tabs. Basketball and fight keep theirs: two options each is
        exactly what a chip row is good at. */
-    $('chips').hidden = (id !== 'esports' && id !== 'basketball' && id !== 'fight');
+    $('chips').hidden = (id !== 'esports' && id !== 'basketball' && id !== 'fight' && id !== 'tennis');
     $('chips2').hidden = (id !== 'esports' && id !== 'football');
     if (id === 'football') renderChips();
     $('status').hidden = !ready || isToday;
     $('settings').hidden = true;
     $('panel-soon').hidden = ready;
     $('panel-today').hidden = !isToday;
-    $('gearBtn').hidden = !ready || isToday ||
+    $('gearBtn').hidden = !ready || isToday || id === 'snooker' ||
       (id === 'basketball' && bballLeague !== 'nba');
     $('refreshBtn').hidden = !ready;
 
@@ -3642,7 +3705,9 @@
     fight: [['fixtures', '赛历'], ['table', '排名'], ['mine', '我的选手']],
     boxing: [['fixtures', '赛程'], ['table', '排名'], ['mine', '我的拳手']],
     esports_other: [['fixtures', '赛程'], ['table', '战绩榜'], ['mine', '我的战队']],
-    single: [['fixtures', '赛程']]
+    single: [['fixtures', '赛程']],
+    tennis: [['fixtures', '赛事'], ['table', '排名'], ['mine', '我的球员']],
+    snooker: [['fixtures', '赛事'], ['table', '排名']]
   };
   function renderSegTabs() {
     var defs = (sport === 'esports' && esportsGame !== 'lol') ? TABS.esports_other
@@ -3726,6 +3791,19 @@
     $('panel-table').hidden = next !== 'table';
     $('panel-mine').hidden = next !== 'mine';
 
+    if (sport === 'tennis') {
+      renderTennisChips();
+      if (next === 'table') renderTennisRank();
+      else if (next === 'mine') renderMyTennis();
+      else renderTennis();
+      return;
+    }
+    if (sport === 'snooker') {
+      // two boards only: a follow tab carried over from another sport opens the events
+      if (next === 'mine') { tab = next = 'fixtures'; $('panel-fixtures').hidden = false; $('panel-mine').hidden = true; renderSegTabs(); }
+      if (next === 'table') renderSnookerRank(); else renderSnooker();
+      return;
+    }
     if (sport === 'f1') {
       if (next === 'fixtures') renderF1Fixtures();
       else if (next === 'table') renderF1Table();
@@ -5497,7 +5575,7 @@
     document.documentElement.classList.add('pg-open');
     ({ team: teamPageHTML, player: playerPageHTML, nbaTeam: nbaTeamPageHTML, nbaPlayer: nbaPlayerPageHTML,
       f1Driver: f1DriverPageHTML, f1Team: f1TeamPageHTML, f1Circuit: f1CircuitPageHTML,
-      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML, nbaCmp: nbaCmpPageHTML, pandaTeam: pandaTeamPageHTML, search: srchPageHTML })[top.type](top).then(function (html) {
+      ufcFighter: ufcFighterPageHTML, lolTeam: lolTeamPageHTML, boxer: boxerPageHTML, fbCmp: fbCmpPageHTML, nbaCmp: nbaCmpPageHTML, pandaTeam: pandaTeamPageHTML, search: srchPageHTML, tennisPlayer: tnPlayerPageHTML })[top.type](top).then(function (html) {
       if (pgStack[pgStack.length - 1] !== top) return;
       body.innerHTML = html;
       if (top.type === 'player') playerPhoto(body);
@@ -16294,7 +16372,7 @@ O
   var SRCH_ESPN = 'https://site.web.api.espn.com/apis/search/v2?region=us&lang=en&limit=15&query=';
   var srchLast = '', srchSeq = 0, srchTimer = null;
   var srchRecent = lsGet('srchRecent', []);
-  var SRCH_GROUPS = [['football', '足球'], ['nba', '篮球'], ['f1', 'F1'], ['fight', '格斗'], ['esports', '电竞']];
+  var SRCH_GROUPS = [['football', '足球'], ['nba', '篮球'], ['f1', 'F1'], ['fight', '格斗'], ['esports', '电竞'], ['tennis', '网球']];
 
   function srchHas(hay, q) { return plain(String(hay || '')).indexOf(q) !== -1; }
   function srchScore(keys, qs) {
@@ -16315,7 +16393,7 @@ O
   // the English behind a Chinese name, from the maps the site renders with
   function srchEnglish(q) {
     var out = [];
-    [CN, NBA_CN, NATION_CN].forEach(function (map) {
+    [CN, NBA_CN, NATION_CN, TN_CN].forEach(function (map) {
       Object.keys(map).forEach(function (k) { if (String(map[k]).indexOf(q) !== -1 && out.indexOf(k) === -1) out.push(k); });
     });
     return out.slice(0, 3);
@@ -16339,6 +16417,9 @@ O
             out.push({ g: 'nba', k: [c.displayName], name: team ? nbaCN(c.displayName) : c.displayName, img: img, round: team,
               sub: team ? 'NBA' : [nbaCN(c.subtitle, c.subtitle), 'NBA'].filter(Boolean).join(' · '),
               open: team ? { type: 'nbaTeam', id: id } : { type: 'nbaPlayer', id: id } });
+          } else if (sp === 'tennis' && !team) {
+            out.push({ g: 'tennis', k: [c.displayName], name: tnName(c.displayName), img: img, sub: (lg || '').toUpperCase(),
+              open: { type: 'tennisPlayer', id: id, tour: lg === 'wta' ? 'wta' : 'atp' } });
           } else if (sp === 'mma' && !team) {
             out.push({ g: 'fight', k: [c.displayName], name: c.displayName, img: img, sub: 'UFC', open: { type: 'ufcFighter', id: id } });
           }
@@ -16486,6 +16567,457 @@ O
     var pg;
     try { pg = JSON.parse(el.dataset.sr); } catch (err) { return; }
     pgOpen(pg);
+  }, true);
+
+  /* ---------- tennis: this week's tournaments, the rankings, a player ----------
+     All from ESPN, the same feed as the football and the NBA: every event on
+     this week with its draw, the year's calendar, the ATP and WTA tables. */
+  var TNS = 'site/v2/sports/tennis/';
+  var tnTour = lsGet('ttour', 'atp') === 'wta' ? 'wta' : 'atp';
+  var favTennis = lsGet('favTennis', []), MAX_TENNIS = 8;
+  var tnCNOnly = !!lsGet('tnCN', false), tnQual = {}, tnAll = {};
+  var TN_CN = {
+    'jannik sinner': '辛纳', 'carlos alcaraz': '阿尔卡拉斯', 'novak djokovic': '德约科维奇', 'alexander zverev': '兹维列夫',
+    'taylor fritz': '弗里茨', 'jack draper': '德雷珀', 'alex de minaur': '德米纳尔', 'lorenzo musetti': '穆塞蒂',
+    'holger rune': '鲁内', 'casper ruud': '鲁德', 'ben shelton': '谢尔顿', 'daniil medvedev': '梅德韦杰夫',
+    'tommy paul': '保罗', 'frances tiafoe': '蒂亚福', 'andrey rublev': '鲁布列夫', 'stefanos tsitsipas': '西西帕斯',
+    'jakub mensik': '门西克', 'joao fonseca': '丰塞卡', 'felix auger-aliassime': '阿利亚西姆', 'grigor dimitrov': '迪米特洛夫',
+    'karen khachanov': '哈恰诺夫', 'hubert hurkacz': '胡尔卡奇', 'arthur fils': '菲尔斯', 'ugo humbert': '亨伯特',
+    'alexander bublik': '布勃利克', 'francisco cerundolo': '塞伦多洛', 'tomas machac': '马哈茨', 'jiri lehecka': '莱赫奇卡',
+    'flavio cobolli': '科博利', 'sebastian korda': '科达', 'denis shapovalov': '沙波瓦洛夫', 'learner tien': '蒂安',
+    'alex michelsen': '米歇尔森', 'nick kyrgios': '克耶高斯', 'stan wawrinka': '瓦林卡', 'kei nishikori': '锦织圭',
+    'juncheng shang': '商竣程', 'shang juncheng': '商竣程', 'zhizhen zhang': '张之臻', 'zhang zhizhen': '张之臻',
+    'yibing wu': '吴易昺', 'wu yibing': '吴易昺', 'yunchaokete bu': '布云朝克特', 'bu yunchaokete': '布云朝克特',
+    'aryna sabalenka': '萨巴伦卡', 'iga swiatek': '斯瓦泰克', 'coco gauff': '高芙', 'elena rybakina': '雷巴金娜',
+    'jessica pegula': '佩古拉', 'jasmine paolini': '保利尼', 'qinwen zheng': '郑钦文', 'zheng qinwen': '郑钦文',
+    'mirra andreeva': '安德烈耶娃', 'amanda anisimova': '阿尼西莫娃', 'madison keys': '基斯', 'emma navarro': '纳瓦罗',
+    'elina svitolina': '斯维托丽娜', 'naomi osaka': '大坂直美', 'emma raducanu': '拉杜卡努', 'belinda bencic': '本西奇',
+    'ekaterina alexandrova': '亚历山德罗娃', 'clara tauson': '陶森', 'karolina muchova': '穆霍娃', 'barbora krejcikova': '克雷吉茨科娃',
+    'daria kasatkina': '卡萨特金娜', 'liudmila samsonova': '萨姆索诺娃', 'jelena ostapenko': '奥斯塔彭科', 'victoria mboko': '姆博科',
+    'diana shnaider': '施奈德', 'paula badosa': '巴多萨', 'marta kostyuk': '科斯秋克', 'leylah fernandez': '费尔南德斯',
+    'linda noskova': '诺斯科娃', 'ons jabeur': '贾巴尔', 'venus williams': '大威廉姆斯', 'elise mertens': '默滕斯',
+    'xinyu wang': '王欣瑜', 'wang xinyu': '王欣瑜', 'xiyu wang': '王曦雨', 'wang xiyu': '王曦雨', 'shuai zhang': '张帅',
+    'zhang shuai': '张帅', 'yue yuan': '袁悦', 'yuan yue': '袁悦', 'lin zhu': '朱琳', 'zhu lin': '朱琳',
+    'chenting zhu': '朱晨婷', 'zhuoxuan bai': '白卓璇', 'xiaodi you': '游晓迪', 'yafan wang': '王雅繁', 'qiang wang': '王蔷',
+    'hanyu guo': '郭涵煜', 'sijia wei': '韦思佳', 'lanlana tararudee': '塔拉鲁迪'
+  };
+  function tnName(n) {
+    if (NAMES_EN) return n || '';
+    return TN_CN[plain(String(n || '')).trim()] || n || '';
+  }
+  var TN_EV_CN = [
+    [/australian open/i, '澳网'], [/roland garros|french open/i, '法网'], [/wimbledon/i, '温网'], [/us open/i, '美网'],
+    [/atp finals/i, 'ATP 年终总决赛'], [/wta finals/i, 'WTA 年终总决赛'], [/shanghai/i, '上海大师赛'], [/china open/i, '中国网球公开赛'],
+    [/wuhan/i, '武汉公开赛'], [/ningbo/i, '宁波公开赛'], [/jingshan/i, '京山公开赛'], [/guangzhou/i, '广州公开赛'],
+    [/chengdu/i, '成都公开赛'], [/hangzhou/i, '杭州公开赛'], [/hong kong/i, '香港网球公开赛'], [/zhuhai/i, '珠海冠军赛'],
+    [/japan open/i, '日本公开赛'], [/indian wells|bnp paribas open/i, '印第安维尔斯大师赛'], [/miami/i, '迈阿密公开赛'],
+    [/monte.carlo/i, '蒙特卡洛大师赛'], [/madrid/i, '马德里公开赛'], [/internazionali|italian open|rome/i, '罗马公开赛'],
+    [/canadian open|national bank open|omnium banque/i, '加拿大公开赛'], [/cincinnati/i, '辛辛那提公开赛'],
+    [/paris masters|rolex paris/i, '巴黎大师赛'], [/davis cup/i, '戴维斯杯'], [/billie jean king/i, '比利·简·金杯'],
+    [/united cup/i, '联合杯'], [/laver cup/i, '拉沃尔杯'], [/dubai/i, '迪拜赛'], [/doha|qatar/i, '多哈赛']
+  ];
+  function tnEvName(n) {
+    if (LANG === 'en') return n || '';
+    for (var i = 0; i < TN_EV_CN.length; i++) if (TN_EV_CN[i][0].test(n || '')) return TN_EV_CN[i][1];
+    return n || '';
+  }
+  var TN_ROUND_CN = {
+    'Round 1': '第一轮', 'Round 2': '第二轮', 'Round 3': '第三轮', 'Round 4': '第四轮', 'Quarterfinal': '1/4 决赛',
+    'Quarterfinals': '1/4 决赛', 'Semifinal': '半决赛', 'Semifinals': '半决赛', 'Final': '决赛', 'Qualifying Final': '资格赛决赛',
+    'Qualifying 1st Round': '资格赛第一轮', 'Qualifying 2nd Round': '资格赛第二轮', 'Qualifying 3rd Round': '资格赛第三轮',
+    'Round Robin': '小组赛'
+  };
+  function tnRound(r) {
+    if (LANG === 'en') return r || '';
+    return TN_ROUND_CN[r] || String(r || '').replace(/^Round of (\d+)$/, '$1 强');
+  }
+  // a match gives the flag as {href, alt}, the rankings as a bare address beside a country code
+  function tnFlag(a) {
+    a = a || {};
+    var f = a.flag;
+    if (typeof f === 'string') return { href: f, alt: a.flagAltText || '', code: a.citizenshipCountry || '' };
+    return { href: (f && f.href) || '', alt: (f && f.alt) || '', code: a.citizenshipCountry || '' };
+  }
+  function tnIsCN(x) {
+    var f = tnFlag((x || {}).athlete || x);
+    return f.code === 'CHN' || /\/chn\.png$/i.test(f.href) || f.alt === 'China';
+  }
+  function tnBoard(tour) { return swrJSON(API + TNS + tour + '/scoreboard'); }
+  function tnYear(tour) { return swrJSON(API + TNS + tour + '/scoreboard?dates=' + new Date().getFullYear()); }
+  function tnRanks(tour) { return swrJSON(API + TNS + tour + '/rankings'); }
+  // an event's singles draw for this tour: a combined event carries both
+  function tnSingles(ev, tour) {
+    return (ev.groupings || []).filter(function (g) {
+      var n = ((g.grouping || {}).displayName) || '';
+      return /singles/i.test(n) && (tour === 'wta' ? /women/i.test(n) : !/women/i.test(n));
+    })[0] || null;
+  }
+  function tnDates(a, b) {
+    var d1 = new Date(a), d2 = new Date(b || a);
+    if (isNaN(d1)) return '';
+    var f = function (d) { return LANG === 'en' ? (d.getMonth() + 1) + '/' + d.getDate() : (d.getMonth() + 1) + '月' + d.getDate() + '日'; };
+    return f(d1) + (isNaN(d2) || d2 - d1 < 864e5 ? '' : ' – ' + f(new Date(d2.getTime() - 1)));
+  }
+
+  function tnMatchHTML(c, tour) {
+    var cs = (c.competitors || []).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    var st = ((c.status || {}).type) || {}, live = st.state === 'in', done = st.state === 'post';
+    var n = Math.max.apply(null, cs.map(function (x) { return (x.linescores || []).length; }).concat([0]));
+    function row(x) {
+      x = x || {};
+      var a = x.athlete || {}, win = x.winner === true;
+      var rk = x.curatedRank && x.curatedRank.current;
+      var cells = (x.linescores || []).map(function (l) {
+        return '<span class="tn-g' + (l.winner ? ' w' : '') + '">' + esc(l.value != null ? l.value : '') +
+          (l.tiebreak != null ? '<sup>' + esc(l.tiebreak) + '</sup>' : '') + '</span>';
+      });
+      while (cells.length < n) cells.push('<span class="tn-g"></span>');
+      return '<div class="tn-p' + (win ? ' win' : '') + (done && !win ? ' lose' : '') + (tnIsCN(x) ? ' cn' : '') + '">' +
+        (a.flag && a.flag.href ? '<img class="tn-f" src="' + esc(a.flag.href) + '" alt="" loading="lazy">' : '<span class="tn-f"></span>') +
+        '<span class="tn-n"' + (Number(x.id) > 0 ? ' data-tnp="' + esc(x.id) + '" data-tour="' + tour + '"' : '') + '>' + esc(tnName(a.displayName) || 'TBD') +
+        (rk && rk < 999 ? '<small>' + rk + '</small>' : '') + '</span>' +
+        '<span class="tn-sets">' + cells.join('') + '</span></div>';
+    }
+    var when = new Date(c.date);
+    var note = live ? '<b class="tn-live">' + (LANG === 'en' ? 'Live' : '进行中') + '</b>'
+      : done ? (st.shortDetail && st.shortDetail !== 'Final' ? esc(st.shortDetail) : '')
+      : (isNaN(when) ? '' : esc(fmtDay(when) + ' ' + fmtTime(when)));
+    var court = c.venue && c.venue.court;
+    return '<div class="tn-m' + (live ? ' live' : '') + '">' + row(cs[0]) + row(cs[1]) +
+      ((note || court) ? '<div class="tn-meta">' + [note, court ? esc(court) : ''].filter(Boolean).join(' · ') + '</div>' : '') + '</div>';
+  }
+  function tnEventHTML(ev, tour) {
+    var g = tnSingles(ev, tour);
+    if (!g) return '';
+    var comps = (g.competitions || []).filter(function (c) {
+      // a later round is listed before anyone reaches it: those empty places are left out
+      var named = (c.competitors || []).filter(function (x) { return x.athlete && x.athlete.displayName && Number(x.id) > 0; }).length;
+      return named && (!tnCNOnly || (c.competitors || []).some(tnIsCN));
+    });
+    var rounds = {}, order = [];
+    comps.forEach(function (c) {
+      var r = c.round || {}, k = r.displayName || '';
+      if (!rounds[k]) { rounds[k] = { name: k, id: Number(r.id) || 0, qual: /qualif/i.test(k), list: [] }; order.push(k); }
+      rounds[k].list.push(c);
+    });
+    var main = order.map(function (k) { return rounds[k]; }).filter(function (r) { return !r.qual; }).sort(function (a, b) { return b.id - a.id; });
+    var qual = order.map(function (k) { return rounds[k]; }).filter(function (r) { return r.qual; }).sort(function (a, b) { return b.id - a.id; });
+    // the champion, once the final is played
+    var fin = (g.competitions || []).filter(function (c) { return /^final$/i.test((c.round || {}).displayName || '') && ((c.status || {}).type || {}).state === 'post'; })[0];
+    var champ = fin && (fin.competitors || []).filter(function (x) { return x.winner; })[0];
+    function stateRank(c) { var s = ((c.status || {}).type || {}).state; return s === 'in' ? 0 : s === 'pre' ? 1 : 2; }
+    function roundHTML(r) {
+      var list = r.list.slice().sort(function (a, b) { return stateRank(a) - stateRank(b) || new Date(a.date) - new Date(b.date); });
+      return '<div class="tn-r">' + esc(tnRound(r.name)) + '<span>' + list.length + (LANG === 'en' ? ' matches' : ' 场') + '</span></div>' +
+        list.map(function (c) { return tnMatchHTML(c, tour); }).join('');
+    }
+    var all = !!tnAll[ev.id], showQ = !!tnQual[ev.id];
+    var shown = all ? main : main.slice(0, 2);
+    var live = ((ev.status || {}).type || {}).state === 'in';
+    var venue = (ev.venue && ev.venue.displayName) || '';
+    return '<div class="card tn-ev"><div class="tn-h"><div class="tn-t">' + esc(tnEvName(ev.name)) + (ev.major ? '<span class="tag hot">' + (LANG === 'en' ? 'Grand Slam' : '大满贯') + '</span>' : '') + '</div>' +
+      '<div class="tn-s">' + esc([tnDates(ev.date, ev.endDate), venue].filter(Boolean).join(' · ')) + (live ? ' · <b class="tn-live">' + (LANG === 'en' ? 'on now' : '进行中') + '</b>' : '') + '</div>' +
+      (champ ? '<div class="tn-champ">' + (LANG === 'en' ? 'Champion: ' : '冠军：') + '<b data-tnp="' + esc(champ.id) + '" data-tour="' + tour + '">' + esc(tnName((champ.athlete || {}).displayName)) + '</b></div>' : '') + '</div>' +
+      (shown.length ? shown.map(roundHTML).join('') : '<div class="empty" style="padding:10px 0">' + (tnCNOnly ? (LANG === 'en' ? 'No Chinese players in the main draw.' : '正赛里没有中国球员。') : (LANG === 'en' ? 'The main draw has not started.' : '正赛还没开打。')) + '</div>') +
+      (main.length > 2 && !all ? '<button type="button" class="com-more" data-tnall="' + esc(ev.id) + '">' + (LANG === 'en' ? 'All rounds' : '全部轮次') + '</button>' : '') +
+      (qual.length ? '<button type="button" class="com-more" data-tnq="' + esc(ev.id) + '">' + (showQ ? (LANG === 'en' ? 'Hide qualifying' : '收起资格赛') : (LANG === 'en' ? 'Qualifying' : '资格赛') + ' ' + qual.reduce(function (n, r) { return n + r.list.length; }, 0) + (LANG === 'en' ? '' : ' 场')) + '</button>' : '') +
+      (showQ ? qual.map(roundHTML).join('') : '') + '</div>';
+  }
+  function renderTennisChips() {
+    $('chips').hidden = false;
+    $('chips').innerHTML = [['atp', 'ATP'], ['wta', 'WTA']].map(function (g) {
+      return '<button class="chip" type="button" data-ttour="' + g[0] + '" aria-pressed="' + (g[0] === tnTour) + '">' + g[1] + '</button>';
+    }).join('');
+  }
+  function renderTennis() {
+    var host = panelFor('panel-fixtures'), tour = tnTour;
+    host.innerHTML = '<div class="skeleton">正在获取赛事…</div>';
+    Promise.all([tnBoard(tour), tnYear(tour)]).then(function (r) {
+      if (tour !== tnTour) return;
+      var evs = ((r[0] && r[0].events) || []).filter(function (ev) { return tnSingles(ev, tour); });
+      var now = Date.now(), ids = {};
+      evs.forEach(function (ev) { ids[ev.id] = 1; });
+      var next = ((r[1] && r[1].events) || []).filter(function (ev) { return !ids[ev.id] && Date.parse(ev.date) > now; })
+        .sort(function (a, b) { return Date.parse(a.date) - Date.parse(b.date); }).slice(0, 6);
+      var liveN = 0;
+      evs.forEach(function (ev) { var g = tnSingles(ev, tour); (g.competitions || []).forEach(function (c) { if (((c.status || {}).type || {}).state === 'in') liveN++; }); });
+      host.innerHTML =
+        '<div class="rnd-tabs tn-filter"><button type="button" class="rnd-tab' + (tnCNOnly ? ' on' : '') + '" data-tncn="1">' + (LANG === 'en' ? 'Chinese players only' : '只看中国球员') + '</button></div>' +
+        (evs.length ? '<div class="group-name">' + (LANG === 'en' ? 'This week' : '本周赛事') + '</div>' + evs.map(function (ev) { return tnEventHTML(ev, tour); }).join('')
+          : '<div class="empty">' + (LANG === 'en' ? 'No tournament this week.' : '这周没有赛事。') + '</div>') +
+        (next.length ? '<div class="group-name">' + (LANG === 'en' ? 'Coming up' : '接下来') + '</div><div class="card tn-next">' + next.map(function (ev) {
+          return '<div class="tn-nx"><span class="tn-nd">' + esc(tnDates(ev.date, ev.endDate)) + '</span><span class="tn-nn">' + esc(tnEvName(ev.name)) +
+            (ev.major ? ' <span class="tag hot">' + (LANG === 'en' ? 'Slam' : '大满贯') + '</span>' : '') + '<small>' + esc((ev.venue && ev.venue.displayName) || '') + '</small></span></div>';
+        }).join('') + '</div>' : '');
+      $('status').innerHTML = (liveN ? '<span class="dot"></span>' + liveN + (LANG === 'en' ? ' live · ' : ' 场进行中 · ') : '') + (tour === 'wta' ? 'WTA' : 'ATP');
+      tnLiveSchedule(liveN);
+    });
+  }
+  // while a match is on, the board comes round again every half minute
+  var tnTimer = null;
+  function tnLiveSchedule(on) {
+    if (tnTimer) { clearTimeout(tnTimer); tnTimer = null; }
+    if (!on) return;
+    tnTimer = setTimeout(function () {
+      if (sport !== 'tennis' || tab !== 'fixtures' || document.hidden) return;
+      swrMem = {};
+      var y = window.pageYOffset;
+      swrQuiet = true;
+      renderTennis();
+      setTimeout(function () { window.scrollTo(0, y); swrQuiet = false; }, 300);
+    }, 30000);
+  }
+  function renderTennisRank() {
+    var host = panelFor('panel-table'), tour = tnTour;
+    host.innerHTML = '<div class="skeleton">正在获取排名…</div>';
+    tnRanks(tour).then(function (d) {
+      var R = ((d && d.rankings) || [])[0] || {};
+      var list = R.ranks || [];
+      if (!list.length) { host.innerHTML = '<div class="err">排名没取到，刷新一下重试。</div>'; return; }
+      var favIds = favTennis.map(function (f) { return String(f.id); });
+      host.innerHTML = '<div class="note">' + (tour === 'wta' ? 'WTA' : 'ATP') + (LANG === 'en' ? ' singles ranking' : ' 单打世界排名') +
+        (R.date ? ' · ' + esc(fmtDay(new Date(R.date))) : '') + '</div><div class="card tn-rk">' + list.map(function (x) {
+          var a = x.athlete || {}, mv = (x.previous || x.current) - x.current;
+          return '<div class="tn-rr' + (tnIsCN(a) ? ' cn' : '') + (favIds.indexOf(String(a.id)) !== -1 ? ' fav' : '') + '" data-tnp="' + esc(a.id) + '" data-tour="' + tour + '">' +
+            '<span class="tn-rn">' + x.current + '</span><span class="vrs-mv ' + (mv > 0 ? 'up' : mv < 0 ? 'dn' : '') + '">' + (mv > 0 ? '▲' + mv : mv < 0 ? '▼' + (-mv) : '–') + '</span>' +
+            (tnFlag(a).href ? '<img class="tn-f" src="' + esc(tnFlag(a).href) + '" alt="" loading="lazy">' : '<span class="tn-f"></span>') +
+            '<span class="tn-rname">' + esc(tnName(a.displayName)) + '</span><span class="tn-pts">' + esc(String(x.points || '')) + '</span></div>';
+        }).join('') + '</div>';
+    });
+  }
+  // a followed player's week: the match on or next, and the last one played
+  function renderMyTennis() {
+    var host = panelFor('panel-mine');
+    if (!favTennis.length) {
+      host.innerHTML = '<div class="empty">' + (LANG === 'en' ? 'No players followed yet.<br>Tap "Players" at the top right to pick up to ' + MAX_TENNIS + '.'
+        : '还没有关注球员。<br>点右上角的「球员」挑最多 ' + MAX_TENNIS + ' 位，这里会显示他们这周的比赛。') + '</div>';
+      return;
+    }
+    host.innerHTML = '<div class="skeleton">正在获取…</div>';
+    Promise.all([tnBoard('atp'), tnBoard('wta')]).then(function (r) {
+      var by = { atp: r[0], wta: r[1] };
+      host.innerHTML = favTennis.map(function (f) {
+        var mine = [];
+        ((by[f.tour] && by[f.tour].events) || []).forEach(function (ev) {
+          var g = tnSingles(ev, f.tour);
+          ((g && g.competitions) || []).forEach(function (c) {
+            if ((c.competitors || []).some(function (x) { return String(x.id) === String(f.id); })) mine.push({ ev: ev, c: c });
+          });
+        });
+        mine.sort(function (a, b) { return new Date(b.c.date) - new Date(a.c.date); });
+        var body = mine.slice(0, 2).map(function (m) {
+          return '<div class="tn-mev">' + esc(tnEvName(m.ev.name)) + ' · ' + esc(tnRound((m.c.round || {}).displayName)) + '</div>' + tnMatchHTML(m.c, f.tour);
+        }).join('') || '<div class="fix">' + (LANG === 'en' ? 'Not playing this week' : '这周没有比赛') + '</div>';
+        return '<div class="card team-card"><div class="tc-head"><span class="nm" data-tnp="' + esc(f.id) + '" data-tour="' + f.tour + '">' + esc(tnName(f.name)) +
+          '</span><span class="lg">' + f.tour.toUpperCase() + '</span></div>' + body + '</div>';
+      }).join('');
+    });
+  }
+  function renderTennisPicker() {
+    var host = $('picker'), tour = tnTour;
+    $('pickHint').textContent = (LANG === 'en' ? 'Pick players to follow, up to ' : '勾选你关注的球员，两个巡回赛合计最多 ') + MAX_TENNIS + (LANG === 'en' ? '.' : ' 位。');
+    host.innerHTML = '<div class="skeleton">正在载入排名…</div>';
+    tnRanks(tour).then(function (d) {
+      var list = ((((d && d.rankings) || [])[0] || {}).ranks) || [];
+      var picked = favTennis.map(function (f) { return String(f.id); });
+      host.innerHTML = list.map(function (x) {
+        var a = x.athlete || {};
+        return '<label><input type="checkbox" value="' + esc(a.id) + '" data-name="' + esc(a.displayName || '') + '" data-tour="' + tour + '"' +
+          (picked.indexOf(String(a.id)) !== -1 ? ' checked' : '') + '><span class="tn-pk">' + x.current + '</span>' + esc(tnName(a.displayName)) + '</label>';
+      }).join('');
+      $('pickCount').textContent = '已选 ' + favTennis.length + ' / ' + MAX_TENNIS;
+    });
+  }
+  function tnPickCount() {
+    var other = favTennis.filter(function (f) { return f.tour !== tnTour; }).length;
+    return other + document.querySelectorAll('#picker input:checked').length;
+  }
+  function saveFavTennis() {
+    var other = favTennis.filter(function (f) { return f.tour !== tnTour; });
+    var checked = [].slice.call(document.querySelectorAll('#picker input:checked')).slice(0, Math.max(0, MAX_TENNIS - other.length));
+    favTennis = other.concat(checked.map(function (c) { return { id: c.value, name: c.dataset.name, tour: c.dataset.tour }; }));
+    lsSet('favTennis', favTennis);
+    $('settings').hidden = true;
+    setTab('mine');
+  }
+  function toggleFavTn(btn) {
+    var id = String(btn.dataset.favTn), on = favTennis.some(function (f) { return String(f.id) === id; });
+    if (on) favTennis = favTennis.filter(function (f) { return String(f.id) !== id; });
+    else {
+      if (favTennis.length >= MAX_TENNIS) { alert('最多只能关注 ' + MAX_TENNIS + ' 位球员。'); return; }
+      favTennis.push({ id: id, name: btn.dataset.name, tour: btn.dataset.tour });
+    }
+    lsSet('favTennis', favTennis);
+    btn.classList.toggle('on', !on);
+    btn.textContent = on ? '关注' : '已关注';
+  }
+  var TN_HAND_CN = { RIGHT: '右手', LEFT: '左手' };
+  function tnPlayerPageHTML(pg) {
+    var tour = pg.tour === 'wta' ? 'wta' : 'atp', id = String(pg.id);
+    return Promise.all([getJSON(API + 'common/v3/sports/tennis/' + tour + '/athletes/' + id), tnRanks(tour), tnBoard(tour)]).then(function (r) {
+      var a = (r[0] && r[0].athlete) || {};
+      if (!a.id) return '<div class="err">球员资料没取到，返回再点一次试试。</div>';
+      var rk = (((((r[1] || {}).rankings) || [])[0] || {}).ranks || []).filter(function (x) { return String((x.athlete || {}).id) === id; })[0];
+      var flag = rk && tnFlag(rk.athlete);
+      var zh = tnName(a.displayName), en = LANG === 'en';
+      var fav = favTennis.some(function (f) { return String(f.id) === id; });
+      var face = 'https://a.espncdn.com/i/headshots/tennis/players/full/' + id + '.png';
+      var html = '<div class="pg-head has-fig"><span class="pg-nf">' + PS_FACE + '<img alt="" src="' + esc(face) + '" onerror="this.remove()"></span>' +
+        '<div class="pg-hd"><div class="pg-name">' + esc(zh) + '</div>' +
+        (zh !== a.displayName ? '<div class="pg-sub muted">' + esc(a.displayName) + '</div>' : '') +
+        '<div class="pg-sub">' + (flag && flag.href ? '<img class="flag-sm" src="' + esc(flag.href) + '" alt=""> ' + esc(nationCN(flag.alt || '') || '') + ' · ' : '') + tour.toUpperCase() + '</div></div>' +
+        '<button type="button" class="pg-fav' + (fav ? ' on' : '') + '" data-fav-tn="' + esc(id) + '" data-tour="' + tour + '" data-name="' + esc(a.displayName || '') + '">' + (fav ? '已关注' : '关注') + '</button></div>';
+      var hand = a.hand && (en ? a.hand.displayValue : TN_HAND_CN[a.hand.type] || a.hand.displayValue);
+      html += '<div class="f1-tiles">' +
+        f1Tile(rk ? '#' + rk.current : null, en ? 'Ranking' : '世界排名') + f1Tile(rk ? rk.points : null, en ? 'Points' : '积分') +
+        f1Tile(a.age ? a.age + (en ? '' : ' 岁') : null, en ? 'Age' : '年龄') + f1Tile(metricHeight(a.displayHeight) || null, en ? 'Height' : '身高') +
+        f1Tile(hand || null, en ? 'Plays' : '持拍') + f1Tile(a.debutYear || null, en ? 'Turned pro' : '转职业') + '</div>';
+      var mine = [];
+      (((r[2] || {}).events) || []).forEach(function (ev) {
+        var g = tnSingles(ev, tour);
+        ((g && g.competitions) || []).forEach(function (c) {
+          if ((c.competitors || []).some(function (x) { return String(x.id) === id; })) mine.push({ ev: ev, c: c });
+        });
+      });
+      mine.sort(function (x, y) { return new Date(y.c.date) - new Date(x.c.date); });
+      if (mine.length) html += '<h4>' + (en ? 'This week' : '本周比赛') + '</h4>' + mine.map(function (m) {
+        return '<div class="tn-mev">' + esc(tnEvName(m.ev.name)) + ' · ' + esc(tnRound((m.c.round || {}).displayName)) + '</div>' + tnMatchHTML(m.c, tour);
+      }).join('');
+      else html += '<div class="empty" style="margin-top:14px">' + (en ? 'Not playing this week.' : '这周没有比赛。') + '</div>';
+      return html;
+    });
+  }
+
+  /* ---------- snooker: the season from Wikipedia, through the collector ---------- */
+  var SN_CN = {
+    'judd trump': '特鲁姆普', 'neil robertson': '罗伯逊', 'zhao xintong': '赵心童', 'wu yize': '吴宜泽', 'kyren wilson': '凯伦·威尔逊',
+    'mark selby': '塞尔比', "ronnie o'sullivan": '奥沙利文', 'john higgins': '希金斯', 'mark allen': '艾伦', 'shaun murphy': '墨菲',
+    'mark williams': '马克·威廉姆斯', 'ding junhui': '丁俊晖', 'si jiahui': '司家辉', 'luca brecel': '布雷切尔', 'barry hawkins': '霍金斯',
+    'ali carter': '卡特', 'jak jones': '杰克·琼斯', 'zhang anda': '张安达', 'xiao guodong': '肖国栋', 'chris wakelin': '威克林',
+    'stuart bingham': '宾汉姆', 'tom ford': '福德', 'pang junxu': '庞俊旭', 'lei peifan': '雷佩凡', 'chang bingyu': '常冰玉',
+    'yuan sijun': '袁思俊', 'zhou yuelong': '周跃龙', 'xu si': '徐思', 'he guoqiang': '何国强', 'fan zhengyi': '范争一',
+    'jiang jun': '江俊', 'liu hongyu': '刘宏宇', 'huang jiahao': '黄佳浩', 'zhao jianbo': '赵剑波', 'lyu haotian': '吕昊天',
+    'gong chenzhi': '龚宸志', 'xu yichen': '许益晨', 'noppon saengkham': '萨格汉姆', 'thepchaiya un-nooh': '乌诺',
+    'hossein vafaei': '瓦法伊', 'david gilbert': '吉尔伯特', 'ricky walden': '沃尔登', 'stephen maguire': '马奎尔',
+    'jack lisowski': '利索夫斯基', 'anthony mcgill': '麦克吉尔', 'ryan day': '瑞恩·戴', "joe o'connor": '奥康纳',
+    'zak surety': '苏瑞提', 'elliot slessor': '斯莱瑟', 'matthew selt': '塞尔特', 'michael holt': '霍尔特',
+    'jimmy robertson': '吉米·罗伯逊', 'scott donaldson': '唐纳森', 'ben mertens': '默滕斯', 'jackson page': '佩奇',
+    'ma hailong': '马海龙', 'xing zihao': '邢子豪', 'wang yuchen': '王雨晨', 'bai langning': '白朗宁', 'wang xinbo': '王鑫波',
+    'zhao hanyang': '赵汉洋', 'long zehuang': '龙泽煌', 'yan bingtao': '颜丙涛', 'tian pengfei': '田鹏飞', 'lu ning': '吕宁',
+    'liang wenbo': '梁文博', 'marco fu': '傅家俊', 'ka wai cheung': '张家玮', 'robert milkins': '米尔金斯', 'gary wilson': '加里·威尔逊',
+    'mark davis': '戴维斯', 'martin gould': '古尔德', 'kurt maflin': '马夫林', 'sam craigie': '克雷吉', 'iulian boiko': '博伊科',
+    'mark joyce': '乔伊斯', 'liam highfield': '海菲尔德', 'lan yuhao': '兰宇豪'
+  };
+  function snName(n) {
+    if (NAMES_EN) return n || '';
+    return SN_CN[plain(String(n || '')).trim()] || n || '';
+  }
+  var SN_NAT_CN = { ENG: '英格兰', WAL: '威尔士', SCO: '苏格兰', NIR: '北爱尔兰', IRL: '爱尔兰', CHN: '中国', HKG: '中国香港', AUS: '澳大利亚',
+    BEL: '比利时', THA: '泰国', IRN: '伊朗', UKR: '乌克兰', PAK: '巴基斯坦', IND: '印度', CYP: '塞浦路斯', MLT: '马耳他', AUT: '奥地利',
+    SUI: '瑞士', POL: '波兰', GER: '德国', BRA: '巴西', EGY: '埃及', MAS: '马来西亚', IOM: '马恩岛', NZL: '新西兰', CAN: '加拿大', FIN: '芬兰', LAT: '拉脱维亚' };
+  var SN_EV_CN = [
+    [/championship league/i, '冠军联赛'], [/shanghai masters/i, '上海大师赛'], [/china open/i, '中国公开赛'], [/wuhan/i, '武汉公开赛'],
+    [/british open/i, '英国公开赛'], [/english open/i, '英格兰公开赛'], [/shenzhen/i, '深圳公开赛'], [/xi.an/i, '西安大奖赛'],
+    [/northern ireland/i, '北爱尔兰公开赛'], [/international championship/i, '国际锦标赛'], [/champion of champions/i, '冠中冠'],
+    [/uk championship/i, '英国锦标赛'], [/scottish open/i, '苏格兰公开赛'], [/german masters/i, '德国大师赛'], [/world grand prix/i, '世界大奖赛'],
+    [/welsh open/i, '威尔士公开赛'], [/players championship/i, '球员锦标赛'], [/tour championship/i, '巡回锦标赛'],
+    [/world championship/i, '世锦赛'], [/saudi arabia/i, '沙特大师赛'], [/world open/i, '世界公开赛'], [/shoot.out/i, '短局赛'],
+    [/world masters/i, '世界大师赛'], [/^masters/i, '大师赛'], [/riyadh/i, '利雅得赛'], [/championship/i, '锦标赛']
+  ];
+  function snEvName(n) {
+    if (LANG === 'en') return n || '';
+    for (var i = 0; i < SN_EV_CN.length; i++) if (SN_EV_CN[i][0].test(n || '')) return SN_EV_CN[i][1];
+    return n || '';
+  }
+  function snRound(r) {
+    if (LANG === 'en') return r || '';
+    var m = /^Last (\d+)/i.exec(r || '');
+    if (m) return m[1] + ' 强';
+    return { 'Quarter-finals': '1/4 决赛', 'Semi-finals': '半决赛', 'Final': '决赛' }[r] || String(r || '').replace(/^Round (\d+)$/, '第 $1 轮');
+  }
+  var snOpen = {};
+  function snMatchHTML(m) {
+    var played = typeof m.s1 === 'number' && typeof m.s2 === 'number' && (m.s1 || m.s2);
+    function row(n, c, seed, s, win) {
+      return '<div class="tn-p' + (m.w && win ? ' win' : m.w ? ' lose' : '') + (c === 'CHN' ? ' cn' : '') + '"><span class="sn-nat">' + esc(LANG === 'en' ? c : SN_NAT_CN[c] || c) + '</span>' +
+        '<span class="tn-n">' + esc(snName(n) || (LANG === 'en' ? 'TBD' : '待定')) + (seed && seed !== 'a' ? '<small>' + esc(seed) + '</small>' : '') + '</span>' +
+        '<span class="tn-sets"><span class="tn-g' + (m.w && win ? ' w' : '') + '">' + (played || /w\/o/i.test(String(s)) ? esc(String(s)) : '') + '</span></span></div>';
+    }
+    return '<div class="tn-m">' + row(m.a, m.ac, m.as_, m.s1, m.w === 'a') + row(m.b, m.bc, m.bs_, m.s2, m.w === 'b') +
+      (!played && !m.w ? '<div class="tn-meta">' + (LANG === 'en' ? 'to play' : '待赛') + '</div>' : '') + '</div>';
+  }
+  function snDrawHTML(rounds) {
+    return rounds.slice().reverse().map(function (r) {
+      return '<div class="tn-r">' + esc(snRound(r.name)) + '<span>' + r.matches.length + (LANG === 'en' ? ' matches' : ' 场') + '</span></div>' + r.matches.map(snMatchHTML).join('');
+    }).join('');
+  }
+  function snDay(s) { var d = new Date((s || '') + 'T12:00:00'); return isNaN(d) ? '' : (LANG === 'en' ? (d.getMonth() + 1) + '/' + d.getDate() : (d.getMonth() + 1) + '月' + d.getDate() + '日'); }
+  function renderSnooker() {
+    var host = panelFor('panel-fixtures');
+    host.innerHTML = '<div class="skeleton">正在获取赛事…</div>';
+    archiveGet('snooker.json').then(function (d) {
+      if (!d || !(d.calendar || []).length) { host.innerHTML = archiveEmpty('斯诺克'); return; }
+      var today = new Date().toISOString().slice(0, 10), en = LANG === 'en';
+      var cal = d.calendar, draws = d.draws || {};
+      var live = cal.filter(function (t) { return t.start <= today && (t.end || t.start) >= today; });
+      var next = cal.filter(function (t) { return t.start > today; }).slice(0, 6);
+      var done = cal.filter(function (t) { return (t.end || t.start) < today; }).reverse();
+      function where(t) { return String(t.venue || '').replace(/^.* in /, ''); }
+      var html = live.map(function (t) {
+        var rounds = draws[t.page] || [];
+        return '<div class="group-name">' + (en ? 'On now' : '正在进行') + '</div><div class="card tn-ev"><div class="tn-h"><div class="tn-t">' + esc(snEvName(t.name)) + '</div>' +
+          '<div class="tn-s">' + esc([snDay(t.start) + ' – ' + snDay(t.end), where(t)].join(' · ')) + '</div></div>' +
+          (rounds.length ? snDrawHTML(rounds) : '<div class="empty" style="padding:10px 0">' + (en ? 'No results in yet.' : '还没有正赛结果。') + '</div>') + '</div>';
+      }).join('');
+      if (next.length) html += '<div class="group-name">' + (en ? 'Coming up' : '接下来') + '</div><div class="card tn-next">' + next.map(function (t) {
+        return '<div class="tn-nx"><span class="tn-nd">' + esc(snDay(t.start)) + '</span><span class="tn-nn">' + esc(snEvName(t.name)) + '<small>' + esc(where(t)) + '</small></span></div>';
+      }).join('') + '</div>';
+      if (done.length) html += '<div class="group-name">' + (en ? 'Results' : '已结束') + '</div><div class="card sn-done">' + done.map(function (t) {
+        var has = draws[t.page] && draws[t.page].length, open = has && snOpen[t.page];
+        return '<div class="sn-row"' + (has ? ' data-snx="' + esc(t.page) + '"' : '') + '><span class="tn-nd">' + esc(snDay(t.end || t.start)) + '</span>' +
+          '<span class="sn-mid"><b>' + esc(snEvName(t.name)) + '</b>' + (t.winner ? '<span><em' + (t.wc === 'CHN' ? ' class="cn"' : '') + '>' + esc(snName(t.winner)) + '</em> ' + esc(t.score || '') + ' ' +
+            esc(snName(t.runner)) + '</span>' : '') + '</span>' + (has ? '<span class="sn-arr">' + (open ? '▾' : '▸') + '</span>' : '') + '</div>' +
+          (open ? '<div class="sn-draw">' + snDrawHTML(draws[t.page]) + '</div>' : '');
+      }).join('') + '</div>';
+      host.innerHTML = html + '<div class="fl-note">' + (en ? 'From Wikipedia, usually updated within hours of a match; no live scores.' : '数据来自维基百科，一般在比赛结束几小时内更新，没有实时比分。') + '</div>' + archiveFoot(d);
+      $('status').textContent = (en ? 'Snooker · ' : '斯诺克 · ') + (d.season || '');
+    });
+  }
+  function renderSnookerRank() {
+    var host = panelFor('panel-table');
+    host.innerHTML = '<div class="skeleton">正在获取排名…</div>';
+    archiveGet('snooker.json').then(function (d) {
+      var list = (d && d.rankings) || [];
+      if (!list.length) { host.innerHTML = archiveEmpty('斯诺克排名'); return; }
+      var en = LANG === 'en';
+      host.innerHTML = '<div class="note">' + (en ? 'World ranking, top 16' : '世界排名前 16') + '</div><div class="card tn-rk">' + list.map(function (x) {
+        return '<div class="tn-rr' + (x.c === 'CHN' ? ' cn' : '') + '"><span class="tn-rn">' + x.rank + '</span>' +
+          '<span class="vrs-mv ' + (x.mv > 0 ? 'up' : x.mv < 0 ? 'dn' : '') + '">' + (x.mv > 0 ? '▲' + x.mv : x.mv < 0 ? '▼' + (-x.mv) : '–') + '</span>' +
+          '<span class="sn-nat">' + esc(en ? x.c : SN_NAT_CN[x.c] || x.c) + '</span><span class="tn-rname">' + esc(snName(x.n)) + '</span>' +
+          '<span class="tn-pts">' + (x.pts ? x.pts.toLocaleString('en-US') : '') + '</span></div>';
+      }).join('') + '</div><div class="fl-note">' + (en ? 'Points over the last two seasons, as the tour counts them.' : '积分按巡回赛规则，累计最近两个赛季。') + '</div>' + archiveFoot(d);
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-tnp], [data-fav-tn], [data-tncn], [data-tnq], [data-tnall], [data-snx]');
+    if (!el) return;
+    e.stopPropagation();
+    if (el.dataset.favTn) { toggleFavTn(el); return; }
+    if (el.dataset.tnp) { pgOpen({ type: 'tennisPlayer', id: el.dataset.tnp, tour: el.dataset.tour || tnTour }); return; }
+    if (el.dataset.snx) {
+      snOpen[el.dataset.snx] = !snOpen[el.dataset.snx];
+      var ys = window.pageYOffset;
+      renderSnooker();
+      setTimeout(function () { window.scrollTo(0, ys); }, 0);
+      return;
+    }
+    if (el.dataset.tncn) { tnCNOnly = !tnCNOnly; lsSet('tnCN', tnCNOnly); }
+    else if (el.dataset.tnq) tnQual[el.dataset.tnq] = !tnQual[el.dataset.tnq];
+    else if (el.dataset.tnall) tnAll[el.dataset.tnall] = true;
+    var y = window.pageYOffset;
+    renderTennis();
+    setTimeout(function () { window.scrollTo(0, y); }, 0);
   }, true);
 
   /* ---------- UFC rankings (collected: ESPN only serves them as $refs) ---------- */
@@ -17718,6 +18250,12 @@ O
       setTab(tab);
       return;
     }
+    if (b.dataset.ttour) {
+      tnTour = b.dataset.ttour;
+      lsSet('ttour', tnTour);
+      setTab(tab);
+      return;
+    }
     if (b.dataset.egame) {
       esportsGame = b.dataset.egame;
       lsSet('egame', esportsGame);
@@ -18035,6 +18573,12 @@ O
       setTimeout(function () { el.classList.remove('spinning'); }, 500);
       return;
     }
+    if (sport === 'tennis' || sport === 'snooker') {
+      delete archive['snooker.json'];
+      setTab(tab);
+      setTimeout(function () { el.classList.remove('spinning'); }, 500);
+      return;
+    }
     if (sport === 'f1') {
       f1Cache = {};
       setTab(tab);
@@ -18073,6 +18617,7 @@ O
         if (esportsGame === 'lol') renderLolPicker(); else renderPandaPicker();
       }
       else if (sport === 'basketball') renderNbaPicker();
+      else if (sport === 'tennis') renderTennisPicker();
       else if (sport === 'fight') {
         if (fightLeague === 'boxing') renderBoxerPicker(); else renderFighterPicker();
       }
@@ -18089,6 +18634,14 @@ O
   });
 
   $('picker').addEventListener('change', function (e) {
+    if (sport === 'tennis') {
+      if (tnPickCount() > MAX_TENNIS) {
+        e.target.checked = false;
+        alert('最多只能选 ' + MAX_TENNIS + ' 位球员。');
+      }
+      $('pickCount').textContent = '已选 ' + tnPickCount() + ' / ' + MAX_TENNIS;
+      return;
+    }
     if (sport === 'esports') {
       var capE = esportsGame === 'lol' ? MAX_LOL : MAX_PANDA;
       if (document.querySelectorAll('#picker input:checked').length > capE) {
@@ -18138,6 +18691,7 @@ O
   $('saveTeams').addEventListener('click', function () {
     if (sport === 'f1') { saveFavDrivers(); return; }
     if (sport === 'basketball') { saveFavNba(); return; }
+    if (sport === 'tennis') { saveFavTennis(); return; }
     if (sport === 'esports') {
       if (esportsGame === 'lol') saveFavLol(); else saveFavPanda();
       return;

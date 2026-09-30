@@ -3169,6 +3169,75 @@
     return '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
   }
   var lastErr = null;
+  /* ---------- the last answer first ----------
+     Every board used to open on a skeleton and wait on ESPN or Riot, a
+     second or more on a phone far from their servers. The first screen of
+     each board now keeps its last answer on the device: opening shows that
+     at once, the network is asked as before, and when the fresh answer
+     differs the board is drawn again from it, quietly, where it stands. A
+     kept answer more than a week old is not shown; nor is one when the
+     refresh button asks for the network outright. */
+  var SWR_STORE = 'gs-swr-1', SWR_MAX = 7 * 864e5;
+  var swrSkip = false, swrQuiet = false, swrTimer = null, swrMem = {};
+  function swrKey(k) { return location.origin + '/__swr/' + encodeURIComponent(k); }
+  function swrCache() {
+    try { return window.caches ? caches.open(SWR_STORE).catch(function () { return null; }) : Promise.resolve(null); }
+    catch (e) { return Promise.resolve(null); }
+  }
+  function swrPeek(k) {
+    return swrCache().then(function (c) { return c ? c.match(swrKey(k)) : null; })
+      .then(function (r) { return r ? r.json() : null; })
+      .then(function (x) { return x && Date.now() - x.t < SWR_MAX ? x : null; })
+      .catch(function () { return null; });
+  }
+  function swrPut(k, raw) {
+    swrCache().then(function (c) {
+      if (c) return c.put(swrKey(k), new Response(JSON.stringify({ t: Date.now(), raw: raw }), { headers: { 'Content-Type': 'application/json' } }));
+    }).catch(function () {});
+  }
+  /* The loader's answer, the kept one first if there is one. fetchFn asks
+     the network; onFresh, if given, takes the fresh answer when it differs,
+     and without it the board is redrawn. */
+  function swrWrap(k, fetchFn, onFresh) {
+    // a fresh answer from the last five minutes is used as it is
+    var m = swrMem[k];
+    if (m && Date.now() - m.t < 300000) return Promise.resolve(m.d);
+    var kept = fetchFn().then(function (d) {
+      if (d) { swrMem[k] = { t: Date.now(), d: d }; swrPut(k, JSON.stringify(d)); }
+      return d;
+    });
+    if (swrSkip || m) return kept;
+    return swrPeek(k).then(function (old) {
+      if (!old) return kept;
+      var d0;
+      try { d0 = JSON.parse(old.raw); } catch (e) { return kept; }
+      // marked, so a loader's own memo never keeps a kept answer
+      Object.defineProperty(d0, '__swr', { value: true });
+      kept.then(function (d) {
+        if (!d || JSON.stringify(d) === old.raw) return;
+        if (onFresh) onFresh(d); else swrChanged();
+      });
+      return d0;
+    });
+  }
+  function swrJSON(url) { return swrWrap(url, function () { return getJSON(url); }); }
+  function swrChanged() {
+    clearTimeout(swrTimer);
+    swrTimer = setTimeout(swrRedraw, 200);
+  }
+  // the board drawn again from the fresh answers, unless someone is reading something open on it
+  function swrRedraw() {
+    if (document.documentElement.classList.contains('pg-open')) return;
+    var shown = ['panel-today', 'panel-fixtures', 'panel-table', 'panel-mine'].map($).filter(function (p) { return p && !p.hidden; });
+    if (shown.some(function (p) { return p.querySelector('.detail, .bout-detail, .panda-detail'); })) return;
+    var y = window.pageYOffset;
+    swrQuiet = true;
+    if (sport === 'today') renderToday();
+    else if (sport !== 'football') setTab(tab);
+    setTimeout(function () { window.scrollTo(0, y); }, 0);
+    setTimeout(function () { window.scrollTo(0, y); swrQuiet = false; }, 400);
+  }
+
   function getJSON(url) {
     return fetch(url).then(function (r) {
       if (!r.ok) { lastErr = 'HTTP ' + r.status; return null; }
@@ -3610,7 +3679,7 @@
         el.innerHTML = html;
         groupSections(el);
         // loading states shouldn't animate in and then out again a moment later
-        if (html.indexOf('class="skeleton"') !== -1) { el.classList.remove('panel-in'); return; }
+        if (html.indexOf('class="skeleton"') !== -1 || swrQuiet) { el.classList.remove('panel-in'); return; }
         el.classList.remove('panel-in');
         void el.offsetWidth;   // restart the animation on a re-render
         el.classList.add('panel-in');
@@ -3950,21 +4019,38 @@
     } else {
       for (var i = -7; i <= 7; i++) reqs.push(ymd(i));
     }
-    return Promise.all(reqs.map(function (range) {
-      return getJSON(API + 'site/v2/sports/soccer/' + league + '/scoreboard?dates=' + range);
-    })).then(function (parts) {
-      var seen = {};
-      events = [];
-      parts.forEach(function (p) {
-        if (!p || !p.events) return;
-        p.events.forEach(function (ev) {
-          if (seen[ev.id]) return;
-          seen[ev.id] = 1;
-          events.push(ev);
-          eventById[ev.id] = ev;
+    var lg = league;
+    function use(evs) {
+      events = evs.slice();
+      events.forEach(function (ev) { eventById[ev.id] = ev; });
+    }
+    return swrWrap('football:' + lg, function () {
+      return Promise.all(reqs.map(function (range) {
+        return getJSON(API + 'site/v2/sports/soccer/' + lg + '/scoreboard?dates=' + range);
+      })).then(function (parts) {
+        var seen = {}, evs = [];
+        parts.forEach(function (p) {
+          if (!p || !p.events) return;
+          p.events.forEach(function (ev) {
+            if (seen[ev.id]) return;
+            seen[ev.id] = 1;
+            evs.push(ev);
+          });
         });
+        // nothing at all back means the network failed, not an empty fortnight
+        if (!evs.length && parts.every(function (p) { return !p; })) return null;
+        return evs.sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
       });
-      events.sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+    }, function (evs) {
+      // the fresh fortnight over the kept one, open matches left open
+      if (lg !== league) return;
+      use(evs);
+      if (viewStale(tk)) return;
+      renderFixturesKeep([]);
+      scheduleAutoRefresh();
+    }).then(function (evs) {
+      if (lg !== league) return;
+      use(evs || []);
       if (viewStale(tk)) return;
       renderFixtures();
       scheduleAutoRefresh();
@@ -6466,7 +6552,7 @@
   function f1Season() {
     if (f1Cache.season) return Promise.resolve(f1Cache.season);
     var year = new Date().getFullYear();
-    return getJSON(API + 'site/v2/sports/racing/f1/scoreboard?dates=' + year).then(function (d) {
+    return swrJSON(API + 'site/v2/sports/racing/f1/scoreboard?dates=' + year).then(function (d) {
       /* ESPN marks a grand prix Final as soon as its first practice ends —
          Baku read as finished on Thursday with the race still on Saturday,
          so the board skipped straight past it. The race session carries its
@@ -6476,14 +6562,14 @@
         var r = raceOf(ev);
         if (r && r.status && r.status.type) ev.status = r.status;
       });
-      f1Cache.season = d;
+      if (!(d && d.__swr)) f1Cache.season = d;
       return d;
     });
   }
   function f1Standings() {
     if (f1Cache.standings) return Promise.resolve(f1Cache.standings);
-    return getJSON(API + 'v2/sports/racing/f1/standings').then(function (d) {
-      f1Cache.standings = d;
+    return swrJSON(API + 'v2/sports/racing/f1/standings').then(function (d) {
+      if (!(d && d.__swr)) f1Cache.standings = d;
       return d;
     });
   }
@@ -10782,12 +10868,12 @@ O
     var jobs = [];
     favorites.forEach(function (f) {
       var base = API + 'site/v2/sports/soccer/' + (f.league || 'eng.1') + '/teams/' + f.id + '/schedule';
-      jobs.push(Promise.all([getJSON(base), getJSON(base + '?fixture=true')]).then(function (r) {
+      jobs.push(Promise.all([swrJSON(base), swrJSON(base + '?fixture=true')]).then(function (r) {
         return { kind: 'team', fav: f, past: r[0], future: r[1] };
       }));
     });
     favNba.forEach(function (f) {
-      jobs.push(getJSON(API + NBA + 'teams/' + f.id + '/schedule').then(function (d) {
+      jobs.push(swrJSON(API + NBA + 'teams/' + f.id + '/schedule').then(function (d) {
         return { kind: 'nba', fav: f, sched: d };
       }));
     });
@@ -11299,6 +11385,9 @@ O
   // so use that as the anchor instead of today.
   function nbaWindow() {
     if (nbaCache.window) return Promise.resolve(nbaCache.window);
+    return swrWrap('nba:window', nbaWindowFresh);
+  }
+  function nbaWindowFresh() {
     return getJSON(API + NBA + 'scoreboard').then(function (d) {
       var anchor = new Date();
       var dd = d && d.day && d.day.date;
@@ -13722,10 +13811,14 @@ O
     // the league publishes in both; an English reader gets its English
     if (LANG === 'en') path = path.replace('hl=zh-CN', 'hl=en-US');
     if (lolCache[path]) return Promise.resolve(lolCache[path]);
-    return fetch(LOL + path, LOL_HDR)
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d) lolCache[path] = d; return d; })
-      .catch(function () { return null; });
+    function ask() {
+      return fetch(LOL + path, LOL_HDR)
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d) lolCache[path] = d; return d; })
+        .catch(function () { return null; });
+    }
+    // the first screen's two asks keep their last answer; the rest are asked fresh
+    return /^get(Leagues|Schedule)\?/.test(path) ? swrWrap('lol:' + path, ask) : ask();
   }
   function lolLeagues() {
     return lolGet('getLeagues?hl=zh-CN').then(function (d) {
@@ -14792,8 +14885,8 @@ O
 
   function ufcSeason() {
     if (ufcCache.season) return Promise.resolve(ufcCache.season);
-    return getJSON(API + UFC + 'scoreboard').then(function (d) {
-      if (d) ufcCache.season = d;
+    return swrJSON(API + UFC + 'scoreboard').then(function (d) {
+      if (d && !d.__swr) ufcCache.season = d;
       return d;
     });
   }
@@ -17691,6 +17784,9 @@ O
 
   $('refreshBtn').addEventListener('click', function () {
     var el = $('refreshBtn');
+    swrSkip = true;
+    swrMem = {};
+    setTimeout(function () { swrSkip = false; }, 8000);
     el.classList.add('spinning');
     if (sport === 'today') {
       renderToday();

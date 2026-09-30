@@ -2,7 +2,7 @@
    The page is a live scoreboard, so a stale copy must never win over the
    network; the cache only exists so the app still opens when offline, or
    when the network is too slow to be worth waiting on. */
-var CACHE = 'grandstand-v31';
+var CACHE = 'grandstand-v32';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 /* How long the page waits on the network before opening from the cache.
@@ -24,7 +24,8 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (k) {
-        return k === CACHE ? null : caches.delete(k);
+        // the page's own kept answers (gs-swr-…) outlive a new build
+        return k === CACHE || k.indexOf('gs-swr') === 0 ? null : caches.delete(k);
       }));
     }).then(function () { return self.clients.claim(); })
   );
